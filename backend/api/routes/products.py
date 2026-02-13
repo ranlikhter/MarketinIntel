@@ -8,11 +8,12 @@ These endpoints handle all operations related to products:
 - Triggering scrapes
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
 from datetime import datetime
+import asyncio
 
 # Import our database stuff
 import sys
@@ -20,7 +21,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory
+from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite
+from scrapers.scraper_manager import scrape_url, search_products
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
@@ -249,27 +251,210 @@ def get_price_history(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{product_id}/scrape")
-def trigger_scrape(product_id: int, db: Session = Depends(get_db)):
+async def trigger_scrape(
+    product_id: int,
+    background_tasks: BackgroundTasks,
+    website: str = "amazon.com",
+    max_results: int = 5,
+    db: Session = Depends(get_db)
+):
     """
     POST /products/{id}/scrape
 
     Manually trigger a scrape for this product.
-    This will search Amazon and update competitor matches.
+    This will search for the product on specified competitors and update matches.
 
-    (We'll implement the actual scraping logic next!)
+    Query params:
+    - website: Which site to search (default: amazon.com)
+    - max_results: Max products to find (default: 5)
     """
     # Check if product exists
     product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # TODO: Call the scraper here
-    # For now, just return a message
-    return {
-        "status": "scrape_triggered",
-        "product_id": product_id,
-        "message": "Scraping functionality will be implemented next!"
+    # Search for the product on the specified website
+    try:
+        search_results = await search_products(product.title, website, max_results)
+
+        if isinstance(search_results, dict) and search_results.get('error'):
+            return {
+                "status": "error",
+                "product_id": product_id,
+                "error": search_results['error']
+            }
+
+        # Save each result as a competitor match
+        matches_created = 0
+        for result in search_results:
+            if not result.get('url'):
+                continue
+
+            # Check if match already exists
+            existing = db.query(CompetitorMatch).filter(
+                CompetitorMatch.monitored_product_id == product_id,
+                CompetitorMatch.competitor_url == result['url']
+            ).first()
+
+            if existing:
+                # Update existing match
+                existing.competitor_title = result.get('title', '')
+                existing.competitor_image_url = result.get('image_url')
+                existing.last_crawled_at = datetime.utcnow()
+                match_id = existing.id
+            else:
+                # Create new match
+                new_match = CompetitorMatch(
+                    monitored_product_id=product_id,
+                    competitor_name=website.split('.')[0].capitalize(),
+                    competitor_url=result['url'],
+                    competitor_title=result.get('title', ''),
+                    competitor_image_url=result.get('image_url'),
+                    match_score=85.0  # Default score for search results
+                )
+                db.add(new_match)
+                db.flush()  # Get the ID
+                match_id = new_match.id
+                matches_created += 1
+
+            # Save price history
+            if result.get('price'):
+                price_record = PriceHistory(
+                    match_id=match_id,
+                    price=result['price'],
+                    currency=result.get('currency', 'USD'),
+                    in_stock=True
+                )
+                db.add(price_record)
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "product_id": product_id,
+            "website": website,
+            "matches_found": len(search_results),
+            "matches_created": matches_created,
+            "results": search_results
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "product_id": product_id,
+            "error": str(e)
+        }
+
+
+@router.post("/{product_id}/scrape-url")
+async def scrape_competitor_url(
+    product_id: int,
+    competitor_url: str,
+    competitor_website_id: int | None = None,
+    db: Session = Depends(get_db)
+):
+    """
+    POST /products/{id}/scrape-url
+
+    Scrape a specific competitor URL and link it to this product.
+
+    Body:
+    {
+        "competitor_url": "https://competitor.com/product/123",
+        "competitor_website_id": 1  # Optional: Use CSS selectors from registered competitor
     }
+    """
+    # Check if product exists
+    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Get CSS selectors if competitor website is registered
+    price_selector = None
+    title_selector = None
+    stock_selector = None
+    image_selector = None
+    competitor_name = "Custom Competitor"
+
+    if competitor_website_id:
+        comp_website = db.query(CompetitorWebsite).filter(
+            CompetitorWebsite.id == competitor_website_id
+        ).first()
+
+        if comp_website:
+            price_selector = comp_website.price_selector
+            title_selector = comp_website.title_selector
+            stock_selector = comp_website.stock_selector
+            image_selector = comp_website.image_selector
+            competitor_name = comp_website.name
+
+    # Scrape the URL
+    try:
+        result = await scrape_url(
+            competitor_url,
+            price_selector,
+            title_selector,
+            stock_selector,
+            image_selector
+        )
+
+        if result.get('error'):
+            return {
+                "status": "error",
+                "error": result['error'],
+                "result": result
+            }
+
+        # Check if match already exists
+        existing = db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id == product_id,
+            CompetitorMatch.competitor_url == competitor_url
+        ).first()
+
+        if existing:
+            # Update existing match
+            existing.competitor_title = result.get('title', '')
+            existing.competitor_image_url = result.get('image_url')
+            existing.last_crawled_at = datetime.utcnow()
+            match_id = existing.id
+        else:
+            # Create new match
+            new_match = CompetitorMatch(
+                monitored_product_id=product_id,
+                competitor_name=competitor_name,
+                competitor_url=competitor_url,
+                competitor_title=result.get('title', ''),
+                competitor_image_url=result.get('image_url'),
+                match_score=100.0  # Manual match
+            )
+            db.add(new_match)
+            db.flush()
+            match_id = new_match.id
+
+        # Save price history
+        if result.get('price'):
+            price_record = PriceHistory(
+                match_id=match_id,
+                price=result['price'],
+                currency=result.get('currency', 'USD'),
+                in_stock=result.get('in_stock', True)
+            )
+            db.add(price_record)
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "product_id": product_id,
+            "match_id": match_id,
+            "scraped_data": result
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
 
 @router.delete("/{product_id}")
