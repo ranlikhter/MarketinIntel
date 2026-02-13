@@ -81,3 +81,34 @@ class PriceHistory(Base):
 
     def __repr__(self):
         return f"<PriceHistory(id={self.id}, price={self.price}, timestamp={self.timestamp})>"
+
+
+class CompetitorWebsite(Base):
+    """
+    Table: competitor_websites
+    Stores custom competitor websites that clients want to monitor.
+
+    This allows users to add their own private competitor websites
+    (not just Amazon/eBay). For example: "mycompetitor.com", "rival-store.com"
+    """
+    __tablename__ = "competitor_websites"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)           # e.g., "Competitor Store", "Rival Electronics"
+    base_url = Column(String(500), nullable=False)       # e.g., "https://www.competitor.com"
+    website_type = Column(String(50), default="custom")  # "custom", "amazon", "walmart", etc.
+
+    # CSS Selectors for scraping (user can configure these)
+    price_selector = Column(String(500), nullable=True)       # e.g., ".product-price", "#price"
+    title_selector = Column(String(500), nullable=True)       # e.g., "h1.product-title"
+    stock_selector = Column(String(500), nullable=True)       # e.g., ".availability"
+    image_selector = Column(String(500), nullable=True)       # e.g., "img.product-image"
+
+    # Status and metadata
+    is_active = Column(Boolean, default=True)            # Can be disabled without deleting
+    notes = Column(Text, nullable=True)                  # User notes about this competitor
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<CompetitorWebsite(id={self.id}, name='{self.name}', url='{self.base_url}')>"

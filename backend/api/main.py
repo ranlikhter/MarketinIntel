@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Import our API routes (we'll create these next)
-from api.routes import products
+# Import our API routes
+from api.routes import products, competitors
 
 # Create the FastAPI application
 app = FastAPI(
     title="MarketIntel API",
-    description="E-commerce Competitive Intelligence Platform",
-    version="1.0.0",
+    description="E-commerce Competitive Intelligence Platform - Monitor ANY competitor website",
+    version="1.1.0",
     docs_url="/docs",  # Swagger UI documentation at http://localhost:8000/docs
     redoc_url="/redoc"  # ReDoc documentation at http://localhost:8000/redoc
 )
@@ -38,7 +38,8 @@ app.add_middleware(
 )
 
 # Include our routes
-app.include_router(products.router, prefix="/products", tags=["products"])
+app.include_router(products.router, prefix="/products", tags=["Products"])
+app.include_router(competitors.router, prefix="/competitors", tags=["Competitor Websites"])
 
 
 @app.get("/")
