@@ -1,0 +1,26 @@
+# Core Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Database
+sqlalchemy>=2.0.36
+
+# Web Scraping
+playwright>=1.49.0
+beautifulsoup4>=4.12.3
+
+# Utilities
+python-dotenv>=1.0.1
+fake-useragent>=1.5.1
+Levenshtein>=0.26.1
+
+# Data Validation
+pydantic>=2.10.4
+pydantic-settings>=2.7.0
+
+# HTTP Requests
+httpx>=0.28.1
+requests>=2.32.3
+
+# CORS Support
+python-multipart>=0.0.20
