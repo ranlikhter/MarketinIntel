@@ -286,9 +286,56 @@ class User(Base):
     alerts = relationship("PriceAlert", back_populates="user", cascade="all, delete-orphan")
     workspaces_owned = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
     workspace_memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
+    saved_views = relationship("SavedView", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
+
+
+class SavedView(Base):
+    """
+    Table: saved_views
+    Stores user's saved filter combinations for quick access
+
+    Examples:
+    - "Problem Products" - Most expensive + high competition
+    - "Black Friday Prep" - High opportunity + trending
+    - "Quick Wins" - Competitor out of stock
+    """
+    __tablename__ = "saved_views"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True)  # For team-shared views
+
+    # View details
+    name = Column(String(255), nullable=False)  # e.g., "Problem Products"
+    description = Column(Text, nullable=True)  # Optional description
+    icon = Column(String(50), nullable=True)  # Optional emoji/icon
+
+    # Filter configuration (stored as JSON)
+    filters = Column(JSON, nullable=False)  # {"price_position": "most_expensive", "competition_level": "high"}
+
+    # View settings
+    is_default = Column(Boolean, default=False)  # Default view on page load
+    is_shared = Column(Boolean, default=False)  # Shared with workspace (Business/Enterprise)
+    sort_by = Column(String(50), nullable=True)  # "created_at", "title", "opportunity_score"
+    sort_order = Column(String(10), default="desc")  # "asc" or "desc"
+
+    # Usage stats
+    use_count = Column(Integer, default=0)  # How many times this view was loaded
+    last_used_at = Column(DateTime, nullable=True)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="saved_views")
+    workspace = relationship("Workspace")
+
+    def __repr__(self):
+        return f"<SavedView(id={self.id}, name='{self.name}', user_id={self.user_id})>"
 
 
 class Workspace(Base):
