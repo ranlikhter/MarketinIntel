@@ -11,8 +11,9 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 
 from database.connection import get_db
-from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory
+from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
 from services.email_service import email_service
+from api.dependencies import get_current_user, check_usage_limit
 
 router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
 
@@ -58,18 +59,27 @@ class AlertResponse(BaseModel):
 # ============================================
 
 @router.post("/", response_model=AlertResponse)
-async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
+async def create_alert(
+    alert: AlertCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Create a new price alert rule
+    Requires authentication. Enforces usage limits based on subscription tier.
 
     - **product_id**: Product to monitor
     - **alert_type**: "price_drop", "price_increase", "any_change", "out_of_stock"
     - **threshold_pct**: Percentage change threshold (e.g., 5.0 for 5%)
     - **email**: Email address to send alerts to
     """
-    # Verify product exists
+    # Check if user has reached their alerts limit
+    check_usage_limit(current_user, "alerts", db)
+
+    # Verify product exists and belongs to current user
     product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
+        ProductMonitored.id == alert.product_id,
+        ProductMonitored.user_id == current_user.id
     ).first()
 
     if not product:
@@ -82,7 +92,8 @@ async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
         threshold_pct=alert.threshold_pct,
         threshold_amount=alert.threshold_amount,
         email=alert.email,
-        cooldown_hours=alert.cooldown_hours
+        cooldown_hours=alert.cooldown_hours,
+        user_id=current_user.id  # Associate alert with user
     )
 
     db.add(new_alert)
@@ -102,15 +113,17 @@ async def create_alert(alert: AlertCreate, db: Session = Depends(get_db)):
 async def get_alerts(
     product_id: Optional[int] = None,
     enabled_only: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
-    Get all alert rules
+    Get all alert rules for the authenticated user
+    Requires authentication. Only returns alerts owned by the current user.
 
     - **product_id**: Filter by product (optional)
     - **enabled_only**: Only return enabled alerts
     """
-    query = db.query(PriceAlert)
+    query = db.query(PriceAlert).filter(PriceAlert.user_id == current_user.id)
 
     if product_id:
         query = query.filter(PriceAlert.product_id == product_id)
@@ -136,9 +149,19 @@ async def get_alerts(
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)
-async def get_alert(alert_id: int, db: Session = Depends(get_db)):
-    """Get a specific alert by ID"""
-    alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).first()
+async def get_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get a specific alert by ID
+    Requires authentication. Only returns alerts owned by the current user.
+    """
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
 
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -157,10 +180,17 @@ async def get_alert(alert_id: int, db: Session = Depends(get_db)):
 async def update_alert(
     alert_id: int,
     update: AlertUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Update an existing alert"""
-    alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).first()
+    """
+    Update an existing alert
+    Requires authentication. Only allows updating alerts owned by the current user.
+    """
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
 
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -195,9 +225,19 @@ async def update_alert(
 
 
 @router.delete("/{alert_id}")
-async def delete_alert(alert_id: int, db: Session = Depends(get_db)):
-    """Delete an alert"""
-    alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).first()
+async def delete_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete an alert
+    Requires authentication. Only allows deleting alerts owned by the current user.
+    """
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
 
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -209,9 +249,19 @@ async def delete_alert(alert_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{alert_id}/toggle")
-async def toggle_alert(alert_id: int, db: Session = Depends(get_db)):
-    """Enable/disable an alert"""
-    alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).first()
+async def toggle_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Enable/disable an alert
+    Requires authentication. Only allows toggling alerts owned by the current user.
+    """
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
 
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")

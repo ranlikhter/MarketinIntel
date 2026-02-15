@@ -21,8 +21,9 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite
+from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User
 from scrapers.scraper_manager import scrape_url, search_products
+from api.dependencies import get_current_user, check_usage_limit
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
@@ -92,12 +93,17 @@ class PriceHistoryResponse(BaseModel):
 # API ENDPOINTS
 
 @router.post("/", response_model=ProductResponse, status_code=201)
-def create_product(product: ProductCreate, db: Session = Depends(get_db)):
+def create_product(
+    product: ProductCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     POST /products
 
     Add a new product to monitor.
     The frontend sends product details, we save it to database.
+    Requires authentication. Enforces usage limits based on subscription tier.
 
     Example request:
     {
@@ -105,12 +111,16 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db)):
         "brand": "Sony"
     }
     """
+    # Check if user has reached their product limit
+    check_usage_limit(current_user, "products", db)
+
     # Create a new ProductMonitored record
     db_product = ProductMonitored(
         title=product.title,
         sku=product.sku,
         brand=product.brand,
-        image_url=product.image_url
+        image_url=product.image_url,
+        user_id=current_user.id  # Associate product with user
     )
 
     db.add(db_product)
@@ -130,14 +140,21 @@ def create_product(product: ProductCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=List[ProductResponse])
-def get_all_products(db: Session = Depends(get_db)):
+def get_all_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     GET /products
 
-    Get all monitored products.
+    Get all monitored products for the authenticated user.
     Returns a list of products with their competitor counts.
+    Requires authentication.
     """
-    products = db.query(ProductMonitored).all()
+    # Only return products that belong to the current user
+    products = db.query(ProductMonitored).filter(
+        ProductMonitored.user_id == current_user.id
+    ).all()
 
     # Convert to response format with competitor counts
     response_products = []
@@ -156,13 +173,21 @@ def get_all_products(db: Session = Depends(get_db)):
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
-def get_product(product_id: int, db: Session = Depends(get_db)):
+def get_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     GET /products/{id}
 
     Get a specific product by ID.
+    Requires authentication. Only returns products owned by the current user.
     """
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id  # Security: only show user's own products
+    ).first()
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -179,15 +204,23 @@ def get_product(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{product_id}/matches", response_model=List[CompetitorMatchResponse])
-def get_product_matches(product_id: int, db: Session = Depends(get_db)):
+def get_product_matches(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     GET /products/{id}/matches
 
     Get all competitor matches for a product.
     Includes the latest price for each match.
+    Requires authentication. Only returns matches for products owned by the current user.
     """
-    # Check if product exists
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    # Check if product exists and belongs to current user
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -220,15 +253,23 @@ def get_product_matches(product_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{product_id}/price-history", response_model=List[PriceHistoryResponse])
-def get_price_history(product_id: int, db: Session = Depends(get_db)):
+def get_price_history(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     GET /products/{id}/price-history
 
     Get price history for all competitors of a product.
     Used to display the price chart.
+    Requires authentication. Only returns data for products owned by the current user.
     """
-    # Check if product exists
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    # Check if product exists and belongs to current user
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
@@ -256,20 +297,25 @@ async def trigger_scrape(
     background_tasks: BackgroundTasks,
     website: str = "amazon.com",
     max_results: int = 5,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     POST /products/{id}/scrape
 
     Manually trigger a scrape for this product.
     This will search for the product on specified competitors and update matches.
+    Requires authentication. Only allows scraping products owned by the current user.
 
     Query params:
     - website: Which site to search (default: amazon.com)
     - max_results: Max products to find (default: 5)
     """
-    # Check if product exists
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    # Check if product exists and belongs to current user
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
