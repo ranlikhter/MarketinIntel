@@ -21,10 +21,30 @@ router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
 # Pydantic models
 class AlertCreate(BaseModel):
     product_id: int
-    alert_type: str  # "price_drop", "price_increase", "any_change", "out_of_stock"
+    alert_type: str  # See PriceAlert model for all 10 supported types
     threshold_pct: float = 5.0
     threshold_amount: Optional[float] = None
+
+    # Notification channels
     email: EmailStr
+    notify_email: bool = True
+    notify_sms: bool = False
+    notify_slack: bool = False
+    notify_discord: bool = False
+    notify_push: bool = False
+
+    # Channel-specific settings
+    phone_number: Optional[str] = None
+    slack_webhook_url: Optional[str] = None
+    discord_webhook_url: Optional[str] = None
+
+    # Delivery preferences
+    digest_frequency: str = "instant"  # "instant", "daily", "weekly"
+    quiet_hours_enabled: bool = False
+    quiet_hours_start: Optional[int] = None  # Hour 0-23
+    quiet_hours_end: Optional[int] = None  # Hour 0-23
+
+    # Frequency control
     cooldown_hours: int = 24
 
 
@@ -32,7 +52,27 @@ class AlertUpdate(BaseModel):
     alert_type: Optional[str] = None
     threshold_pct: Optional[float] = None
     threshold_amount: Optional[float] = None
+
+    # Notification channels
     email: Optional[EmailStr] = None
+    notify_email: Optional[bool] = None
+    notify_sms: Optional[bool] = None
+    notify_slack: Optional[bool] = None
+    notify_discord: Optional[bool] = None
+    notify_push: Optional[bool] = None
+
+    # Channel-specific settings
+    phone_number: Optional[str] = None
+    slack_webhook_url: Optional[str] = None
+    discord_webhook_url: Optional[str] = None
+
+    # Delivery preferences
+    digest_frequency: Optional[str] = None
+    quiet_hours_enabled: Optional[bool] = None
+    quiet_hours_start: Optional[int] = None
+    quiet_hours_end: Optional[int] = None
+
+    # Status
     enabled: Optional[bool] = None
     cooldown_hours: Optional[int] = None
 
@@ -44,10 +84,31 @@ class AlertResponse(BaseModel):
     alert_type: str
     threshold_pct: float
     threshold_amount: Optional[float]
+
+    # Notification channels
     email: str
+    notify_email: bool
+    notify_sms: bool
+    notify_slack: bool
+    notify_discord: bool
+    notify_push: bool
+
+    # Channel settings
+    phone_number: Optional[str]
+    slack_webhook_url: Optional[str]
+    discord_webhook_url: Optional[str]
+
+    # Delivery preferences
+    digest_frequency: str
+    quiet_hours_enabled: bool
+    quiet_hours_start: Optional[int]
+    quiet_hours_end: Optional[int]
+
+    # Status
     enabled: bool
     cooldown_hours: int
     last_triggered_at: Optional[datetime]
+    trigger_count: int
     created_at: datetime
 
     class Config:
@@ -65,13 +126,26 @@ async def create_alert(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Create a new price alert rule
-    Requires authentication. Enforces usage limits based on subscription tier.
+    Create a new smart alert rule with multi-channel notifications
 
-    - **product_id**: Product to monitor
-    - **alert_type**: "price_drop", "price_increase", "any_change", "out_of_stock"
-    - **threshold_pct**: Percentage change threshold (e.g., 5.0 for 5%)
-    - **email**: Email address to send alerts to
+    Supported alert types:
+    - price_drop: Price decreased
+    - price_increase: Price increased
+    - any_change: Any price change
+    - out_of_stock: Competitor out of stock (opportunity!)
+    - price_war: Multiple competitors dropped prices
+    - new_competitor: New competitor detected
+    - most_expensive: You're most expensive
+    - competitor_raised: Competitor increased price
+    - back_in_stock: Competitor restocked
+    - market_trend: Market trending up/down
+
+    Notification channels:
+    - Email (default)
+    - SMS (requires phone_number)
+    - Slack (requires slack_webhook_url)
+    - Discord (requires discord_webhook_url)
+    - Push (PWA push notifications)
     """
     # Check if user has reached their alerts limit
     check_usage_limit(current_user, "alerts", db)
@@ -85,13 +159,25 @@ async def create_alert(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Create alert
+    # Create alert with all new fields
     new_alert = PriceAlert(
         product_id=alert.product_id,
         alert_type=alert.alert_type,
         threshold_pct=alert.threshold_pct,
         threshold_amount=alert.threshold_amount,
         email=alert.email,
+        notify_email=alert.notify_email,
+        notify_sms=alert.notify_sms,
+        notify_slack=alert.notify_slack,
+        notify_discord=alert.notify_discord,
+        notify_push=alert.notify_push,
+        phone_number=alert.phone_number,
+        slack_webhook_url=alert.slack_webhook_url,
+        discord_webhook_url=alert.discord_webhook_url,
+        digest_frequency=alert.digest_frequency,
+        quiet_hours_enabled=alert.quiet_hours_enabled,
+        quiet_hours_start=alert.quiet_hours_start,
+        quiet_hours_end=alert.quiet_hours_end,
         cooldown_hours=alert.cooldown_hours,
         user_id=current_user.id  # Associate alert with user
     )
@@ -431,3 +517,154 @@ async def test_alert(alert_id: int, db: Session = Depends(get_db)):
         return {"success": True, "message": f"Test alert sent to {alert.email}"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send test email")
+
+# ============================================
+# Smart Alerts (New Feature #2)
+# ============================================
+
+@router.get("/types")
+async def get_alert_types():
+    """
+    Get all available smart alert types
+
+    Returns list of all 10 supported alert types with descriptions
+    """
+    from services.smart_alert_service import SmartAlertService
+
+    return {
+        "alert_types": [
+            {
+                "value": "price_drop",
+                "label": "Price Drop",
+                "description": "Notify when price decreases",
+                "icon": "📉"
+            },
+            {
+                "value": "price_increase",
+                "label": "Price Increase",
+                "description": "Notify when price increases",
+                "icon": "📈"
+            },
+            {
+                "value": "any_change",
+                "label": "Any Price Change",
+                "description": "Notify on any price movement",
+                "icon": "💱"
+            },
+            {
+                "value": "out_of_stock",
+                "label": "Competitor Out of Stock",
+                "description": "Opportunity! Competitor inventory depleted",
+                "icon": "🚫"
+            },
+            {
+                "value": "price_war",
+                "label": "Price War Detected",
+                "description": "Multiple competitors dropped prices (3+ in 24h)",
+                "icon": "⚔️"
+            },
+            {
+                "value": "new_competitor",
+                "label": "New Competitor",
+                "description": "New seller detected for your product",
+                "icon": "🆕"
+            },
+            {
+                "value": "most_expensive",
+                "label": "You're Most Expensive",
+                "description": "Warning: Your price is highest",
+                "icon": "⚠️"
+            },
+            {
+                "value": "competitor_raised",
+                "label": "Competitor Raised Price",
+                "description": "Opportunity! Competitor became less competitive",
+                "icon": "📊"
+            },
+            {
+                "value": "back_in_stock",
+                "label": "Back In Stock",
+                "description": "Competitor restocked after being out",
+                "icon": "✅"
+            },
+            {
+                "value": "market_trend",
+                "label": "Market Trend",
+                "description": "Overall market prices trending up/down",
+                "icon": "📉"
+            }
+        ]
+    }
+
+
+@router.post("/{alert_id}/check-now")
+async def check_alert_now(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Manually trigger alert check (ignores cooldown)
+
+    Useful for testing alert conditions immediately
+    """
+    from services.smart_alert_service import get_smart_alert_service
+
+    # Verify alert belongs to current user
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
+
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    # Check alert conditions
+    alert_service = get_smart_alert_service(db)
+
+    # Temporarily disable cooldown for manual check
+    original_cooldown = alert.cooldown_hours
+    alert.cooldown_hours = 0
+
+    try:
+        triggered = alert_service._should_trigger_alert(alert)
+
+        if triggered:
+            alert_service._trigger_alert(alert)
+            return {
+                "success": True,
+                "triggered": True,
+                "message": "Alert conditions met and notifications sent"
+            }
+        else:
+            return {
+                "success": True,
+                "triggered": False,
+                "message": "Alert conditions not met at this time"
+            }
+    finally:
+        # Restore original cooldown
+        alert.cooldown_hours = original_cooldown
+        db.commit()
+
+
+@router.post("/check-all")
+async def check_all_user_alerts(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check all alerts for current user
+
+    Useful for triggering a full alert check on-demand
+    """
+    from tasks.smart_alert_tasks import check_user_smart_alerts
+
+    # Trigger async task to check all user's alerts
+    task = check_user_smart_alerts.delay(current_user.id)
+
+    return {
+        "success": True,
+        "message": "Alert check queued",
+        "task_id": task.id
+    }

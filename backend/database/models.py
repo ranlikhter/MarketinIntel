@@ -151,6 +151,18 @@ class PriceAlert(Base):
     """
     Table: price_alerts
     Stores user-defined alert rules for price changes
+
+    Supported Alert Types:
+    - price_drop: Price decreased
+    - price_increase: Price increased
+    - any_change: Any price change
+    - out_of_stock: Competitor out of stock
+    - price_war: Multiple competitors dropped prices (3+ in 24h)
+    - new_competitor: New competitor detected
+    - most_expensive: You're most expensive
+    - competitor_raised: Competitor increased price (opportunity)
+    - back_in_stock: Competitor restocked
+    - market_trend: Overall market trending up/down
     """
     __tablename__ = "price_alerts"
 
@@ -159,17 +171,36 @@ class PriceAlert(Base):
     product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False)
 
     # Alert configuration
-    alert_type = Column(String(50), nullable=False)  # "price_drop", "price_increase", "any_change", "out_of_stock"
+    alert_type = Column(String(50), nullable=False)  # See alert types above
     threshold_pct = Column(Float, nullable=False, default=5.0)  # Trigger when price changes by this %
     threshold_amount = Column(Float, nullable=True)  # Or trigger when price changes by this amount
 
-    # Notification settings
+    # Multi-channel notification settings
     email = Column(String(255), nullable=False)  # Email to send alerts to
+    notify_email = Column(Boolean, default=True)  # Send email notifications
+    notify_sms = Column(Boolean, default=False)  # Send SMS notifications
+    notify_slack = Column(Boolean, default=False)  # Send Slack notifications
+    notify_discord = Column(Boolean, default=False)  # Send Discord notifications
+    notify_push = Column(Boolean, default=False)  # Send push notifications (PWA)
+
+    # Channel-specific settings
+    phone_number = Column(String(20), nullable=True)  # For SMS
+    slack_webhook_url = Column(String(500), nullable=True)  # Slack webhook URL
+    discord_webhook_url = Column(String(500), nullable=True)  # Discord webhook URL
+
+    # Delivery preferences
+    digest_frequency = Column(String(20), default="instant")  # "instant", "daily", "weekly"
+    quiet_hours_enabled = Column(Boolean, default=False)
+    quiet_hours_start = Column(Integer, nullable=True)  # Hour of day (0-23)
+    quiet_hours_end = Column(Integer, nullable=True)  # Hour of day (0-23)
+
+    # Alert status
     enabled = Column(Boolean, default=True)  # Can be disabled without deleting
 
     # Frequency control
     cooldown_hours = Column(Integer, default=24)  # Don't send duplicate alerts within this period
     last_triggered_at = Column(DateTime, nullable=True)  # When was this alert last sent
+    trigger_count = Column(Integer, default=0)  # How many times this alert has fired
 
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -181,6 +212,37 @@ class PriceAlert(Base):
 
     def __repr__(self):
         return f"<PriceAlert(id={self.id}, product_id={self.product_id}, type='{self.alert_type}', threshold={self.threshold_pct}%)>"
+
+    def is_in_quiet_hours(self) -> bool:
+        """Check if current time is within quiet hours"""
+        if not self.quiet_hours_enabled:
+            return False
+
+        from datetime import datetime
+        current_hour = datetime.utcnow().hour
+
+        if self.quiet_hours_start < self.quiet_hours_end:
+            # Normal range (e.g., 22:00 to 08:00)
+            return self.quiet_hours_start <= current_hour < self.quiet_hours_end
+        else:
+            # Overnight range (e.g., 22:00 to 08:00 crosses midnight)
+            return current_hour >= self.quiet_hours_start or current_hour < self.quiet_hours_end
+
+    def can_trigger(self) -> bool:
+        """Check if alert can be triggered (not in cooldown, not in quiet hours)"""
+        if not self.enabled:
+            return False
+
+        if self.is_in_quiet_hours():
+            return False
+
+        if self.last_triggered_at and self.cooldown_hours:
+            from datetime import datetime, timedelta
+            cooldown_end = self.last_triggered_at + timedelta(hours=self.cooldown_hours)
+            if datetime.utcnow() < cooldown_end:
+                return False
+
+        return True
 
 
 class User(Base):
