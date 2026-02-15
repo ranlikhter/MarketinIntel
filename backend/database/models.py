@@ -6,12 +6,38 @@ Think of this as creating blueprints for our data storage.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+import enum
 
 # This creates a base class that all our models will inherit from
 Base = declarative_base()
+
+
+# Enums for user roles and subscription tiers
+class UserRole(enum.Enum):
+    """User roles for access control"""
+    ADMIN = "admin"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
+class SubscriptionTier(enum.Enum):
+    """Subscription plan tiers"""
+    FREE = "free"
+    PRO = "pro"
+    BUSINESS = "business"
+    ENTERPRISE = "enterprise"
+
+
+class SubscriptionStatus(enum.Enum):
+    """Subscription statuses"""
+    ACTIVE = "active"
+    TRIALING = "trialing"
+    PAST_DUE = "past_due"
+    CANCELED = "canceled"
+    INCOMPLETE = "incomplete"
 
 
 class ProductMonitored(Base):
@@ -22,13 +48,15 @@ class ProductMonitored(Base):
     __tablename__ = "products_monitored"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Owner of this product
     title = Column(String(500), nullable=False)  # e.g., "Apple iPhone 13 128GB"
     sku = Column(String(100), nullable=True)      # e.g., "IPHONE13-128" (optional)
     brand = Column(String(100), nullable=True)    # e.g., "Apple"
     image_url = Column(Text, nullable=True)       # URL to product image
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Relationship: One product can have many competitor matches
+    # Relationships
+    user = relationship("User", back_populates="products")
     competitor_matches = relationship("CompetitorMatch", back_populates="monitored_product", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -47,11 +75,16 @@ class CompetitorMatch(Base):
 
     competitor_name = Column(String(100), nullable=False)    # e.g., "Amazon", "Walmart"
     competitor_url = Column(Text, nullable=False)            # Full URL to the product page
-    competitor_title = Column(String(500), nullable=False)   # How the competitor lists it
-    competitor_image_url = Column(Text, nullable=True)       # Competitor's product image
+    competitor_product_title = Column(String(500), nullable=False)   # How the competitor lists it
 
     match_score = Column(Float, default=0.0)                 # 0-100, confidence this is the same product
-    last_crawled_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_scraped_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Latest price data (for quick access without querying price_history)
+    latest_price = Column(Float, nullable=True)              # Most recent price
+    stock_status = Column(String(50), nullable=True)         # "In Stock", "Out of Stock", etc.
+    image_url = Column(Text, nullable=True)                  # Product image URL
+    competitor_website_id = Column(Integer, ForeignKey("competitor_websites.id"), nullable=True)
 
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
@@ -112,3 +145,136 @@ class CompetitorWebsite(Base):
 
     def __repr__(self):
         return f"<CompetitorWebsite(id={self.id}, name='{self.name}', url='{self.base_url}')>"
+
+
+class PriceAlert(Base):
+    """
+    Table: price_alerts
+    Stores user-defined alert rules for price changes
+    """
+    __tablename__ = "price_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Owner of this alert
+    product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False)
+
+    # Alert configuration
+    alert_type = Column(String(50), nullable=False)  # "price_drop", "price_increase", "any_change", "out_of_stock"
+    threshold_pct = Column(Float, nullable=False, default=5.0)  # Trigger when price changes by this %
+    threshold_amount = Column(Float, nullable=True)  # Or trigger when price changes by this amount
+
+    # Notification settings
+    email = Column(String(255), nullable=False)  # Email to send alerts to
+    enabled = Column(Boolean, default=True)  # Can be disabled without deleting
+
+    # Frequency control
+    cooldown_hours = Column(Integer, default=24)  # Don't send duplicate alerts within this period
+    last_triggered_at = Column(DateTime, nullable=True)  # When was this alert last sent
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="alerts")
+    product = relationship("ProductMonitored")
+
+    def __repr__(self):
+        return f"<PriceAlert(id={self.id}, product_id={self.product_id}, type='{self.alert_type}', threshold={self.threshold_pct}%)>"
+
+
+class User(Base):
+    """
+    Table: users
+    Stores user accounts with authentication and subscription info
+    """
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=True)
+
+    # Subscription info
+    subscription_tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.FREE)
+    subscription_status = Column(Enum(SubscriptionStatus), default=SubscriptionStatus.ACTIVE)
+    stripe_customer_id = Column(String(255), nullable=True, unique=True)
+    stripe_subscription_id = Column(String(255), nullable=True, unique=True)
+
+    # Usage limits (enforced based on tier)
+    products_limit = Column(Integer, default=5)  # FREE: 5, PRO: 50, BUSINESS: 200
+    matches_limit = Column(Integer, default=10)  # FREE: 10, PRO: 100, BUSINESS: unlimited
+    alerts_limit = Column(Integer, default=1)    # FREE: 1, PRO: 10, BUSINESS: unlimited
+
+    # Account status
+    is_active = Column(Boolean, default=True)
+    is_verified = Column(Boolean, default=False)
+    email_verified_at = Column(DateTime, nullable=True)
+
+    # Trial
+    trial_ends_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    products = relationship("ProductMonitored", back_populates="user", cascade="all, delete-orphan")
+    alerts = relationship("PriceAlert", back_populates="user", cascade="all, delete-orphan")
+    workspaces_owned = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
+    workspace_memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
+
+
+class Workspace(Base):
+    """
+    Table: workspaces
+    For team collaboration (Business/Enterprise tiers)
+    """
+    __tablename__ = "workspaces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Settings
+    is_active = Column(Boolean, default=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    owner = relationship("User", back_populates="workspaces_owned")
+    members = relationship("WorkspaceMember", back_populates="workspace", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Workspace(id={self.id}, name='{self.name}')>"
+
+
+class WorkspaceMember(Base):
+    """
+    Table: workspace_members
+    Links users to workspaces with specific roles
+    """
+    __tablename__ = "workspace_members"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(Enum(UserRole), default=UserRole.VIEWER)
+
+    # Status
+    is_active = Column(Boolean, default=True)
+    invited_at = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    workspace = relationship("Workspace", back_populates="members")
+    user = relationship("User", back_populates="workspace_memberships")
+
+    def __repr__(self):
+        return f"<WorkspaceMember(workspace_id={self.workspace_id}, user_id={self.user_id}, role='{self.role.value}')>"

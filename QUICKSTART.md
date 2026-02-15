@@ -1,146 +1,238 @@
 # MarketIntel - Quick Start Guide
 
-## 🎉 Congratulations! Your Project is Set Up!
+Get up and running in 5 minutes!
 
-Everything is installed and ready to go. Here's what you have so far:
+## 🎉 Your MarketIntel SaaS is Ready!
+
+Everything is built and ready to test. Here's what you have:
 
 ### ✅ What's Working
 
 1. **Backend API** (Python FastAPI)
-   - REST API for managing products
-   - SQLite database with 3 tables
-   - API documentation at `/docs`
+   - 15+ REST API endpoints
+   - SQLite database with 4 tables
+   - Amazon scraper with anti-bot detection
+   - Generic web scraper (works with ANY website)
+   - Custom competitor websites feature
 
-2. **Frontend** (Next.js + React)
-   - Configured with Tailwind CSS
-   - Ready to build dashboard pages
+2. **Frontend Dashboard** (Next.js + React + Tailwind CSS)
+   - Home page with stats
+   - Products list and management
+   - Product detail page with competitor matches
+   - Price history charts
+   - Competitor management interface
 
 3. **Database**
-   - SQLite database created at `data/products.db`
-   - Tables: products_monitored, competitor_matches, price_history
+   - Tables: products_monitored, competitor_matches, price_history, competitor_websites
+   - Located at `data/products.db`
 
-### 🚀 How to Run Your App
+## 🚀 How to Run
 
-#### Option 1: Using the Startup Scripts (EASIEST)
+### Step 1: Install Dependencies (First Time Only)
 
-**Terminal 1 - Start Backend:**
+**Backend:**
+```bash
+cd backend
+pip install -r requirements.txt
+playwright install chromium
+python database/setup.py
+cd ..
 ```
-Double-click: start-backend.bat
-```
-The API will start at http://localhost:8000
 
-**Terminal 2 - Start Frontend:**
+**Frontend:**
+```bash
+cd frontend
+npm install
+cd ..
 ```
-Double-click: start-frontend.bat
-```
-The dashboard will start at http://localhost:3000
 
-#### Option 2: Manual Commands
+### Step 2: Start Both Servers
+
+Open **TWO** terminal windows:
 
 **Terminal 1 - Backend:**
 ```bash
-cd backend
-python -m uvicorn api.main:app --reload
+start-backend.bat
 ```
+Backend will start at: http://localhost:8000
 
 **Terminal 2 - Frontend:**
 ```bash
-cd frontend
-npm run dev
+start-frontend.bat
 ```
+Frontend will start at: http://localhost:3000
 
-### 📖 Testing the API
+## 📖 Testing Your App
 
-Once the backend is running, visit:
-- **API Root**: http://localhost:8000/
-- **API Docs**: http://localhost:8000/docs (Interactive Swagger UI!)
-- **Health Check**: http://localhost:8000/health
+### 1. Open the Dashboard
+Navigate to: http://localhost:3000
 
-Try creating a product in the Swagger UI:
-1. Go to http://localhost:8000/docs
-2. Click on **POST /products**
-3. Click "Try it out"
-4. Enter this JSON:
-```json
-{
-  "title": "Sony WH-1000XM5 Headphones",
-  "brand": "Sony"
-}
-```
-5. Click "Execute"
-6. You should see a success response!
+You should see:
+- Hero section: "Monitor Competitor Prices Across E-commerce Platforms"
+- Stats: 0 products, 0 matches, 0 competitors
+- Navigation: Dashboard | Products | Competitors
 
-### 📂 Project Structure
+### 2. Add Your First Product
+- Click **"Add Product"** (top right)
+- Fill in:
+  - Title: "Sony WH-1000XM5 Headphones"
+  - Brand: "Sony"
+  - SKU: "WH1000XM5" (optional)
+- Click **"Create Product"**
+
+### 3. Scrape Amazon
+- You'll be on the product detail page
+- Click **"Scrape Amazon"** button
+- Wait 5-10 seconds
+- **Competitor matches will appear!**
+  - You should see 3-5 Amazon products
+  - Prices, images, stock status
+  - Links to view on Amazon
+
+### 4. Add a Custom Competitor
+- Click **"Competitors"** in navigation
+- Click **"Add Competitor"**
+- Fill in:
+  - Name: "Test Competitor"
+  - Base URL: "https://www.amazon.com"
+  - Price Selector: `.a-price-whole`
+  - Title Selector: `#productTitle`
+- Click **"Create Competitor"**
+
+### 5. Test the API
+Visit: http://localhost:8000/docs
+
+Interactive Swagger UI with all 15+ endpoints!
+
+Try:
+- POST /products - Create product
+- GET /products - List products
+- POST /products/{id}/scrape - Scrape Amazon
+- GET /competitors - List competitors
+
+## 📂 Project Structure
 
 ```
 C:\Users\ranli\Scrape/
 ├── backend/
 │   ├── api/
-│   │   ├── main.py              # FastAPI app entry point
+│   │   ├── main.py              # FastAPI app
 │   │   └── routes/
-│   │       └── products.py      # Product API endpoints
+│   │       ├── products.py      # Product endpoints
+│   │       └── competitors.py   # Competitor endpoints
 │   ├── database/
-│   │   ├── models.py            # Database tables
-│   │   ├── connection.py        # Database connection
-│   │   └── setup.py             # Database initialization
-│   ├── requirements.txt         # Python dependencies
-│   └── .env                     # Configuration
+│   │   ├── models.py            # 4 database tables
+│   │   ├── connection.py        # Database setup
+│   │   └── setup.py             # Database creation
+│   ├── scrapers/
+│   │   ├── amazon_scraper.py    # Amazon-specific scraper
+│   │   ├── generic_scraper.py   # Universal scraper
+│   │   └── scraper_manager.py   # Intelligent selection
+│   └── requirements.txt
 ├── frontend/
-│   ├── pages/                   # Next.js pages (TODO)
-│   ├── components/              # React components (TODO)
-│   ├── package.json             # Node dependencies
-│   └── tailwind.config.js       # Styling config
+│   ├── pages/
+│   │   ├── index.js             # Home page
+│   │   ├── products/
+│   │   │   ├── index.js         # Products list
+│   │   │   ├── add.js           # Add product form
+│   │   │   └── [id].js          # Product detail
+│   │   └── competitors/
+│   │       ├── index.js         # Competitors list
+│   │       └── add.js           # Add competitor form
+│   ├── components/
+│   │   ├── Layout.js            # Page layout
+│   │   └── PriceChart.js        # Price chart
+│   ├── lib/
+│   │   └── api.js               # API client
+│   └── package.json
 ├── data/
-│   └── products.db              # SQLite database file
-├── start-backend.bat            # Easy backend start
-├── start-frontend.bat           # Easy frontend start
+│   └── products.db              # SQLite database
 └── README.md                    # Full documentation
 ```
 
-### 🛠️ What's Next?
+## 🆘 Troubleshooting
 
-We still need to build:
-1. **Amazon Scraper** - Actually scrape Amazon for prices
-2. **Product Matcher** - Match products across retailers
-3. **Frontend Pages**:
-   - Home page with "Add Product" form
-   - Products list page
-   - Product detail page with price charts
-4. **Integration** - Connect frontend to backend
+### Backend Won't Start
+**Error: "python: command not found"**
+- Fix: Make sure Python is installed
+- Verify: `python --version`
 
-### 🆘 Common Issues
+**Error: "No module named 'fastapi'"**
+- Fix: Install dependencies
+- Run: `pip install -r backend/requirements.txt`
 
-**"Module not found" error:**
-```bash
-# Backend
-pip install -r backend/requirements.txt
+**Error: "Playwright browser not found"**
+- Fix: `playwright install chromium`
 
-# Frontend
-cd frontend && npm install
-```
+### Frontend Won't Start
+**Error: "npm: command not found"**
+- Fix: Make sure Node.js is installed
+- Verify: `node --version` and `npm --version`
 
-**"Port already in use":**
-- Backend uses port 8000
-- Frontend uses port 3000
-- Close other programs using these ports or change the port in the config
+**Error: "Cannot find module 'next'"**
+- Fix: Install dependencies
+- Run: `cd frontend && npm install`
 
-**Database errors:**
-```bash
-# Recreate the database
-rm data/products.db
-python backend/database/setup.py
-```
+### Scraping Fails
+**Error: "CAPTCHA detected"**
+- Fix: Amazon detected automation
+- Wait a few minutes and try again
 
-### 📝 Git Commands
+**Error: "Failed after 3 attempts"**
+- Check internet connection
+- Try a different product
 
-Your work is already saved in Git! To see your progress:
-```bash
-git log        # See commit history
-git status     # See what's changed
-git add .      # Stage all changes
-git commit -m "Your message"  # Commit changes
-```
+### Port Already in Use
+**Backend (port 8000):**
+- Kill process: `netstat -ano | findstr :8000`
+- Or change port in `backend/.env`
+
+**Frontend (port 3000):**
+- Next.js will suggest port 3001 automatically
+
+## 🎯 What You Can Do Now
+
+✅ **Monitor Products**:
+- Add products you want to track
+- Search Amazon for competitor matches
+- View price history over time
+
+✅ **Custom Competitors**:
+- Add ANY competitor website
+- Configure CSS selectors
+- Scrape specific product URLs
+
+✅ **API Access**:
+- Full REST API at http://localhost:8000/docs
+- Use for automation or integrations
+
+## 🛠️ Next Steps
+
+Once you've tested locally:
+
+1. **Add More Features**:
+   - Product matching algorithm (AI-based)
+   - Automated scraping (Celery + Redis)
+   - Email alerts for price drops
+   - Walmart/eBay scrapers
+
+2. **Deploy to Production**:
+   - Backend: Railway.app or Render
+   - Frontend: Vercel
+   - Database: Migrate to PostgreSQL
+
+3. **Add Business Features**:
+   - User authentication
+   - Multi-tenancy (SaaS mode)
+   - Pricing tiers
+   - Admin dashboard
+
+## 📚 Resources
+
+- **Full README**: `README.md`
+- **API Docs**: http://localhost:8000/docs
+- **Test Results**: `TEST_RESULTS.md`
 
 ---
 
-**Ready to continue?** Just ask and I'll help you build the next component! 🚀
+**Everything is working!** Start by adding a product and scraping Amazon. 🚀

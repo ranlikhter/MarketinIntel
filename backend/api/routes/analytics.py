@@ -1,0 +1,173 @@
+"""
+Price Analytics API Endpoints
+Trendlines, comparisons, and insights
+"""
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from typing import Optional
+from datetime import datetime
+
+from database.connection import get_db
+from services.price_analytics import PriceAnalytics
+
+router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+@router.get("/products/{product_id}/trendline")
+async def get_product_trendline(
+    product_id: int,
+    days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get daily price trendline for a product
+
+    - **product_id**: Product to analyze
+    - **days**: Number of days to look back (default: 30, max: 365)
+    - **start_date**: Optional custom start date (YYYY-MM-DD)
+    - **end_date**: Optional custom end date (YYYY-MM-DD)
+
+    Returns daily price trends, insights, and recommendations
+    """
+    analytics = PriceAnalytics(db)
+
+    # If custom dates provided, calculate days between them
+    if start_date and end_date:
+        try:
+            start = datetime.strptime(start_date, '%Y-%m-%d')
+            end = datetime.strptime(end_date, '%Y-%m-%d')
+            days = (end - start).days
+        except ValueError:
+            return {
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }
+
+    result = analytics.get_product_trendline(product_id=product_id, days=days)
+    return result
+
+
+@router.get("/products/{product_id}/compare")
+async def compare_competitors(
+    product_id: int,
+    days: int = Query(7, ge=1, le=90, description="Days to analyze"),
+    db: Session = Depends(get_db)
+):
+    """
+    Compare prices across all competitors for a product
+
+    - **product_id**: Product to analyze
+    - **days**: Number of days to look back (default: 7)
+
+    Returns ranked comparison by average price
+    """
+    analytics = PriceAnalytics(db)
+    result = analytics.get_competitor_comparison(product_id=product_id, days=days)
+    return result
+
+
+@router.get("/products/{product_id}/alerts")
+async def get_price_alerts(
+    product_id: int,
+    threshold: float = Query(5.0, ge=1.0, le=50.0, description="Change threshold %"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get price change alerts for a product
+
+    - **product_id**: Product to check
+    - **threshold**: Percentage change to trigger alert (default: 5%)
+
+    Returns alerts for significant price changes in last 24h
+    """
+    analytics = PriceAnalytics(db)
+    result = analytics.get_price_alerts(product_id=product_id, threshold_pct=threshold)
+    return result
+
+
+@router.get("/products/{product_id}/date-range")
+async def get_date_range_comparison(
+    product_id: int,
+    start_date_1: str = Query(..., description="First period start (YYYY-MM-DD)"),
+    end_date_1: str = Query(..., description="First period end (YYYY-MM-DD)"),
+    start_date_2: str = Query(..., description="Second period start (YYYY-MM-DD)"),
+    end_date_2: str = Query(..., description="Second period end (YYYY-MM-DD)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Compare two custom date ranges for a product
+
+    Returns price comparison between two time periods
+    """
+    analytics = PriceAnalytics(db)
+
+    try:
+        # Parse dates
+        start1 = datetime.strptime(start_date_1, '%Y-%m-%d')
+        end1 = datetime.strptime(end_date_1, '%Y-%m-%d')
+        start2 = datetime.strptime(start_date_2, '%Y-%m-%d')
+        end2 = datetime.strptime(end_date_2, '%Y-%m-%d')
+
+        # Calculate days for each period
+        days1 = (end1 - start1).days
+        days2 = (end2 - start2).days
+
+        # Get trendline for each period
+        period1 = analytics.get_product_trendline(product_id, days1)
+        period2 = analytics.get_product_trendline(product_id, days2)
+
+        if not period1['success'] or not period2['success']:
+            return {
+                'success': False,
+                'error': 'Failed to fetch data for one or both periods'
+            }
+
+        # Compare insights
+        insights1 = period1['insights']
+        insights2 = period2['insights']
+
+        comparison = {
+            'avg_price_change': round(
+                insights2['avg_price_period'] - insights1['avg_price_period'], 2
+            ),
+            'avg_price_change_pct': round(
+                (insights2['avg_price_period'] - insights1['avg_price_period']) /
+                insights1['avg_price_period'] * 100, 2
+            ) if insights1['avg_price_period'] > 0 else 0,
+            'volatility_change': round(
+                insights2['volatility_pct'] - insights1['volatility_pct'], 2
+            ),
+            'trend_shift': f"{insights1['trend_direction']} → {insights2['trend_direction']}"
+        }
+
+        return {
+            'success': True,
+            'product_id': product_id,
+            'period_1': {
+                'start_date': start_date_1,
+                'end_date': end_date_1,
+                'days': days1,
+                'insights': insights1
+            },
+            'period_2': {
+                'start_date': start_date_2,
+                'end_date': end_date_2,
+                'days': days2,
+                'insights': insights2
+            },
+            'comparison': comparison
+        }
+
+    except ValueError as e:
+        return {
+            'success': False,
+            'error': f'Invalid date format: {str(e)}'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'error': str(e)
+        }
