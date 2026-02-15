@@ -338,6 +338,72 @@ class SavedView(Base):
         return f"<SavedView(id={self.id}, name='{self.name}', user_id={self.user_id})>"
 
 
+class RepricingRule(Base):
+    """
+    Table: repricing_rules
+    Automated pricing rules for products
+
+    Rule Types:
+    - match_lowest: Match the lowest competitor price (with optional margin)
+    - undercut: Price below lowest competitor by fixed amount/percentage
+    - margin_based: Set price based on cost + margin percentage
+    - dynamic: Complex rules based on multiple factors (stock, time, competition)
+    - map_protected: Never go below Minimum Advertised Price
+    """
+    __tablename__ = "repricing_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=True)  # Null = applies to all
+
+    # Rule configuration
+    rule_type = Column(String(50), nullable=False)  # See types above
+    name = Column(String(255), nullable=False)  # User-friendly name
+    description = Column(Text, nullable=True)
+
+    # Rule parameters (stored as JSON)
+    config = Column(JSON, nullable=False)
+    # Examples:
+    # match_lowest: {"margin_amount": 0.5, "margin_pct": 0}
+    # undercut: {"amount": 1.0, "percentage": 5}
+    # margin_based: {"cost": 50, "margin_pct": 40}
+    # dynamic: {"rules": [...], "conditions": [...]}
+
+    # Constraints
+    min_price = Column(Float, nullable=True)  # Never go below this
+    max_price = Column(Float, nullable=True)  # Never go above this
+    map_price = Column(Float, nullable=True)  # Minimum Advertised Price
+
+    # Rule settings
+    enabled = Column(Boolean, default=True)
+    priority = Column(Integer, default=0)  # Higher priority rules execute first
+    auto_apply = Column(Boolean, default=False)  # Auto-apply without approval
+
+    # Approval workflow
+    requires_approval = Column(Boolean, default=True)
+    approved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+
+    # Execution tracking
+    last_applied_at = Column(DateTime, nullable=True)
+    last_suggested_price = Column(Float, nullable=True)
+    application_count = Column(Integer, default=0)
+    success_count = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User")
+    product = relationship("ProductMonitored")
+    approver = relationship("User", foreign_keys=[approved_by])
+
+    def __repr__(self):
+        return f"<RepricingRule(id={self.id}, name='{self.name}', type='{self.rule_type}', enabled={self.enabled})>"
+
+
 class Workspace(Base):
     """
     Table: workspaces
