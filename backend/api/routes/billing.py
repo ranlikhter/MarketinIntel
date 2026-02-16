@@ -6,7 +6,7 @@ import stripe
 import os
 from datetime import datetime, timedelta
 
-from database.database import get_db
+from database.connection import get_db
 from database.models import User, SubscriptionTier, SubscriptionStatus
 from api.dependencies import get_current_user
 
