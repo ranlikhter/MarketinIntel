@@ -23,7 +23,11 @@
       "Bash(npm run build:*)",
       "Bash(ls:*)",
       "Bash(netstat:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(start-servers.bat)",
+      "Bash(cmd /c start-servers.bat)",
+      "Bash(start cmd /k \"python main.py\")",
+      "Bash(start cmd /k \"npm run dev\")"
     ]
   }
 }
