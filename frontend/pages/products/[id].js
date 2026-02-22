@@ -17,7 +17,202 @@ const Ico = {
   range:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
   external:<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>,
   image:   <svg className="w-10 h-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+  link:    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+  close:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>,
+  pin:     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>,
 };
+
+// ─── MANUAL URL MODAL ─────────────────────────────────────────────────────────
+function AddUrlModal({ productId, onClose, onSuccess }) {
+  const { addToast } = useToast();
+  const [url, setUrl]   = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [phase, setPhase]       = useState('idle'); // idle | scraping | done | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
+
+  // Close on Escape
+  const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+
+  const isValidUrl = (s) => {
+    try { return ['http:', 'https:'].includes(new URL(s).protocol); } catch { return false; }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValidUrl(url)) { setErrorMsg('Enter a valid URL starting with https://'); return; }
+    setLoading(true);
+    setPhase('scraping');
+    setErrorMsg('');
+    try {
+      const res = await api.scrapeProductUrl(productId, url.trim(), name.trim() || null);
+      if (res.status === 'error') {
+        setPhase('error');
+        setErrorMsg(res.error || 'Scraping failed — the page may require a login or block bots.');
+      } else {
+        setPhase('done');
+        setPreviewTitle(res.match?.competitor_product_title || url);
+        addToast('Competitor URL added and scraped', 'success');
+        onSuccess(res.match);
+      }
+    } catch (err) {
+      setPhase('error');
+      setErrorMsg(err.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={handleKey}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Add competitor URL manually</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Paste a product page URL you already know is the same item. We'll scrape it and link it here.
+            </p>
+          </div>
+          <button onClick={onClose} className="ml-3 mt-0.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0">
+            {Ico.close}
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* URL input */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Competitor product URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              autoFocus
+              value={url}
+              onChange={e => { setUrl(e.target.value); setErrorMsg(''); setPhase('idle'); }}
+              placeholder="https://www.amazon.com/dp/B09XYZ..."
+              className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-shadow font-mono"
+              disabled={loading}
+              required
+            />
+            {errorMsg && (
+              <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                {errorMsg}
+              </p>
+            )}
+          </div>
+
+          {/* Optional competitor name */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Competitor name <span className="text-gray-400 font-normal">(optional — auto-detected from URL)</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Amazon, Walmart, Argos…"
+              className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-shadow"
+              disabled={loading}
+            />
+          </div>
+
+          {/* What happens info box */}
+          {phase === 'idle' && (
+            <div className="bg-blue-50 rounded-xl p-3 flex gap-2.5 text-xs text-blue-700">
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>We'll open this URL, extract the price, stock status, images, and all available product data, then pin it to this product with a 100% match score.</span>
+            </div>
+          )}
+
+          {/* Scraping progress */}
+          {phase === 'scraping' && (
+            <div className="bg-blue-50 rounded-xl p-4 flex items-center gap-3">
+              <span className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-blue-800">Scraping page…</p>
+                <p className="text-xs text-blue-600 mt-0.5">Extracting price, stock, images and product details</p>
+              </div>
+            </div>
+          )}
+
+          {/* Success state */}
+          {phase === 'done' && (
+            <div className="bg-emerald-50 rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-700">
+              <svg className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              <div>
+                <p className="font-semibold">Linked successfully</p>
+                <p className="text-emerald-600 mt-0.5 line-clamp-2">{previewTitle}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Footer buttons */}
+          <div className="flex gap-2 pt-1">
+            {phase === 'done' ? (
+              <button
+                type="button" onClick={onClose}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Done
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button" onClick={onClose}
+                  className="flex-1 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-sm font-medium transition-colors"
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !url.trim()}
+                  className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scraping…</>
+                  ) : (
+                    <>{Ico.link} Scrape &amp; Link</>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD-URL CARD (shown in matches grid) ─────────────────────────────────────
+function AddUrlCard({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group border-2 border-dashed border-gray-200 hover:border-blue-400 rounded-2xl flex flex-col items-center justify-center gap-3 py-10 px-4 text-center transition-all hover:bg-blue-50/40"
+    >
+      <div className="w-12 h-12 rounded-2xl bg-gray-100 group-hover:bg-blue-100 flex items-center justify-center transition-colors">
+        <svg className="w-6 h-6 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-gray-700 group-hover:text-blue-700 transition-colors">Add from URL</p>
+        <p className="text-xs text-gray-400 mt-0.5 leading-snug max-w-[160px]">
+          Know the exact product page? Paste the URL and we'll scrape it.
+        </p>
+      </div>
+    </button>
+  );
+}
 
 function StatCard({ label, sub, value, color, icon }) {
   const bg = { blue: 'bg-blue-50 text-blue-600', emerald: 'bg-emerald-50 text-emerald-600', violet: 'bg-violet-50 text-violet-600', amber: 'bg-amber-50 text-amber-600' }[color];
@@ -89,7 +284,13 @@ function MatchCard({ match, myPrice }) {
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">{match.competitor_name}</span>
           {match.match_score != null && (
-            <span className="text-xs font-semibold text-gray-400" title="Match confidence">{match.match_score.toFixed(0)}% match</span>
+            match.match_score === 100 ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 bg-violet-50 px-1.5 py-0.5 rounded-full" title="Manually pinned by you">
+                {Ico.pin} Pinned
+              </span>
+            ) : (
+              <span className="text-xs font-semibold text-gray-400" title="Auto match confidence">{match.match_score.toFixed(0)}% match</span>
+            )
           )}
         </div>
 
@@ -197,6 +398,7 @@ export default function ProductDetailPage() {
   const [showSitePicker, setShowSitePicker] = useState(false);
   const [scrapeTarget, setScrapeTarget] = useState('amazon.com');
   const [customSite, setCustomSite] = useState('');
+  const [showAddUrl, setShowAddUrl] = useState(false);
 
   useEffect(() => {
     try {
@@ -279,6 +481,16 @@ export default function ProductDetailPage() {
     { label: 'Target', value: 'target.com' },
   ];
 
+  const handleUrlMatchSuccess = (newMatch) => {
+    if (!newMatch) return;
+    setMatches(prev => {
+      // If it's an update to an existing match, replace it; otherwise prepend
+      const exists = prev.find(m => m.id === newMatch.id);
+      if (exists) return prev.map(m => m.id === newMatch.id ? { ...m, ...newMatch } : m);
+      return [newMatch, ...prev];
+    });
+  };
+
   const handleScrape = async (site) => {
     const target = site || scrapeTarget;
     setScraping(true);
@@ -321,6 +533,13 @@ export default function ProductDetailPage() {
 
   return (
     <Layout>
+      {showAddUrl && (
+        <AddUrlModal
+          productId={id}
+          onClose={() => setShowAddUrl(false)}
+          onSuccess={(match) => { handleUrlMatchSuccess(match); }}
+        />
+      )}
       <div className="p-4 lg:p-6 space-y-5">
 
         {/* Back link */}
@@ -535,6 +754,15 @@ export default function ProductDetailPage() {
                   )}
                 </div>
 
+                <button
+                  onClick={() => setShowAddUrl(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors"
+                  title="Manually add a competitor URL you already know is this product"
+                >
+                  {Ico.link}
+                  <span className="hidden sm:inline">Add URL</span>
+                </button>
+
                 <button onClick={startEditProduct} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   Edit
@@ -601,25 +829,42 @@ export default function ProductDetailPage() {
 
         {/* Competitor matches */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <p className="text-sm font-semibold text-gray-900 mb-4">Competitor Matches ({matches.length})</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-gray-900">Competitor Matches ({matches.length})</p>
+            <button
+              onClick={() => setShowAddUrl(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-gray-300 hover:border-blue-400 text-xs font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+            >
+              {Ico.link} Add from URL
+            </button>
+          </div>
 
           {matches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                {Ico.search}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {/* Empty state */}
+              <div className="sm:col-span-2 xl:col-span-2 flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+                  {Ico.search}
+                </div>
+                <p className="text-sm font-medium text-gray-900">No matches yet</p>
+                <p className="text-sm text-gray-500 mt-1 mb-4">Use the Scrape button above to search automatically, or paste a URL you already know.</p>
+                <button
+                  onClick={() => handleScrape()} disabled={scraping}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {Ico.search} Scrape {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}
+                </button>
               </div>
-              <p className="text-sm font-medium text-gray-900">No matches yet</p>
-              <p className="text-sm text-gray-500 mt-1 mb-4">Use the Scrape button above to find competitor products</p>
-              <button
-                onClick={() => handleScrape()} disabled={scraping}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {Ico.search} Scrape {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}
-              </button>
+              {/* Add from URL card */}
+              <AddUrlCard onClick={() => setShowAddUrl(true)} />
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {matches.map(m => <MatchCard key={m.id} match={m} myPrice={product?.my_price} />)}
+              {matches.map(m => (
+                <MatchCard key={m.id} match={m} myPrice={product?.my_price} />
+              ))}
+              {/* Always show the "add from URL" card at the end */}
+              <AddUrlCard onClick={() => setShowAddUrl(true)} />
             </div>
           )}
         </div>

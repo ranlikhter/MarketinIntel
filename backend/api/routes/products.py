@@ -659,39 +659,59 @@ async def trigger_scrape(
         }
 
 
+class ScrapeUrlBody(BaseModel):
+    competitor_url: str
+    competitor_name: str | None = None
+    competitor_website_id: int | None = None
+
+
 @router.post("/{product_id}/scrape-url")
 async def scrape_competitor_url(
     product_id: int,
-    competitor_url: str,
-    competitor_website_id: int | None = None,
-    db: Session = Depends(get_db)
+    body: ScrapeUrlBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     POST /products/{id}/scrape-url
 
     Scrape a specific competitor URL and link it to this product.
+    User-pinned matches are always assigned match_score=100.
 
     Body:
     {
         "competitor_url": "https://competitor.com/product/123",
-        "competitor_website_id": 1  # Optional: Use CSS selectors from registered competitor
+        "competitor_name": "My Competitor",   // optional
+        "competitor_website_id": 1            // optional: use stored CSS selectors
     }
     """
-    # Check if product exists
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    competitor_url = body.competitor_url.strip()
+    if not competitor_url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=422, detail="competitor_url must be a full URL starting with http:// or https://")
+
+    # Check product exists and belongs to the current user
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    # Derive competitor name from URL hostname as a fallback
+    from urllib.parse import urlparse
+    parsed_host = urlparse(competitor_url).hostname or "competitor"
+    parsed_host = parsed_host.replace("www.", "")
 
     # Get CSS selectors if competitor website is registered
     price_selector = None
     title_selector = None
     stock_selector = None
     image_selector = None
-    competitor_name = "Custom Competitor"
+    competitor_name = body.competitor_name.strip() if body.competitor_name and body.competitor_name.strip() else parsed_host.split(".")[0].capitalize()
 
-    if competitor_website_id:
+    if body.competitor_website_id:
         comp_website = db.query(CompetitorWebsite).filter(
-            CompetitorWebsite.id == competitor_website_id
+            CompetitorWebsite.id == body.competitor_website_id
         ).first()
 
         if comp_website:
@@ -699,7 +719,8 @@ async def scrape_competitor_url(
             title_selector = comp_website.title_selector
             stock_selector = comp_website.stock_selector
             image_selector = comp_website.image_selector
-            competitor_name = comp_website.name
+            if not (body.competitor_name and body.competitor_name.strip()):
+                competitor_name = comp_website.name
 
     # Scrape the URL
     try:
@@ -718,7 +739,7 @@ async def scrape_competitor_url(
                 "result": result
             }
 
-        # Check if match already exists
+        # Check if this URL is already matched to this product
         existing = db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id,
             CompetitorMatch.competitor_url == competitor_url
@@ -796,12 +817,40 @@ async def scrape_competitor_url(
             db.add(price_record)
 
         db.commit()
+        db.refresh(existing if existing else new_match)
+        match_obj = existing if existing else new_match
 
         return {
             "status": "success",
             "product_id": product_id,
             "match_id": match_id,
-            "scraped_data": result
+            "is_update": existing is not None,
+            "match": {
+                "id": match_obj.id,
+                "competitor_name": match_obj.competitor_name,
+                "competitor_url": match_obj.competitor_url,
+                "competitor_product_title": match_obj.competitor_product_title,
+                "image_url": match_obj.image_url,
+                "match_score": match_obj.match_score,
+                "latest_price": match_obj.latest_price,
+                "stock_status": match_obj.stock_status,
+                "last_checked": match_obj.last_scraped_at.isoformat() if match_obj.last_scraped_at else None,
+                "rating": match_obj.rating,
+                "review_count": match_obj.review_count,
+                "is_prime": match_obj.is_prime,
+                "fulfillment_type": match_obj.fulfillment_type,
+                "product_condition": match_obj.product_condition,
+                "seller_name": match_obj.seller_name,
+                "category": match_obj.category,
+                "variant": match_obj.variant,
+                "brand": match_obj.brand,
+                "was_price": result.get("was_price"),
+                "discount_pct": result.get("discount_pct"),
+                "shipping_cost": result.get("shipping_cost"),
+                "total_price": result.get("total_price"),
+                "promotion_label": result.get("promotion_label"),
+                "scrape_quality": result.get("scrape_quality"),
+            },
         }
 
     except Exception as e:

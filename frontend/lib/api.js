@@ -64,6 +64,21 @@ const api = {
       { method: 'POST' }
     ),
 
+  /**
+   * Manually pin a specific competitor URL to a product.
+   * The backend scrapes the page, extracts all price/stock/meta fields,
+   * creates (or refreshes) a CompetitorMatch with match_score=100, and
+   * returns the full match object so the UI can render it immediately.
+   */
+  scrapeProductUrl: (productId, competitorUrl, competitorName = null) =>
+    request(`/products/${productId}/scrape-url`, {
+      method: 'POST',
+      body: JSON.stringify({
+        competitor_url: competitorUrl,
+        ...(competitorName ? { competitor_name: competitorName } : {}),
+      }),
+    }),
+
   // ─── Competitors ─────────────────────────────────────────────────────────────
   getCompetitors: (activeOnly = false) =>
     request(`/competitors/?active_only=${activeOnly}`),
