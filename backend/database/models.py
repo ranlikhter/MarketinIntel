@@ -60,6 +60,8 @@ class ProductMonitored(Base):
     upc_ean = Column(String(50), nullable=True)   # UPC-12 or EAN-13 barcode
     # Margin intelligence
     cost_price = Column(Float, nullable=True)     # User's cost / COGS — enables margin calculation
+    # Inventory (synced from connected store)
+    inventory_quantity = Column(Integer, nullable=True)  # Units in stock
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -325,6 +327,8 @@ class User(Base):
     workspaces_owned = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
     workspace_memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
     saved_views = relationship("SavedView", back_populates="user", cascade="all, delete-orphan")
+    api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
+    store_connections = relationship("StoreConnection", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -532,3 +536,51 @@ class MatchFeedback(Base):
 
     def __repr__(self):
         return f"<MatchFeedback(id={self.id}, confirmed={self.user_confirmed}, ai_score={self.ai_score})>"
+
+
+class ApiKey(Base):
+    """
+    Table: api_keys
+    User-generated API keys for external integrations.
+    The full key is shown once at creation; only a SHA-256 hash is stored.
+    """
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)        # e.g., "My Shopify Automation"
+    key_prefix = Column(String(12), nullable=False)   # First chars for display (e.g., "mi_a1b2c3")
+    key_hash = Column(String(64), nullable=False, unique=True)  # SHA-256 of full key
+    is_active = Column(Boolean, default=True)
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="api_keys")
+
+    def __repr__(self):
+        return f"<ApiKey(id={self.id}, name='{self.name}', prefix='{self.key_prefix}')>"
+
+
+class StoreConnection(Base):
+    """
+    Table: store_connections
+    Persisted store credentials for Shopify / WooCommerce.
+    Enables periodic inventory sync without re-entering credentials.
+    """
+    __tablename__ = "store_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    platform = Column(String(20), nullable=False)      # "shopify" | "woocommerce"
+    store_url = Column(String(500), nullable=False)
+    api_key = Column(String(500), nullable=True)       # Shopify access_token / WC consumer_key
+    api_secret = Column(String(500), nullable=True)    # WC consumer_secret
+    is_active = Column(Boolean, default=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    sync_inventory = Column(Boolean, default=True)     # Include in periodic sync
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="store_connections")
+
+    def __repr__(self):
+        return f"<StoreConnection(id={self.id}, platform='{self.platform}', url='{self.store_url}')>"

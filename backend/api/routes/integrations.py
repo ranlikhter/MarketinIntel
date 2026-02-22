@@ -9,12 +9,14 @@ from typing import List, Optional
 from pydantic import BaseModel
 import tempfile
 import os
+from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored
+from database.models import ProductMonitored, StoreConnection, User
 from integrations.xml_parser import XMLProductParser
 from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
+from api.routes.auth import get_current_user
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -443,3 +445,101 @@ async def get_sample_xml():
 </products>"""
 
     return {"xml": sample, "format": "custom"}
+
+
+# ─── Store Connections (persisted credentials for inventory sync) ──────────────
+
+class StoreConnectionCreate(BaseModel):
+    platform: str          # "shopify" | "woocommerce"
+    store_url: str
+    api_key: Optional[str] = None
+    api_secret: Optional[str] = None
+    sync_inventory: bool = True
+
+
+def _fmt_conn(c: StoreConnection) -> dict:
+    return {
+        "id": c.id,
+        "platform": c.platform,
+        "store_url": c.store_url,
+        "sync_inventory": c.sync_inventory,
+        "is_active": c.is_active,
+        "last_synced_at": c.last_synced_at.isoformat() if c.last_synced_at else None,
+        "created_at": c.created_at.isoformat(),
+    }
+
+
+@router.get("/store-connections")
+def list_store_connections(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all saved store connections for the current user."""
+    conns = db.query(StoreConnection).filter(
+        StoreConnection.user_id == current_user.id
+    ).order_by(StoreConnection.created_at.desc()).all()
+    return [_fmt_conn(c) for c in conns]
+
+
+@router.post("/store-connections", status_code=201)
+def save_store_connection(
+    body: StoreConnectionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Persist store credentials so the server can sync inventory on a schedule."""
+    platform = body.platform.lower()
+    if platform not in ("shopify", "woocommerce"):
+        raise HTTPException(status_code=422, detail="platform must be 'shopify' or 'woocommerce'")
+
+    conn = StoreConnection(
+        user_id=current_user.id,
+        platform=platform,
+        store_url=body.store_url.rstrip("/"),
+        api_key=body.api_key,
+        api_secret=body.api_secret,
+        sync_inventory=body.sync_inventory,
+    )
+    db.add(conn)
+    db.commit()
+    db.refresh(conn)
+    return _fmt_conn(conn)
+
+
+@router.delete("/store-connections/{conn_id}")
+def delete_store_connection(
+    conn_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conn = db.query(StoreConnection).filter(
+        StoreConnection.id == conn_id,
+        StoreConnection.user_id == current_user.id,
+    ).first()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Store connection not found")
+    db.delete(conn)
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/store-connections/{conn_id}/sync")
+def trigger_inventory_sync(
+    conn_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Trigger an immediate inventory sync for one store connection."""
+    conn = db.query(StoreConnection).filter(
+        StoreConnection.id == conn_id,
+        StoreConnection.user_id == current_user.id,
+    ).first()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Store connection not found")
+
+    try:
+        from tasks.inventory_tasks import sync_single_connection
+        task = sync_single_connection.delay(conn_id)
+        return {"success": True, "task_id": task.id, "message": "Inventory sync queued"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -547,6 +547,24 @@ export default function ProductDetailPage() {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   <span className="hidden sm:inline">PDF</span>
                 </Link>
+                <button
+                  onClick={async () => {
+                    try {
+                      const blob = await api.exportProductXLSX(id);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `marketintel_${product.title.slice(0, 30).replace(/ /g, '_')}_${id}.xlsx`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (e) { addToast('Excel export failed: ' + e.message, 'error'); }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors"
+                  title="Download as Excel (.xlsx)"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
                 <button onClick={loadData} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
                   {Ico.refresh}
                   <span className="hidden sm:inline">Refresh</span>

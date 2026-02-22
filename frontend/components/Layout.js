@@ -32,6 +32,8 @@ const Icon = {
   upgrade: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
   logoChart: <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>,
   chevronDown: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>,
+  bookmark: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>,
+  key: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>,
 };
 
 // ─── SIDEBAR NAV ──────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ const NAV_ITEMS = [
   { href: '/',                label: 'Home',           icon: Icon.home,      match: (p) => p === '/'              },
   { href: '/products',        label: 'Products',       icon: Icon.products,  match: (p) => p.startsWith('/products') },
   { href: '/command-center',  label: 'Command Center', icon: Icon.lightning, match: (p) => p.startsWith('/command-center') },
+  { href: '/saved-views',     label: 'Saved Views',    icon: Icon.bookmark,  match: (p) => p.startsWith('/saved-views') },
   { href: '/dashboard',       label: 'Comparison',     icon: Icon.chart,     match: (p) => p.startsWith('/dashboard') },
   { href: '/insights',        label: 'Intelligence',   icon: Icon.trend,     match: (p) => p.startsWith('/insights') },
   { href: '/alerts',          label: 'Alerts',         icon: Icon.bell,      match: (p) => p.startsWith('/alerts') },
@@ -49,6 +52,10 @@ const NAV_ITEMS = [
   { href: '/analytics',    label: 'Analytics',    icon: Icon.trend,     match: (p) => p.startsWith('/analytics') },
   { href: '/repricing',    label: 'Repricing',    icon: Icon.tag,       match: (p) => p.startsWith('/repricing') },
   { href: '/discovery',    label: 'Discovery',    icon: Icon.globe,     match: (p) => p.startsWith('/discovery') },
+  // ── Settings group ──
+  { href: '/settings/team',     label: 'Team',       icon: Icon.users,   match: (p) => p.startsWith('/settings/team'), group: 'Settings' },
+  { href: '/settings/api-keys', label: 'API Keys',   icon: Icon.key,     match: (p) => p.startsWith('/settings/api-keys'), group: 'Settings' },
+  { href: '/settings',          label: 'Settings',   icon: Icon.gear,    match: (p) => p === '/settings', group: 'Settings' },
 ];
 
 const BOTTOM_NAV = [
@@ -188,7 +195,8 @@ function Sidebar({ pathname, user, logout }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-        {NAV_ITEMS.map((item) => {
+        {/* Main nav (no group) */}
+        {NAV_ITEMS.filter((i) => !i.group).map((item) => {
           const active = item.match(pathname);
           return (
             <Link key={item.href} href={item.href}
@@ -199,15 +207,21 @@ function Sidebar({ pathname, user, logout }) {
           );
         })}
 
+        {/* Settings group */}
         <div className="pt-3 pb-1">
           <div className="h-px bg-gray-100 mx-3" />
         </div>
-
-        <Link href="/settings"
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${pathname.startsWith('/settings') ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
-          <span className={pathname.startsWith('/settings') ? 'text-blue-600' : 'text-gray-400'}>{Icon.gear}</span>
-          Settings
-        </Link>
+        <p className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Settings</p>
+        {NAV_ITEMS.filter((i) => i.group === 'Settings').map((item) => {
+          const active = item.match(pathname);
+          return (
+            <Link key={item.href} href={item.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}>
+              <span className={active ? 'text-blue-600' : 'text-gray-400'}>{item.icon}</span>
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="px-3 pb-3">

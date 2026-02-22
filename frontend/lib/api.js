@@ -189,6 +189,64 @@ const api = {
   getCompetitorProfile: (name) =>
     request(`/api/competitor-intel/competitors/${encodeURIComponent(name)}`),
 
+  // ─── Excel export ─────────────────────────────────────────────────────────────
+  exportProductXLSX: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${BASE}/products/${id}/export.xlsx`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    return res.blob();
+  },
+
+  // ─── API Keys ─────────────────────────────────────────────────────────────────
+  getApiKeys: () => request('/api/auth/api-keys'),
+  createApiKey: (name) =>
+    request('/api/auth/api-keys', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteApiKey: (id) => request(`/api/auth/api-keys/${id}`, { method: 'DELETE' }),
+  rotateApiKey: (id) => request(`/api/auth/api-keys/${id}/rotate`, { method: 'POST' }),
+
+  // ─── Workspaces ───────────────────────────────────────────────────────────────
+  getWorkspaces: () => request('/api/workspaces'),
+  createWorkspace: (name) =>
+    request('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) }),
+  getWorkspace: (id) => request(`/api/workspaces/${id}`),
+  updateWorkspace: (id, name) =>
+    request(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteWorkspace: (id) => request(`/api/workspaces/${id}`, { method: 'DELETE' }),
+  inviteMember: (wsId, email, role = 'viewer') =>
+    request(`/api/workspaces/${wsId}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    }),
+  updateMemberRole: (wsId, uid, role) =>
+    request(`/api/workspaces/${wsId}/members/${uid}`, {
+      method: 'PUT',
+      body: JSON.stringify({ role }),
+    }),
+  removeMember: (wsId, uid) =>
+    request(`/api/workspaces/${wsId}/members/${uid}`, { method: 'DELETE' }),
+
+  // ─── Saved Views ──────────────────────────────────────────────────────────────
+  getSavedViews: () => request('/api/filters/views'),
+  createSavedView: (data) =>
+    request('/api/filters/views', { method: 'POST', body: JSON.stringify(data) }),
+  deleteSavedView: (id) => request(`/api/filters/views/${id}`, { method: 'DELETE' }),
+  duplicateSavedView: (id) =>
+    request(`/api/filters/views/${id}/duplicate`, { method: 'POST' }),
+
+  // ─── Store Connections ────────────────────────────────────────────────────────
+  getStoreConnections: () => request('/api/integrations/store-connections'),
+  saveStoreConnection: (data) =>
+    request('/api/integrations/store-connections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteStoreConnection: (id) =>
+    request(`/api/integrations/store-connections/${id}`, { method: 'DELETE' }),
+  syncStoreInventory: (id) =>
+    request(`/api/integrations/store-connections/${id}/sync`, { method: 'POST' }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

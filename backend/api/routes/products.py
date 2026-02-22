@@ -956,6 +956,106 @@ def export_product_csv(
     )
 
 
+@router.get("/{product_id}/export.xlsx")
+def export_product_xlsx(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    GET /products/{id}/export.xlsx
+
+    Download all competitor data for a product as an Excel (.xlsx) file.
+    Uses a stdlib-only XLSX writer — no openpyxl required.
+    """
+    from fastapi.responses import Response
+    from services.xlsx_writer import write_xlsx
+
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id == product_id
+    ).all()
+
+    headers = [
+        "Competitor", "Product Title", "URL",
+        "Match Score (%)", "Price", "Was Price", "Discount (%)",
+        "Shipping", "Total Price", "In Stock", "Stock Status",
+        "Fulfillment", "Seller", "Rating", "Reviews",
+        "Prime", "Condition", "Category", "Variant",
+        "Brand", "MPN", "UPC/EAN",
+        "Promotion", "Last Checked",
+        "My Price", "Cost Price",
+        "Margin at My Price (%)", "Margin if Matched (%)",
+    ]
+
+    rows = []
+    for match in matches:
+        latest = db.query(PriceHistory).filter(
+            PriceHistory.match_id == match.id
+        ).order_by(PriceHistory.timestamp.desc()).first()
+
+        price = match.latest_price
+        shipping = latest.shipping_cost if latest else None
+        total = latest.total_price if latest else price
+        was_price = latest.was_price if latest else None
+        discount_pct = latest.discount_pct if latest else None
+        promotion = latest.promotion_label if latest else None
+
+        margin_at_my_price = None
+        margin_if_matched = None
+        if product.cost_price:
+            if product.my_price and product.my_price > 0:
+                margin_at_my_price = round((product.my_price - product.cost_price) / product.my_price * 100, 1)
+            if price and price > 0:
+                margin_if_matched = round((price - product.cost_price) / price * 100, 1)
+
+        rows.append([
+            match.competitor_name,
+            match.competitor_product_title or '',
+            match.competitor_url,
+            round(match.match_score) if match.match_score else '',
+            round(price, 2) if price else '',
+            round(was_price, 2) if was_price else '',
+            round(discount_pct, 1) if discount_pct else '',
+            round(shipping, 2) if shipping is not None else '',
+            round(total, 2) if total else '',
+            'Yes' if (latest and latest.in_stock) else 'No',
+            match.stock_status or '',
+            match.fulfillment_type or '',
+            match.seller_name or '',
+            round(match.rating, 1) if match.rating else '',
+            match.review_count or '',
+            'Yes' if match.is_prime else ('No' if match.is_prime is False else ''),
+            match.product_condition or '',
+            match.category or '',
+            match.variant or '',
+            match.brand or '',
+            match.mpn or '',
+            match.upc_ean or '',
+            promotion or '',
+            match.last_scraped_at.strftime('%Y-%m-%d %H:%M') if match.last_scraped_at else '',
+            round(product.my_price, 2) if product.my_price else '',
+            round(product.cost_price, 2) if product.cost_price else '',
+            margin_at_my_price if margin_at_my_price is not None else '',
+            margin_if_matched if margin_if_matched is not None else '',
+        ])
+
+    xlsx_bytes = write_xlsx(product.title[:31], headers, rows)
+    safe_title = product.title[:30].replace(' ', '_')
+    filename = f"marketintel_{safe_title}_{product_id}.xlsx"
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.delete("/{product_id}")
 def delete_product(product_id: int, db: Session = Depends(get_db)):
     """

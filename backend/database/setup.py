@@ -59,6 +59,8 @@ def run_migrations():
         "ALTER TABLE price_history ADD COLUMN seller_count INTEGER",
         "ALTER TABLE price_history ADD COLUMN is_buy_box_winner INTEGER",
         "ALTER TABLE price_history ADD COLUMN scrape_quality TEXT",
+        # v5 — inventory quantity on monitored products
+        "ALTER TABLE products_monitored ADD COLUMN inventory_quantity INTEGER",
     ]
     with engine.connect() as conn:
         for sql in migrations:
