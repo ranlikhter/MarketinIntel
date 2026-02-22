@@ -58,6 +58,8 @@ class ProductMonitored(Base):
     description = Column(Text, nullable=True)     # Product description / feature bullets
     mpn = Column(String(100), nullable=True)      # Manufacturer Part Number (e.g., "WH1000XM5/B")
     upc_ean = Column(String(50), nullable=True)   # UPC-12 or EAN-13 barcode
+    # Margin intelligence
+    cost_price = Column(Float, nullable=True)     # User's cost / COGS — enables margin calculation
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

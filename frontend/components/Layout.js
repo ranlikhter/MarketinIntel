@@ -35,11 +35,12 @@ const Icon = {
 
 // ─── SIDEBAR NAV ──────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { href: '/',             label: 'Home',         icon: Icon.home,      match: (p) => p === '/'              },
-  { href: '/products',     label: 'Products',     icon: Icon.products,  match: (p) => p.startsWith('/products') },
-  { href: '/dashboard',    label: 'Comparison',   icon: Icon.chart,     match: (p) => p.startsWith('/dashboard') },
-  { href: '/insights',     label: 'Intelligence', icon: Icon.lightning, match: (p) => p.startsWith('/insights') },
-  { href: '/alerts',       label: 'Alerts',       icon: Icon.bell,      match: (p) => p.startsWith('/alerts') },
+  { href: '/',                label: 'Home',           icon: Icon.home,      match: (p) => p === '/'              },
+  { href: '/products',        label: 'Products',       icon: Icon.products,  match: (p) => p.startsWith('/products') },
+  { href: '/command-center',  label: 'Command Center', icon: Icon.lightning, match: (p) => p.startsWith('/command-center') },
+  { href: '/dashboard',       label: 'Comparison',     icon: Icon.chart,     match: (p) => p.startsWith('/dashboard') },
+  { href: '/insights',        label: 'Intelligence',   icon: Icon.trend,     match: (p) => p.startsWith('/insights') },
+  { href: '/alerts',          label: 'Alerts',         icon: Icon.bell,      match: (p) => p.startsWith('/alerts') },
   { href: '/competitors',  label: 'Competitors',  icon: Icon.users,     match: (p) => p.startsWith('/competitors') },
   { href: '/integrations', label: 'Integrations', icon: Icon.link,      match: (p) => p.startsWith('/integrations') },
   { href: '/scheduler',    label: 'Scheduler',    icon: Icon.clock,     match: (p) => p.startsWith('/scheduler') },
@@ -49,10 +50,10 @@ const NAV_ITEMS = [
 ];
 
 const BOTTOM_NAV = [
-  { href: '/products',   label: 'Products',     icon: Icon.products  },
-  { href: '/insights',   label: 'Intelligence', icon: Icon.lightning },
+  { href: '/products',        label: 'Products',  icon: Icon.products  },
+  { href: '/command-center',  label: 'Battle',    icon: Icon.lightning },
   null, // FAB slot
-  { href: '/alerts',     label: 'Alerts',       icon: Icon.bell      },
+  { href: '/alerts',          label: 'Alerts',    icon: Icon.bell      },
   { href: '/settings',   label: 'Settings',     icon: Icon.gear      },
 ];
 

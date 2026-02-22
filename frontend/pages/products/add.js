@@ -6,7 +6,10 @@ import api from '../../lib/api';
 
 export default function AddProductPage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({ title: '', brand: '', sku: '', image_url: '' });
+  const [formData, setFormData] = useState({
+    title: '', brand: '', sku: '', image_url: '',
+    my_price: '', cost_price: '', mpn: '', upc_ean: '',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -17,7 +20,13 @@ export default function AddProductPage() {
     setLoading(true);
     setError(null);
     try {
-      const product = await api.createProduct(formData);
+      const payload = { ...formData };
+      // Convert numeric strings to numbers
+      if (payload.my_price) payload.my_price = parseFloat(payload.my_price);
+      if (payload.cost_price) payload.cost_price = parseFloat(payload.cost_price);
+      // Remove empty strings
+      Object.keys(payload).forEach((k) => { if (payload[k] === '') delete payload[k]; });
+      const product = await api.createProduct(payload);
       router.push(`/products/${product.id}`);
     } catch (err) {
       setError(err.message || 'Failed to create product');
@@ -113,6 +122,83 @@ export default function AddProductPage() {
                   className={inputCls}
                 />
                 <p className="text-xs text-gray-400 mt-1">Optional — used for the product card thumbnail</p>
+              </div>
+
+              {/* Pricing section */}
+              <div className="pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing & Margin</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">My Selling Price</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        name="my_price"
+                        value={formData.my_price}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        className={`${inputCls} pl-7`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Cost / COGS{' '}
+                      <span className="text-xs text-violet-600 font-normal">(enables margin view)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <input
+                        type="number"
+                        name="cost_price"
+                        value={formData.cost_price}
+                        onChange={handleChange}
+                        placeholder="0.00"
+                        step="0.01"
+                        min="0"
+                        className={`${inputCls} pl-7`}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Landed cost — used to calculate margin vs competitors</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Product identifiers */}
+              <div className="pt-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Product Identifiers{' '}
+                  <span className="text-xs text-blue-600 font-normal normal-case">(improves match accuracy)</span>
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">MPN</label>
+                    <input
+                      type="text"
+                      name="mpn"
+                      value={formData.mpn}
+                      onChange={handleChange}
+                      placeholder="e.g. WH1000XM5/B"
+                      className={inputCls}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Manufacturer Part Number</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">UPC / EAN</label>
+                    <input
+                      type="text"
+                      name="upc_ean"
+                      value={formData.upc_ean}
+                      onChange={handleChange}
+                      placeholder="e.g. 027242920958"
+                      className={inputCls}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">Barcode — exact match guarantee</p>
+                  </div>
+                </div>
               </div>
 
               {/* Actions */}

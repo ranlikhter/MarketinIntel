@@ -29,10 +29,11 @@ def run_migrations():
         "ALTER TABLE products_monitored ADD COLUMN my_price REAL",
         # v2
         "ALTER TABLE users ADD COLUMN notification_prefs TEXT",
-        # v4 — match-rate identifiers on products_monitored
+        # v4 — match-rate identifiers + margin intelligence on products_monitored
         "ALTER TABLE products_monitored ADD COLUMN description TEXT",
         "ALTER TABLE products_monitored ADD COLUMN mpn TEXT",
         "ALTER TABLE products_monitored ADD COLUMN upc_ean TEXT",
+        "ALTER TABLE products_monitored ADD COLUMN cost_price REAL",
         # v4 — match-rate identifiers on competitor_matches
         "ALTER TABLE competitor_matches ADD COLUMN brand TEXT",
         "ALTER TABLE competitor_matches ADD COLUMN description TEXT",

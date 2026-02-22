@@ -48,6 +48,16 @@ const api = {
   getProductMatches: (id) => request(`/products/${id}/matches`),
   getProductPriceHistory: (id) => request(`/products/${id}/price-history`),
 
+  // CSV export — returns a Blob for download
+  exportProductCSV: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${BASE}/products/${id}/export.csv`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+    return res.blob();
+  },
+
   scrapeProduct: (id, website = 'amazon.com', maxResults = 5) =>
     request(
       `/products/${id}/scrape?website=${encodeURIComponent(website)}&max_results=${maxResults}`,

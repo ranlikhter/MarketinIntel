@@ -9,6 +9,7 @@ from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert
 from services.email_service import email_service
+from services.webhook_service import send_slack_alert, send_discord_alert, send_slack_digest
 from sqlalchemy import func
 from datetime import datetime, timedelta
 import logging
@@ -90,16 +91,51 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                                 should_trigger = abs(change_pct) >= rule.threshold_pct
 
                             if should_trigger:
+                                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+                                product_url = f"{frontend_url}/products/{product.id}"
+
                                 # Send email
-                                email_service.send_price_alert(
-                                    to_email=rule.email,
-                                    product_title=product.title,
-                                    competitor=match.competitor_name,
-                                    old_price=previous_price,
-                                    new_price=current_price,
-                                    change_pct=change_pct,
-                                    product_url=f"http://localhost:3000/products/{product.id}"
-                                )
+                                if rule.notify_email and rule.email:
+                                    email_service.send_price_alert(
+                                        to_email=rule.email,
+                                        product_title=product.title,
+                                        competitor=match.competitor_name,
+                                        old_price=previous_price,
+                                        new_price=current_price,
+                                        change_pct=change_pct,
+                                        product_url=product_url
+                                    )
+
+                                # Send Slack notification
+                                if rule.notify_slack and rule.slack_webhook_url:
+                                    try:
+                                        send_slack_alert(
+                                            webhook_url=rule.slack_webhook_url,
+                                            product_title=product.title,
+                                            competitor_name=match.competitor_name,
+                                            old_price=previous_price,
+                                            new_price=current_price,
+                                            change_pct=change_pct,
+                                            product_url=product_url,
+                                        )
+                                    except Exception as slack_err:
+                                        logger.error(f"Slack webhook failed: {slack_err}")
+
+                                # Send Discord notification
+                                if rule.notify_discord and rule.discord_webhook_url:
+                                    try:
+                                        send_discord_alert(
+                                            webhook_url=rule.discord_webhook_url,
+                                            product_title=product.title,
+                                            competitor_name=match.competitor_name,
+                                            old_price=previous_price,
+                                            new_price=current_price,
+                                            change_pct=change_pct,
+                                            product_url=product_url,
+                                        )
+                                    except Exception as discord_err:
+                                        logger.error(f"Discord webhook failed: {discord_err}")
+
                                 # Update last triggered
                                 rule.last_triggered_at = datetime.utcnow()
 
@@ -161,8 +197,16 @@ def send_daily_digest(self):
             }
         }
 
-        # Send digest to each unique email
+        # Send digest to each unique email + Slack webhook
         emails_sent = 0
+        slack_webhooks_sent = 0
+        slack_webhooks = self.db.query(PriceAlert.slack_webhook_url).filter(
+            PriceAlert.enabled == True,
+            PriceAlert.notify_slack == True,
+            PriceAlert.slack_webhook_url != None,
+            PriceAlert.digest_frequency == 'daily',
+        ).distinct().all()
+
         for (email,) in alert_emails:
             try:
                 email_service.send_daily_digest(
@@ -175,6 +219,19 @@ def send_daily_digest(self):
                 emails_sent += 1
             except Exception as e:
                 logger.error(f"Failed to send digest to {email}: {e}")
+
+        for (slack_url,) in slack_webhooks:
+            try:
+                send_slack_digest(
+                    webhook_url=slack_url,
+                    date=digest_data['date'],
+                    stats=digest_data['stats'],
+                    top_drops=top_drops,
+                    top_increases=top_increases,
+                )
+                slack_webhooks_sent += 1
+            except Exception as e:
+                logger.error(f"Failed to send Slack digest to {slack_url}: {e}")
 
         logger.info(f"Daily digest sent to {emails_sent} recipients")
 

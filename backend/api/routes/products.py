@@ -43,6 +43,7 @@ class ProductCreate(BaseModel):
     description: str | None = None
     mpn: str | None = None       # Manufacturer Part Number — used for exact matching
     upc_ean: str | None = None   # UPC-12 or EAN-13 barcode — gold-standard exact match
+    cost_price: float | None = None  # COGS / landed cost — enables margin calculations
 
 
 class ProductUpdate(BaseModel):
@@ -55,6 +56,7 @@ class ProductUpdate(BaseModel):
     description: str | None = None
     mpn: str | None = None
     upc_ean: str | None = None
+    cost_price: float | None = None
 
 
 class ProductResponse(BaseModel):
@@ -71,6 +73,7 @@ class ProductResponse(BaseModel):
     description: str | None = None
     mpn: str | None = None
     upc_ean: str | None = None
+    cost_price: float | None = None
     created_at: datetime
     competitor_count: int = 0
     # Pricing summary (populated in list endpoint)
@@ -177,6 +180,7 @@ def create_product(
         description=product.description,
         mpn=product.mpn,
         upc_ean=product.upc_ean,
+        cost_price=product.cost_price,
         user_id=current_user.id  # Associate product with user
     )
 
@@ -194,6 +198,7 @@ def create_product(
         description=db_product.description,
         mpn=db_product.mpn,
         upc_ean=db_product.upc_ean,
+        cost_price=db_product.cost_price,
         created_at=db_product.created_at,
         competitor_count=0
     )
@@ -282,6 +287,7 @@ def get_all_products(
             description=product.description,
             mpn=product.mpn,
             upc_ean=product.upc_ean,
+            cost_price=product.cost_price,
             created_at=product.created_at,
             competitor_count=len(product.competitor_matches),
             lowest_price=round(lowest_price, 2) if lowest_price else None,
@@ -324,6 +330,7 @@ def get_product(
         description=product.description,
         mpn=product.mpn,
         upc_ean=product.upc_ean,
+        cost_price=product.cost_price,
         created_at=product.created_at,
         competitor_count=len(product.competitor_matches)
     )
@@ -363,6 +370,7 @@ def update_product(
         description=product.description,
         mpn=product.mpn,
         upc_ean=product.upc_ean,
+        cost_price=product.cost_price,
         created_at=product.created_at,
         competitor_count=len(product.competitor_matches)
     )
@@ -791,6 +799,111 @@ async def scrape_competitor_url(
             "status": "error",
             "error": str(e)
         }
+
+
+@router.get("/{product_id}/export.csv")
+def export_product_csv(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    GET /products/{id}/export.csv
+
+    Download all competitor data for a product as a CSV file.
+    Includes latest snapshot (price, shipping, discount, stock, seller, ratings).
+    """
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id == product_id
+    ).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header row
+    writer.writerow([
+        "Competitor", "Product Title", "URL",
+        "Match Score (%)", "Price", "Was Price", "Discount (%)",
+        "Shipping", "Total Price", "In Stock", "Stock Status",
+        "Fulfillment", "Seller", "Rating", "Reviews",
+        "Prime", "Condition", "Category", "Variant",
+        "Brand", "MPN", "UPC/EAN",
+        "Promotion", "Last Checked",
+        # My product fields for context
+        "My Price", "Cost Price",
+        "Margin at My Price (%)", "Margin if Matched (%)"
+    ])
+
+    for match in matches:
+        latest = db.query(PriceHistory).filter(
+            PriceHistory.match_id == match.id
+        ).order_by(PriceHistory.timestamp.desc()).first()
+
+        price = match.latest_price
+        shipping = latest.shipping_cost if latest else None
+        total = latest.total_price if latest else price
+        was_price = latest.was_price if latest else None
+        discount_pct = latest.discount_pct if latest else None
+        promotion = latest.promotion_label if latest else None
+
+        # Margin calculations
+        margin_at_my_price = None
+        margin_if_matched = None
+        if product.cost_price:
+            if product.my_price and product.my_price > 0:
+                margin_at_my_price = round((product.my_price - product.cost_price) / product.my_price * 100, 1)
+            if price and price > 0:
+                margin_if_matched = round((price - product.cost_price) / price * 100, 1)
+
+        writer.writerow([
+            match.competitor_name,
+            match.competitor_product_title or '',
+            match.competitor_url,
+            f"{match.match_score:.0f}" if match.match_score else '',
+            f"{price:.2f}" if price else '',
+            f"{was_price:.2f}" if was_price else '',
+            f"{discount_pct:.1f}" if discount_pct else '',
+            f"{shipping:.2f}" if shipping is not None else '',
+            f"{total:.2f}" if total else '',
+            'Yes' if (latest and latest.in_stock) else 'No',
+            match.stock_status or '',
+            match.fulfillment_type or '',
+            match.seller_name or '',
+            f"{match.rating:.1f}" if match.rating else '',
+            match.review_count or '',
+            'Yes' if match.is_prime else ('No' if match.is_prime is False else ''),
+            match.product_condition or '',
+            match.category or '',
+            match.variant or '',
+            match.brand or '',
+            match.mpn or '',
+            match.upc_ean or '',
+            promotion or '',
+            match.last_scraped_at.strftime('%Y-%m-%d %H:%M') if match.last_scraped_at else '',
+            f"{product.my_price:.2f}" if product.my_price else '',
+            f"{product.cost_price:.2f}" if product.cost_price else '',
+            f"{margin_at_my_price}" if margin_at_my_price is not None else '',
+            f"{margin_if_matched}" if margin_if_matched is not None else '',
+        ])
+
+    output.seek(0)
+    filename = f"marketintel_{product.title[:30].replace(' ', '_')}_{product_id}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @router.delete("/{product_id}")
