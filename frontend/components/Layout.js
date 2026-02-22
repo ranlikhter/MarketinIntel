@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
+import { usePwa } from '../context/PwaContext';
 import usePriceEvents from '../lib/usePriceEvents';
 
 // ─── TIER CONFIG ──────────────────────────────────────────────────────────────
@@ -186,6 +187,23 @@ function TopbarAvatar({ user, logout }) {
   );
 }
 
+// ─── PWA INSTALL BUTTON ───────────────────────────────────────────────────────
+function InstallButton() {
+  const { canInstall, install } = usePwa();
+  if (!canInstall) return null;
+  return (
+    <button
+      onClick={install}
+      className="flex items-center justify-center gap-2 w-full py-2 rounded-xl border border-blue-200 text-blue-600 text-xs font-semibold hover:bg-blue-50 transition-colors"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      Install App
+    </button>
+  );
+}
+
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({ pathname, user, logout }) {
   return (
@@ -224,11 +242,12 @@ function Sidebar({ pathname, user, logout }) {
         })}
       </nav>
 
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-3 space-y-2">
         <Link href="/products/add"
           className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
           {Icon.plus} Add Product
         </Link>
+        <InstallButton />
       </div>
 
       <div className="px-3 pb-4 border-t border-gray-100 pt-3">
@@ -325,6 +344,7 @@ function BottomNav({ pathname }) {
 export default function Layout({ children }) {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { isOnline } = usePwa();
   const { pathname } = router;
 
   // ── Live price-change toasts ───────────────────────────────────────────────
@@ -350,6 +370,15 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="fixed top-0 inset-x-0 z-[9999] bg-amber-500 text-white text-sm font-medium text-center py-1.5 px-4 flex items-center justify-center gap-2">
+          <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M12 12h.01M3.636 18.364a9 9 0 010-12.728M6.464 15.536a5 5 0 010-7.072" />
+          </svg>
+          You're offline — showing cached data
+        </div>
+      )}
       <Sidebar pathname={pathname} user={user} logout={logout} />
       <Topbar user={user} logout={logout} />
 
