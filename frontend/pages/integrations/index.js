@@ -3,242 +3,156 @@ import Layout from '../../components/Layout';
 import ImportWizard from '../../components/ImportWizard';
 import Modal from '../../components/Modal';
 
-export default function IntegrationsPage() {
-  const [showImportWizard, setShowImportWizard] = useState(false);
+const Ico = {
+  xml:      <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
+  store:    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
+  cart:     <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+  check:    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+  plus:     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
+  bolt:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+  shield:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
+  sync:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+  doc:      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+};
 
-  const handleImportComplete = (result) => {
-    setShowImportWizard(false);
-    // Optionally redirect or refresh
-  };
+const INTEGRATIONS = [
+  {
+    icon: Ico.xml,
+    iconBg: 'bg-orange-50 text-orange-600',
+    title: 'XML Feed',
+    desc: 'Upload a product catalog XML file. Supports Google Shopping Feed, WooCommerce exports, and custom formats.',
+    features: ['Auto-detect format', 'Google Shopping Feed', 'WooCommerce XML', 'Custom XML formats'],
+    button: 'Import from XML',
+    btnClass: 'bg-orange-600 hover:bg-orange-700',
+  },
+  {
+    icon: Ico.store,
+    iconBg: 'bg-violet-50 text-violet-600',
+    title: 'WooCommerce',
+    desc: 'Connect to your WooCommerce store via REST API and automatically sync all published products.',
+    features: ['Direct API connection', 'Bulk import', 'Filter by category', 'Sync product status'],
+    button: 'Connect WooCommerce',
+    btnClass: 'bg-violet-600 hover:bg-violet-700',
+  },
+  {
+    icon: Ico.cart,
+    iconBg: 'bg-emerald-50 text-emerald-600',
+    title: 'Shopify',
+    desc: 'Connect to your Shopify store using the Admin API. Import products, variants, and collections.',
+    features: ['Admin API integration', 'Import all products', 'Variant support', 'Collection filtering'],
+    button: 'Connect Shopify',
+    btnClass: 'bg-emerald-600 hover:bg-emerald-700',
+  },
+];
+
+const FEATURES = [
+  { icon: Ico.bolt,   iconBg: 'bg-blue-50 text-blue-600',    title: 'Fast Import',          desc: 'Import hundreds of products in seconds with optimised batch processing.' },
+  { icon: Ico.shield, iconBg: 'bg-emerald-50 text-emerald-600', title: 'Duplicate Detection', desc: 'Automatically skips products that already exist in your catalogue.' },
+  { icon: Ico.sync,   iconBg: 'bg-violet-50 text-violet-600',  title: 'Automatic Sync',      desc: 'Keep products up-to-date with scheduled imports (coming soon).' },
+  { icon: Ico.doc,    iconBg: 'bg-orange-50 text-orange-600',  title: 'Flexible Formats',    desc: 'Support for multiple XML formats with automatic field detection.' },
+];
+
+const STEPS = [
+  { n: '1', title: 'Choose Source',  desc: 'Select XML, WooCommerce, or Shopify' },
+  { n: '2', title: 'Configure',      desc: 'Upload file or enter API credentials' },
+  { n: '3', title: 'Import',         desc: 'Products are validated and imported' },
+  { n: '4', title: 'Monitor',        desc: 'Start tracking competitor prices' },
+];
+
+export default function IntegrationsPage() {
+  const [showWizard, setShowWizard] = useState(false);
 
   return (
     <Layout>
-      <div className="space-y-8">
+      <div className="p-4 lg:p-6 space-y-5">
+
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Integrations</h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Import products from your e-commerce platform or XML feed
-          </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Integrations</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Import products from your e-commerce platform or XML feed</p>
+          </div>
+          <button
+            onClick={() => setShowWizard(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            {Ico.plus} Start Import
+          </button>
         </div>
 
         {/* Integration Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* XML Import */}
-          <IntegrationCard
-            icon={
-              <svg className="w-16 h-16 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            }
-            title="XML Feed"
-            description="Upload an XML file with your product catalog. Supports Google Shopping Feed, WooCommerce exports, and custom formats."
-            features={[
-              'Auto-detect format',
-              'Google Shopping Feed',
-              'WooCommerce XML',
-              'Custom XML formats'
-            ]}
-            buttonText="Import from XML"
-            buttonColor="orange"
-            onClick={() => setShowImportWizard(true)}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {INTEGRATIONS.map((intg, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-4">
+              {/* Icon + title */}
+              <div className="flex items-center gap-3">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${intg.iconBg}`}>
+                  {intg.icon}
+                </div>
+                <h3 className="text-base font-bold text-gray-900">{intg.title}</h3>
+              </div>
 
-          {/* WooCommerce */}
-          <IntegrationCard
-            icon={
-              <svg className="w-16 h-16 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            }
-            title="WooCommerce"
-            description="Connect directly to your WooCommerce store via REST API. Automatically sync all published products."
-            features={[
-              'Direct API connection',
-              'Bulk import',
-              'Filter by category',
-              'Sync product status'
-            ]}
-            buttonText="Connect WooCommerce"
-            buttonColor="purple"
-            onClick={() => setShowImportWizard(true)}
-          />
+              <p className="text-xs text-gray-500 leading-relaxed">{intg.desc}</p>
 
-          {/* Shopify */}
-          <IntegrationCard
-            icon={
-              <svg className="w-16 h-16 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            }
-            title="Shopify"
-            description="Connect to your Shopify store using Admin API. Import products, variants, and collections."
-            features={[
-              'Admin API integration',
-              'Import all products',
-              'Variant support',
-              'Collection filtering'
-            ]}
-            buttonText="Connect Shopify"
-            buttonColor="green"
-            onClick={() => setShowImportWizard(true)}
-          />
+              {/* Features */}
+              <ul className="space-y-1.5">
+                {intg.features.map((f, j) => (
+                  <li key={j} className="flex items-center gap-2 text-xs text-gray-700">
+                    <span className="text-emerald-500 shrink-0">{Ico.check}</span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                onClick={() => setShowWizard(true)}
+                className={`mt-auto w-full py-2.5 text-white text-sm font-medium rounded-xl transition-colors ${intg.btnClass}`}
+              >
+                {intg.button}
+              </button>
+            </div>
+          ))}
         </div>
 
         {/* How It Works */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 border border-blue-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <Step
-              number="1"
-              title="Choose Source"
-              description="Select XML, WooCommerce, or Shopify"
-            />
-            <Step
-              number="2"
-              title="Configure"
-              description="Upload file or enter API credentials"
-            />
-            <Step
-              number="3"
-              title="Import"
-              description="Products are validated and imported"
-            />
-            <Step
-              number="4"
-              title="Monitor"
-              description="Start tracking competitor prices"
-            />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-50">
+            <h2 className="text-sm font-semibold text-gray-900">How It Works</h2>
+          </div>
+          <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {STEPS.map((s, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center text-sm font-bold shrink-0">
+                  {s.n}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{s.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Feature
-            icon={
-              <svg className="w-8 h-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            }
-            title="Fast Import"
-            description="Import hundreds of products in seconds with our optimized batch processing"
-          />
-          <Feature
-            icon={
-              <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            }
-            title="Duplicate Detection"
-            description="Automatically skips products that already exist in your database"
-          />
-          <Feature
-            icon={
-              <svg className="w-8 h-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            }
-            title="Automatic Sync"
-            description="Keep products up-to-date with scheduled imports (coming soon)"
-          />
-          <Feature
-            icon={
-              <svg className="w-8 h-8 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            }
-            title="Flexible Formats"
-            description="Support for multiple XML formats with auto-detection"
-          />
+        {/* Feature Highlights */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {FEATURES.map((f, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${f.iconBg}`}>{f.icon}</div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{f.title}</p>
+                <p className="text-xs text-gray-500 mt-1">{f.desc}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* CTA Section */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 text-center border border-gray-100">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Ready to Import?</h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-            Start monitoring competitor prices by importing your product catalog now
-          </p>
-          <button
-            onClick={() => setShowImportWizard(true)}
-            className="inline-flex items-center px-8 py-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-all hover:scale-105 shadow-lg"
-          >
-            <svg className="w-6 h-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Start Import Wizard
-          </button>
-        </div>
       </div>
 
       {/* Import Wizard Modal */}
-      <Modal
-        isOpen={showImportWizard}
-        onClose={() => setShowImportWizard(false)}
-        title="Import Products"
-        size="xl"
-      >
-        <ImportWizard onComplete={handleImportComplete} />
+      <Modal isOpen={showWizard} onClose={() => setShowWizard(false)} title="Import Products" size="xl">
+        <ImportWizard onComplete={() => setShowWizard(false)} />
       </Modal>
     </Layout>
-  );
-}
-
-function IntegrationCard({ icon, title, description, features, buttonText, buttonColor, onClick }) {
-  const colorClasses = {
-    orange: 'bg-orange-600 hover:bg-orange-700',
-    purple: 'bg-purple-600 hover:bg-purple-700',
-    green: 'bg-green-600 hover:bg-green-700'
-  };
-
-  return (
-    <div className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all p-8 border border-gray-100">
-      <div className="flex justify-center mb-6">{icon}</div>
-      <h3 className="text-2xl font-bold text-gray-900 mb-3 text-center">{title}</h3>
-      <p className="text-gray-600 mb-6 text-center">{description}</p>
-
-      <ul className="space-y-2 mb-6">
-        {features.map((feature, idx) => (
-          <li key={idx} className="flex items-center text-sm text-gray-700">
-            <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            {feature}
-          </li>
-        ))}
-      </ul>
-
-      <button
-        onClick={onClick}
-        className={`w-full py-3 ${colorClasses[buttonColor]} text-white rounded-lg font-medium transition-all hover:scale-105 shadow-md`}
-      >
-        {buttonText}
-      </button>
-    </div>
-  );
-}
-
-function Step({ number, title, description }) {
-  return (
-    <div className="text-center">
-      <div className="w-12 h-12 bg-primary-600 text-white rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3">
-        {number}
-      </div>
-      <h3 className="font-semibold text-gray-900 mb-1">{title}</h3>
-      <p className="text-sm text-gray-600">{description}</p>
-    </div>
-  );
-}
-
-function Feature({ icon, title, description }) {
-  return (
-    <div className="bg-white rounded-lg shadow-md p-6 border border-gray-100 hover:shadow-lg transition-shadow">
-      <div className="flex items-start gap-4">
-        <div className="flex-shrink-0">{icon}</div>
-        <div>
-          <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
-          <p className="text-sm text-gray-600">{description}</p>
-        </div>
-      </div>
-    </div>
   );
 }

@@ -3,268 +3,224 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 
+const Ico = {
+  globe:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
+  check:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  pause:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  plus:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
+  ext:    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>,
+  trash:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  edit:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+};
+
+const TABS = ['All', 'Active', 'Inactive'];
+
+function StatCard({ label, value, color, icon }) {
+  const bg = { blue: 'bg-blue-50 text-blue-600', emerald: 'bg-emerald-50 text-emerald-600', gray: 'bg-gray-100 text-gray-500' }[color];
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>{icon}</div>
+      <div>
+        <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
+        <p className="text-xs text-gray-500 mt-1">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function CompetitorCard({ competitor, onToggle, onDelete }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${competitor.name}"? This will remove all associated data.`)) return;
+    setDeleting(true);
+    await onDelete(competitor.id);
+  };
+
+  return (
+    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${competitor.is_active ? 'border-gray-100' : 'border-gray-100 opacity-75'}`}>
+      {/* Top stripe */}
+      <div className={`h-1 ${competitor.is_active ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-gray-900 truncate">{competitor.name}</h3>
+            <a
+              href={competitor.base_url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5 truncate max-w-full"
+            >
+              {competitor.base_url} {Ico.ext}
+            </a>
+          </div>
+          <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium ${competitor.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+            {competitor.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        {/* Type + date */}
+        <div className="flex items-center gap-3 mb-4 text-xs text-gray-500">
+          <span className="capitalize">{competitor.website_type || 'Custom'}</span>
+          <span>·</span>
+          <span>Added {new Date(competitor.created_at).toLocaleDateString()}</span>
+        </div>
+
+        {/* Selectors */}
+        {(competitor.price_selector || competitor.title_selector) && (
+          <div className="space-y-1.5 mb-4">
+            {competitor.price_selector && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400 w-8 shrink-0">Price</span>
+                <code className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg text-gray-600 truncate">{competitor.price_selector}</code>
+              </div>
+            )}
+            {competitor.title_selector && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400 w-8 shrink-0">Title</span>
+                <code className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg text-gray-600 truncate">{competitor.title_selector}</code>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {competitor.notes && (
+          <p className="text-xs text-gray-500 line-clamp-2 mb-4">{competitor.notes}</p>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+          <button
+            onClick={() => onToggle(competitor.id, competitor.is_active)}
+            className={`text-xs font-medium transition-colors ${competitor.is_active ? 'text-gray-500 hover:text-gray-900' : 'text-emerald-600 hover:text-emerald-700'}`}
+          >
+            {competitor.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+          <div className="flex items-center gap-3">
+            <Link href={`/competitors/${competitor.id}/edit`} className="text-gray-400 hover:text-gray-600 transition-colors">{Ico.edit}</Link>
+            <button onClick={handleDelete} disabled={deleting} className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50">{Ico.trash}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CompetitorsPage() {
   const [competitors, setCompetitors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [tab, setTab] = useState('All');
 
-  useEffect(() => {
-    loadCompetitors();
-  }, [filter]);
+  useEffect(() => { loadCompetitors(); }, []);
 
   const loadCompetitors = async () => {
     try {
       setLoading(true);
-      const activeOnly = filter === 'active' ? true : (filter === 'inactive' ? false : undefined);
-      const data = await api.getCompetitors(activeOnly);
+      const data = await api.getCompetitors();
       setCompetitors(data);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load competitors. Make sure the backend is running.');
-      console.error(err);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleActive = async (id, currentStatus) => {
+  const handleToggle = async (id, currentStatus) => {
     try {
       await api.toggleCompetitorStatus(id);
-      // Update local state
-      setCompetitors(competitors.map(c =>
-        c.id === id ? { ...c, is_active: !currentStatus } : c
-      ));
-    } catch (err) {
-      alert('Failed to update competitor status');
-      console.error(err);
-    }
+      setCompetitors(cs => cs.map(c => c.id === id ? { ...c, is_active: !currentStatus } : c));
+    } catch { alert('Failed to update competitor status'); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this competitor? This will remove all associated data.')) {
-      return;
-    }
-
     try {
       await api.deleteCompetitor(id);
-      setCompetitors(competitors.filter(c => c.id !== id));
-    } catch (err) {
-      alert('Failed to delete competitor');
-      console.error(err);
-    }
+      setCompetitors(cs => cs.filter(c => c.id !== id));
+    } catch { alert('Failed to delete competitor'); }
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading competitors...</p>
-        </div>
-      </Layout>
-    );
-  }
+  const active = competitors.filter(c => c.is_active);
+  const inactive = competitors.filter(c => !c.is_active);
+  const filtered = tab === 'Active' ? active : tab === 'Inactive' ? inactive : competitors;
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-red-800">{error}</p>
-          <p className="text-red-600 text-sm mt-2">
-            Start the backend server: <code className="bg-red-100 px-2 py-1 rounded">start-backend.bat</code>
-          </p>
+  if (loading) return (
+    <Layout>
+      <div className="p-4 lg:p-6 space-y-5">
+        <div className="grid grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
         </div>
-      </Layout>
-    );
-  }
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-48 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+        </div>
+      </div>
+    </Layout>
+  );
 
   return (
     <Layout>
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="p-4 lg:p-6 space-y-5">
+
         {/* Header */}
-        <div className="sm:flex sm:items-center">
-          <div className="sm:flex-auto">
-            <h1 className="text-3xl font-bold text-gray-900">Competitor Websites</h1>
-            <p className="mt-2 text-sm text-gray-700">
-              Manage custom competitor websites and configure scraping selectors
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Competitors</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Custom websites to monitor with CSS selectors</p>
           </div>
-          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-            <Link
-              href="/competitors/add"
-              className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-            >
-              Add Competitor
-            </Link>
-          </div>
+          <Link
+            href="/competitors/add"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            {Ico.plus} Add Competitor
+          </Link>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="mt-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setFilter('all')}
-              className={`${
-                filter === 'all'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              All ({competitors.length})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`${
-                filter === 'active'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setFilter('inactive')}
-              className={`${
-                filter === 'inactive'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Inactive
-            </button>
-          </nav>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard label="Total" value={competitors.length} color="blue" icon={Ico.globe} />
+          <StatCard label="Active" value={active.length} color="emerald" icon={Ico.check} />
+          <StatCard label="Inactive" value={inactive.length} color="gray" icon={Ico.pause} />
         </div>
 
-        {/* Competitors Grid */}
-        {competitors.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow mt-6">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
+        {/* Filter tabs */}
+        <div className="flex items-center gap-2">
+          {TABS.map(t => (
+            <button
+              key={t} onClick={() => setTab(t)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                tab === t ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              }`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No competitors</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Get started by adding your first competitor website.
+              {t}
+              {t !== 'All' && (
+                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : 'text-gray-400'}`}>
+                  ({t === 'Active' ? active.length : inactive.length})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Grid */}
+        {filtered.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center">
+            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">{Ico.globe}</div>
+            <p className="text-sm font-medium text-gray-900">
+              {tab === 'All' ? 'No competitors yet' : `No ${tab.toLowerCase()} competitors`}
             </p>
-            <div className="mt-6">
-              <Link
-                href="/competitors/add"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-              >
-                + Add Competitor
+            <p className="text-xs text-gray-400 mt-1 mb-5">
+              {tab === 'All' ? 'Add a competitor website to start tracking prices' : 'Change the filter to see other competitors'}
+            </p>
+            {tab === 'All' && (
+              <Link href="/competitors/add" className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+                {Ico.plus} Add Competitor
               </Link>
-            </div>
+            )}
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {competitors.map((competitor) => (
-              <div
-                key={competitor.id}
-                className="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-lg transition-shadow"
-              >
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {competitor.name}
-                    </h3>
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        competitor.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {competitor.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-
-                  {/* Base URL */}
-                  <a
-                    href={competitor.base_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary-600 hover:text-primary-900 break-all block mb-4"
-                  >
-                    {competitor.base_url}
-                  </a>
-
-                  {/* Type */}
-                  <div className="mb-4">
-                    <span className="text-xs text-gray-500">Type: </span>
-                    <span className="text-xs font-medium text-gray-700 capitalize">
-                      {competitor.website_type || 'custom'}
-                    </span>
-                  </div>
-
-                  {/* Selectors */}
-                  <div className="space-y-2 mb-4">
-                    <div className="text-xs">
-                      <span className="text-gray-500">Price: </span>
-                      <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                        {competitor.price_selector || 'Not set'}
-                      </code>
-                    </div>
-                    <div className="text-xs">
-                      <span className="text-gray-500">Title: </span>
-                      <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                        {competitor.title_selector || 'Not set'}
-                      </code>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {competitor.notes && (
-                    <p className="text-xs text-gray-600 mb-4 line-clamp-2">
-                      {competitor.notes}
-                    </p>
-                  )}
-
-                  {/* Date */}
-                  <p className="text-xs text-gray-500 mb-4">
-                    Added: {new Date(competitor.created_at).toLocaleDateString()}
-                  </p>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => handleToggleActive(competitor.id, competitor.is_active)}
-                      className={`text-sm font-medium ${
-                        competitor.is_active
-                          ? 'text-gray-600 hover:text-gray-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                    >
-                      {competitor.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <div className="space-x-3">
-                      <Link
-                        href={`/competitors/${competitor.id}/edit`}
-                        className="text-sm font-medium text-primary-600 hover:text-primary-900"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(competitor.id)}
-                        className="text-sm font-medium text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filtered.map(c => (
+              <CompetitorCard key={c.id} competitor={c} onToggle={handleToggle} onDelete={handleDelete} />
             ))}
           </div>
         )}
