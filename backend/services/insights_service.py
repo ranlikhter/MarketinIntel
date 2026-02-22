@@ -485,24 +485,156 @@ class InsightsService:
         ]
 
     def _get_bundling_opportunities(self) -> List[Dict[str, Any]]:
-        """Identify bundling opportunities (placeholder - needs more complex logic)"""
-        # TODO: Implement bundle detection logic
-        return []
+        """
+        Identify products where competitors appear to be selling bundles/kits
+        while we sell individual items (detected via title keywords).
+        """
+        bundle_keywords = {"bundle", "kit", "set", "pack", "combo", "collection", "multipack"}
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).all()
+
+        opportunities = []
+        for product in products:
+            # Check if any competitor title contains bundle keywords
+            bundled_competitors = [
+                m.competitor_name
+                for m in product.competitor_matches
+                if m.competitor_product_title and
+                any(kw in m.competitor_product_title.lower() for kw in bundle_keywords)
+            ]
+            if bundled_competitors:
+                opportunities.append({
+                    "product_id": product.id,
+                    "title": product.title,
+                    "bundled_by": list(set(bundled_competitors)),
+                    "bundle_count": len(bundled_competitors),
+                })
+
+        return opportunities
 
     def _get_aggressive_competitors(self) -> List[Dict[str, Any]]:
-        """Get competitors who consistently undercut"""
-        # TODO: Implement aggressive competitor detection
-        return []
+        """
+        Find competitors who dropped their price 3+ times in the last 7 days
+        across any of the user's products.
+        """
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).all()
+
+        competitor_drop_counts: Dict[str, int] = {}
+
+        for product in products:
+            for match in product.competitor_matches:
+                prices = self.db.query(PriceHistory).filter(
+                    PriceHistory.match_id == match.id,
+                    PriceHistory.timestamp >= week_ago
+                ).order_by(PriceHistory.timestamp).all()
+
+                drops = sum(
+                    1 for i in range(1, len(prices))
+                    if prices[i].price < prices[i - 1].price
+                )
+                if drops:
+                    competitor_drop_counts[match.competitor_name] = (
+                        competitor_drop_counts.get(match.competitor_name, 0) + drops
+                    )
+
+        aggressive = [
+            {"competitor_name": name, "price_drops_last_7d": count}
+            for name, count in competitor_drop_counts.items()
+            if count >= 3
+        ]
+        return sorted(aggressive, key=lambda x: x["price_drops_last_7d"], reverse=True)
 
     def _get_declining_price_products(self) -> List[Dict[str, Any]]:
-        """Get products with declining price trends"""
-        # TODO: Implement trend analysis
-        return []
+        """
+        Find products where the average competitor price declined over the last 7 days.
+        """
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).all()
+
+        declining = []
+        for product in products:
+            old_prices, new_prices = [], []
+            for match in product.competitor_matches:
+                history = self.db.query(PriceHistory).filter(
+                    PriceHistory.match_id == match.id,
+                    PriceHistory.timestamp >= week_ago,
+                    PriceHistory.in_stock == True,
+                ).order_by(PriceHistory.timestamp).all()
+
+                if len(history) >= 2:
+                    old_prices.append(history[0].price)
+                    new_prices.append(history[-1].price)
+
+            if not old_prices:
+                continue
+
+            old_avg = sum(old_prices) / len(old_prices)
+            new_avg = sum(new_prices) / len(new_prices)
+            trend_pct = ((new_avg - old_avg) / old_avg) * 100 if old_avg else 0
+
+            if trend_pct < -2:  # Declined more than 2 %
+                declining.append({
+                    "product_id": product.id,
+                    "title": product.title,
+                    "price_trend_pct": round(trend_pct, 2),
+                    "avg_price_now": round(new_avg, 2),
+                })
+
+        return sorted(declining, key=lambda x: x["price_trend_pct"])
 
     def _get_lost_position_products(self) -> List[Dict[str, Any]]:
-        """Get products where we lost competitive position"""
-        # TODO: Implement position tracking
-        return []
+        """
+        Find products where we were cheapest 7 days ago but are no longer the cheapest now.
+        Requires my_price to be set on the product.
+        """
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).all()
+
+        lost = []
+        for product in products:
+            if not product.my_price:
+                continue
+
+            # Were we cheapest a week ago?
+            old_comp_prices = []
+            new_comp_prices = []
+            for match in product.competitor_matches:
+                old_ph = self.db.query(PriceHistory).filter(
+                    PriceHistory.match_id == match.id,
+                    PriceHistory.timestamp <= week_ago,
+                    PriceHistory.in_stock == True,
+                ).order_by(desc(PriceHistory.timestamp)).first()
+
+                new_ph = self._get_latest_price(match.id)
+
+                if old_ph:
+                    old_comp_prices.append(old_ph.price)
+                if new_ph and new_ph.in_stock:
+                    new_comp_prices.append(new_ph.price)
+
+            if not old_comp_prices or not new_comp_prices:
+                continue
+
+            was_cheapest = product.my_price <= min(old_comp_prices)
+            is_still_cheapest = product.my_price <= min(new_comp_prices)
+
+            if was_cheapest and not is_still_cheapest:
+                lost.append({
+                    "product_id": product.id,
+                    "title": product.title,
+                    "my_price": product.my_price,
+                    "cheapest_competitor_now": round(min(new_comp_prices), 2),
+                })
+
+        return lost
 
     def _get_price_position(self, product: ProductMonitored) -> str:
         """Determine if product is cheapest, most expensive, or mid-range"""

@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
+from sqlalchemy import or_
 from database.connection import get_db
-from database.models import User, SavedView, ProductMonitored
+from database.models import User, SavedView, ProductMonitored, WorkspaceMember, SubscriptionTier
 from api.dependencies import get_current_user
 from services.filter_service import get_filter_service
 
@@ -255,11 +256,31 @@ async def get_saved_views(
     - User's own views
     - Workspace-shared views (if include_shared=true)
     """
-    query = db.query(SavedView).filter(
-        SavedView.user_id == current_user.id
-    )
+    # Start with the user's own views
+    conditions = [SavedView.user_id == current_user.id]
 
-    # TODO: Add workspace-shared views logic for Business/Enterprise tiers
+    # Business/Enterprise users also see views shared by workspace members
+    if include_shared and current_user.subscription_tier in (
+        SubscriptionTier.BUSINESS, SubscriptionTier.ENTERPRISE
+    ):
+        # Collect workspace IDs the user belongs to
+        workspace_ids = [
+            m.workspace_id
+            for m in db.query(WorkspaceMember).filter(
+                WorkspaceMember.user_id == current_user.id,
+                WorkspaceMember.is_active == True,
+            ).all()
+        ]
+        if workspace_ids:
+            conditions.append(
+                and_(
+                    SavedView.is_shared == True,
+                    SavedView.workspace_id.in_(workspace_ids),
+                )
+            )
+
+    from sqlalchemy import and_
+    query = db.query(SavedView).filter(or_(*conditions))
 
     views = query.order_by(SavedView.is_default.desc(), SavedView.use_count.desc()).all()
 

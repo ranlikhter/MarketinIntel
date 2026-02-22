@@ -1,5 +1,7 @@
 # 🤖 AI-Powered Product Matching Guide
 
+> **Updated 2026-02-22** — AI matching using sentence-transformers (all-MiniLM-L6-v2) is implemented and in production.
+
 ## 🎉 What's New?
 
 Your MarketIntel SaaS now has **INTELLIGENT AI-POWERED PRODUCT MATCHING** using state-of-the-art machine learning!

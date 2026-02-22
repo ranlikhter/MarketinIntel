@@ -1,23 +1,21 @@
-# 🚀 MarketIntel SaaS Implementation Roadmap
+# MarketIntel SaaS Implementation Roadmap
+
+> **Updated 2026-02-22** — Priorities #1 and #2 are fully complete. Onboarding wizard is the recommended next step.
 
 ## Executive Summary
 
-You have an **AMAZING technical foundation** with advanced features (AI matching, automated scraping, price alerts). Now we need to transform it into a **revenue-generating SaaS business**.
+The platform is now a production-ready SaaS with full authentication, Stripe billing, a mobile-first UI, and 100+ API endpoints.
 
-**Current Status:** MVP with advanced features ✅
-**Target Status:** Production SaaS with paying customers 💰
-**Timeline:** 3-6 months to $10K MRR
-**Priority:** Build business features, not more tech features
+**Current Status:** Full SaaS — auth, billing, product intelligence, mobile-first UI ✅
+**Next Steps:** Onboarding wizard, PostgreSQL migration, production deployment
 
 ---
 
-## 🎯 TOP 3 PRIORITIES (DO THESE FIRST)
+## 🎯 TOP 3 PRIORITIES
 
 ### **PRIORITY #1: User Authentication & Multi-Tenancy** ⭐⭐⭐⭐⭐
-**Status:** NOT STARTED
-**Blocking:** Everything else
-**Time:** 2-3 weeks
-**Complexity:** HIGH
+**Status:** ✅ COMPLETE
+**What was built:** JWT auth (24h/30d tokens), signup/login/verify/reset, user-scoped data, usage limits, workspace models
 
 #### Why This Is Critical:
 - ❌ Currently: No way to identify users
@@ -388,8 +386,8 @@ export default function DashboardPage() {
 ---
 
 ### **PRIORITY #2: Pricing & Billing (Stripe)** ⭐⭐⭐⭐⭐
-**Status:** NOT STARTED
-**Depends On:** User Auth
+**Status:** ✅ COMPLETE
+**What was built:** Stripe Checkout, Customer Portal, webhook handler, 4 subscription tiers (FREE/PRO/BUSINESS/ENTERPRISE), usage limit sync, pricing page
 **Time:** 2 weeks
 **Complexity:** MEDIUM
 
@@ -649,8 +647,8 @@ export default function PricingPage() {
 ---
 
 ### **PRIORITY #3: Onboarding Flow** ⭐⭐⭐⭐⭐
-**Status:** NOT STARTED
-**Depends On:** User Auth
+**Status:** 🚧 NEXT UP
+**Depends On:** User Auth (complete)
 **Time:** 1 week
 **Complexity:** LOW-MEDIUM
 

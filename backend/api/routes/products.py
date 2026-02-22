@@ -39,6 +39,16 @@ class ProductCreate(BaseModel):
     sku: str | None = None
     brand: str | None = None
     image_url: str | None = None
+    my_price: float | None = None
+
+
+class ProductUpdate(BaseModel):
+    """Schema for updating a product (all fields optional)."""
+    title: str | None = None
+    sku: str | None = None
+    brand: str | None = None
+    image_url: str | None = None
+    my_price: float | None = None
 
 
 class ProductResponse(BaseModel):
@@ -51,8 +61,15 @@ class ProductResponse(BaseModel):
     sku: str | None
     brand: str | None
     image_url: str | None
+    my_price: float | None = None
     created_at: datetime
-    competitor_count: int = 0  # Number of competitor matches
+    competitor_count: int = 0
+    # Pricing summary (populated in list endpoint)
+    lowest_price: float | None = None
+    avg_price: float | None = None
+    in_stock_count: int = 0
+    price_position: str | None = None  # 'cheapest' | 'expensive' | 'mid'
+    price_change_pct: float | None = None  # % change vs 7 days ago
 
     class Config:
         from_attributes = True  # Allows Pydantic to work with SQLAlchemy models
@@ -120,6 +137,7 @@ def create_product(
         sku=product.sku,
         brand=product.brand,
         image_url=product.image_url,
+        my_price=product.my_price,
         user_id=current_user.id  # Associate product with user
     )
 
@@ -127,13 +145,13 @@ def create_product(
     db.commit()
     db.refresh(db_product)  # Get the ID that was auto-generated
 
-    # Return the product with competitor_count = 0 (no matches yet)
     return ProductResponse(
         id=db_product.id,
         title=db_product.title,
         sku=db_product.sku,
         brand=db_product.brand,
         image_url=db_product.image_url,
+        my_price=db_product.my_price,
         created_at=db_product.created_at,
         competitor_count=0
     )
@@ -156,17 +174,76 @@ def get_all_products(
         ProductMonitored.user_id == current_user.id
     ).all()
 
-    # Convert to response format with competitor counts
+    from datetime import timedelta
+
     response_products = []
     for product in products:
+        # Collect latest prices from all competitor matches
+        latest_prices = []
+        stock_statuses = []
+        week_ago_prices = []
+
+        for match in product.competitor_matches:
+            latest = (
+                db.query(PriceHistory)
+                .filter(PriceHistory.match_id == match.id)
+                .order_by(PriceHistory.timestamp.desc())
+                .first()
+            )
+            if latest:
+                if latest.price:
+                    latest_prices.append(latest.price)
+                stock_statuses.append(bool(latest.in_stock))
+
+            # 7-day-old price for trend
+            week_ago = (
+                db.query(PriceHistory)
+                .filter(
+                    PriceHistory.match_id == match.id,
+                    PriceHistory.timestamp <= datetime.utcnow() - timedelta(days=7),
+                )
+                .order_by(PriceHistory.timestamp.desc())
+                .first()
+            )
+            if week_ago and week_ago.price:
+                week_ago_prices.append(week_ago.price)
+
+        lowest_price = min(latest_prices) if latest_prices else None
+        avg_price = (sum(latest_prices) / len(latest_prices)) if latest_prices else None
+        in_stock_count = sum(1 for s in stock_statuses if s)
+
+        # Price position relative to my_price
+        price_position = None
+        if product.my_price and lowest_price is not None:
+            if product.my_price <= lowest_price:
+                price_position = "cheapest"
+            elif avg_price and product.my_price > avg_price * 1.1:
+                price_position = "expensive"
+            else:
+                price_position = "mid"
+
+        # 7-day price change %
+        price_change_pct = None
+        if latest_prices and week_ago_prices:
+            current_avg = sum(latest_prices) / len(latest_prices)
+            old_avg = sum(week_ago_prices) / len(week_ago_prices)
+            if old_avg:
+                price_change_pct = round(((current_avg - old_avg) / old_avg) * 100, 1)
+
         response_products.append(ProductResponse(
             id=product.id,
             title=product.title,
             sku=product.sku,
             brand=product.brand,
             image_url=product.image_url,
+            my_price=product.my_price,
             created_at=product.created_at,
-            competitor_count=len(product.competitor_matches)
+            competitor_count=len(product.competitor_matches),
+            lowest_price=round(lowest_price, 2) if lowest_price else None,
+            avg_price=round(avg_price, 2) if avg_price else None,
+            in_stock_count=in_stock_count,
+            price_position=price_position,
+            price_change_pct=price_change_pct,
         ))
 
     return response_products
@@ -198,6 +275,43 @@ def get_product(
         sku=product.sku,
         brand=product.brand,
         image_url=product.image_url,
+        my_price=product.my_price,
+        created_at=product.created_at,
+        competitor_count=len(product.competitor_matches)
+    )
+
+
+@router.put("/{product_id}", response_model=ProductResponse)
+def update_product(
+    product_id: int,
+    product_update: ProductUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    PUT /products/{id}
+    Update a product's fields (title, sku, brand, image_url, my_price).
+    """
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    for field, value in product_update.dict(exclude_none=True).items():
+        setattr(product, field, value)
+
+    db.commit()
+    db.refresh(product)
+
+    return ProductResponse(
+        id=product.id,
+        title=product.title,
+        sku=product.sku,
+        brand=product.brand,
+        image_url=product.image_url,
+        my_price=product.my_price,
         created_at=product.created_at,
         competitor_count=len(product.competitor_matches)
     )

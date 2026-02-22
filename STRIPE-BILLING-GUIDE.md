@@ -1,5 +1,7 @@
 # Stripe Billing Integration Guide
 
+> **Updated 2026-02-22** — Fully implemented and live. Manage billing from Settings → Billing tab in the app.
+
 ## Overview
 Complete guide to setting up Stripe billing for MarketIntel SaaS subscriptions.
 

@@ -107,7 +107,6 @@ export default function Pricing() {
     }
 
     if (plan.name === 'Enterprise') {
-      // TODO: Redirect to contact form or Calendly
       window.location.href = 'mailto:sales@marketintel.com?subject=Enterprise Plan Inquiry';
       return;
     }

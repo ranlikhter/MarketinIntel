@@ -220,6 +220,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (userData) => {
+    setUser(prev => ({ ...prev, ...userData }));
+  };
+
   const verifyEmail = async (token) => {
     try {
       setError(null);
@@ -260,6 +264,7 @@ export const AuthProvider = ({ children }) => {
     forgotPassword,
     resetPassword,
     verifyEmail,
+    updateUser,
     isAuthenticated: !!user,
   };
 
