@@ -198,6 +198,64 @@ class WooCommerceIntegration:
             logger.error(f"Error parsing WooCommerce product: {e}")
             return None
 
+    def update_product_price(self, sku: str, new_price: float, title: str = '') -> Dict:
+        """
+        Update a product's price in WooCommerce by SKU, with title as fallback.
+
+        Args:
+            sku: Product SKU to search for
+            new_price: New price to set
+            title: Product title used as fallback search term
+
+        Returns:
+            Dict with success status, product_id on success, or error message
+        """
+        try:
+            product_id = None
+
+            # Search by SKU first
+            if sku:
+                response = self.wcapi.get("products", params={'sku': sku, 'per_page': 1})
+                if response.status_code == 200:
+                    products = response.json()
+                    if products:
+                        product_id = products[0]['id']
+
+            # Fallback: search by title
+            if not product_id and title:
+                response = self.wcapi.get("products", params={'search': title, 'per_page': 5})
+                if response.status_code == 200:
+                    products = response.json()
+                    if products:
+                        product_id = products[0]['id']
+
+            if not product_id:
+                return {
+                    'success': False,
+                    'error': 'Product not found in WooCommerce store (no SKU or title match)'
+                }
+
+            # Update the regular_price field
+            price_str = str(round(new_price, 2))
+            update_response = self.wcapi.put(
+                f"products/{product_id}",
+                data={'regular_price': price_str}
+            )
+
+            if update_response.status_code in (200, 201):
+                return {'success': True, 'product_id': product_id, 'new_price': new_price}
+            else:
+                try:
+                    err = update_response.json()
+                    msg = err.get('message', f'Update failed: {update_response.status_code}')
+                except Exception:
+                    msg = f'Update failed with status {update_response.status_code}'
+                return {'success': False, 'error': msg}
+
+        except Exception as e:
+            logger.error(f"Error updating WooCommerce product price: {e}")
+            return {'success': False, 'error': str(e)}
+
     def get_categories(self) -> List[Dict]:
         """
         Fetch all product categories

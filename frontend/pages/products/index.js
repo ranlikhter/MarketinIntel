@@ -100,6 +100,21 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
       await api.updateProduct(product.id, { my_price: parsed });
       setMyPrice(parsed);
       addToast('Price updated', 'success');
+
+      // Push to connected store if credentials are saved
+      const conn = (() => { try { return JSON.parse(localStorage.getItem('marketintel_store_connection')); } catch { return null; } })();
+      if (conn) {
+        try {
+          if (conn.type === 'woocommerce') {
+            await api.pushPriceToWooCommerce(conn.credentials.store_url, conn.credentials.consumer_key, conn.credentials.consumer_secret, product.sku || '', product.title, parsed);
+          } else if (conn.type === 'shopify') {
+            await api.pushPriceToShopify(conn.credentials.shop_url, conn.credentials.access_token, product.sku || '', product.title, parsed);
+          }
+          addToast(`Synced to ${conn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+        } catch (syncErr) {
+          addToast(`Store sync failed: ${syncErr.message}`, 'error');
+        }
+      }
     } catch {
       addToast('Failed to update price', 'error');
     } finally {

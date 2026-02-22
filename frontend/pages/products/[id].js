@@ -98,6 +98,48 @@ export default function ProductDetailPage() {
   const [priceHistory, setPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceInput, setPriceInput] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [storeConn, setStoreConn] = useState(null);
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('marketintel_store_connection') || 'null');
+      if (stored) setStoreConn(stored);
+    } catch {}
+  }, []);
+
+  const handleSavePrice = async () => {
+    const parsed = parseFloat(priceInput);
+    if (isNaN(parsed) || parsed < 0) { setEditingPrice(false); return; }
+    setSavingPrice(true);
+    try {
+      const updated = await api.updateProduct(product.id, { my_price: parsed });
+      setProduct(p => ({ ...p, my_price: parsed }));
+      addToast('Price updated', 'success');
+
+      // Push to connected store
+      const conn = storeConn;
+      if (conn) {
+        try {
+          if (conn.type === 'woocommerce') {
+            await api.pushPriceToWooCommerce(conn.credentials.store_url, conn.credentials.consumer_key, conn.credentials.consumer_secret, product.sku || '', product.title, parsed);
+          } else {
+            await api.pushPriceToShopify(conn.credentials.shop_url, conn.credentials.access_token, product.sku || '', product.title, parsed);
+          }
+          addToast(`Synced to ${conn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+        } catch (e) {
+          addToast(`Store sync failed: ${e.message}`, 'error');
+        }
+      }
+    } catch {
+      addToast('Failed to update price', 'error');
+    } finally {
+      setSavingPrice(false);
+      setEditingPrice(false);
+    }
+  };
 
   useEffect(() => { if (id) loadData(); }, [id]);
 
@@ -177,12 +219,55 @@ export default function ProductDetailPage() {
                 {product.sku && <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">SKU: {product.sku}</span>}
                 <span className="text-xs">{new Date(product.created_at).toLocaleDateString()}</span>
               </div>
-              {product.my_price && (
-                <div className="mt-2">
-                  <span className="text-xs text-gray-500">My Price: </span>
-                  <span className="text-sm font-semibold text-gray-900">${product.my_price.toFixed(2)}</span>
-                </div>
-              )}
+              {/* My Price — inline editable */}
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-500">My Price:</span>
+                {editingPrice ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-gray-400">$</span>
+                    <input
+                      autoFocus
+                      type="number" step="0.01" min="0"
+                      value={priceInput}
+                      onChange={e => setPriceInput(e.target.value)}
+                      onBlur={handleSavePrice}
+                      onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
+                      className="w-24 text-sm font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent focus:outline-none"
+                    />
+                    {savingPrice && <span className="text-xs text-gray-400 animate-pulse">saving…</span>}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setPriceInput(product.my_price ?? ''); setEditingPrice(true); }}
+                    className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors"
+                    title="Click to edit your price"
+                  >
+                    {product.my_price != null ? `$${product.my_price.toFixed(2)}` : (
+                      <span className="text-gray-400 font-normal text-xs">Set price</span>
+                    )}
+                  </button>
+                )}
+                {storeConn && product.my_price != null && !editingPrice && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (storeConn.type === 'woocommerce') {
+                          await api.pushPriceToWooCommerce(storeConn.credentials.store_url, storeConn.credentials.consumer_key, storeConn.credentials.consumer_secret, product.sku || '', product.title, product.my_price);
+                        } else {
+                          await api.pushPriceToShopify(storeConn.credentials.shop_url, storeConn.credentials.access_token, product.sku || '', product.title, product.my_price);
+                        }
+                        addToast(`Price pushed to ${storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+                      } catch (e) {
+                        addToast(`Sync failed: ${e.message}`, 'error');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    Push to {storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Actions */}

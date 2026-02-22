@@ -297,6 +297,78 @@ async def import_from_shopify(
         )
 
 
+# ─── Price Push ───────────────────────────────────────────────────────────────
+
+class WooCommercePricePushRequest(BaseModel):
+    store_url: str
+    consumer_key: str
+    consumer_secret: str
+    sku: Optional[str] = ''
+    title: Optional[str] = ''
+    new_price: float
+
+
+class ShopifyPricePushRequest(BaseModel):
+    shop_url: str
+    access_token: str
+    sku: Optional[str] = ''
+    title: Optional[str] = ''
+    new_price: float
+
+
+@router.post("/push-price/woocommerce")
+async def push_price_woocommerce(request: WooCommercePricePushRequest):
+    """
+    Update a product's price on a WooCommerce store.
+    Matches by SKU first, then title fallback.
+    """
+    try:
+        wc = WooCommerceIntegration(
+            store_url=request.store_url,
+            consumer_key=request.consumer_key,
+            consumer_secret=request.consumer_secret
+        )
+        result = wc.update_product_price(
+            sku=request.sku or '',
+            new_price=request.new_price,
+            title=request.title or ''
+        )
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result.get('error', 'Price update failed'))
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/push-price/shopify")
+async def push_price_shopify(request: ShopifyPricePushRequest):
+    """
+    Update a product variant's price on a Shopify store.
+    Matches variant by SKU first, then first variant of title-matched product.
+    """
+    try:
+        shopify = ShopifyIntegration(
+            shop_url=request.shop_url,
+            access_token=request.access_token
+        )
+        result = shopify.update_product_price(
+            sku=request.sku or '',
+            new_price=request.new_price,
+            title=request.title or ''
+        )
+        if not result['success']:
+            raise HTTPException(status_code=400, detail=result.get('error', 'Price update failed'))
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Test WooCommerce Connection
 @router.post("/test/woocommerce")
 async def test_woocommerce_connection(connection: WooCommerceConnection):
