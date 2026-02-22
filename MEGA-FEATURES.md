@@ -1,8 +1,22 @@
-# 🚀 MEGA AMAZING FRONTEND - Feature Overview
+# MarketIntel Frontend — Feature Overview
 
-## What's New? EVERYTHING! 💎
+> **Updated 2026-02-22** — Full UI redesign: mobile-first sidebar + topbar + bottom nav, product card grid.
 
-Your MarketIntel SaaS now has a **professional, enterprise-grade** frontend with stunning UI/UX!
+## Current Frontend Design
+
+MarketIntel uses a **mobile-first design** inspired by modern SaaS applications:
+
+- **Sidebar** (desktop): Fixed left `w-64`, logo + 8 nav items + Add Product CTA + user dropdown with tier badge
+- **Topbar**: Fixed top `h-16`, search bar (desktop), avatar with dropdown
+- **Bottom navigation**: Fixed bottom `h-16` with 4 nav items + centre FAB — `lg:hidden` (mobile only)
+- **Product cards**: Image + SKU + stock badge + price-position badge + sparkline + inline `my_price` editor
+- **Filter tabs**: All / Watchlist / Need Repricing / Low Stock (pill-shaped, dark active)
+- **Bulk select**: Checkbox per card, indeterminate "select all", floating action bar (Export + Reprice)
+- **Settings page**: 5 tabs — Profile, Billing, Notifications, API Access, Team
+
+---
+
+## Components Library
 
 ---
 

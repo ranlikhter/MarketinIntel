@@ -1,271 +1,275 @@
-# MarketIntel - E-commerce Competitive Intelligence SaaS
+# MarketIntel — E-commerce Competitive Intelligence SaaS
 
-A powerful tool for monitoring competitor pricing across e-commerce platforms like Amazon, Walmart, and more.
+A full-stack SaaS platform for monitoring competitor pricing across e-commerce platforms. Built with FastAPI, Next.js, Tailwind CSS, and Stripe.
 
-## 🚀 Features
+## Live Features
 
-- **Product Monitoring**: Track your products across multiple retailers
-- **Price Tracking**: Historical price data and trends
-- **Competitor Analysis**: See how your prices compare to competitors
-- **Custom Competitor Websites**: Add ANY website (not just Amazon/eBay) with custom CSS selectors
-- **Amazon Scraper**: Specialized scraper with anti-bot detection for Amazon
-- **Smart Matching**: AI-powered product matching across different retailers
-- **Real-time Dashboard**: Beautiful visualizations of pricing data
+| Category | Status |
+|---|---|
+| JWT Authentication (signup / login / refresh / password reset) | ✅ |
+| User profile update & password change | ✅ |
+| Stripe billing (checkout, portal, webhooks) | ✅ |
+| 4 subscription tiers with usage limit enforcement | ✅ |
+| Product monitoring with pricing summary | ✅ |
+| Competitor website management | ✅ |
+| Amazon scraper + generic web scraper | ✅ |
+| Auto site crawler | ✅ |
+| WooCommerce / Shopify / XML import | ✅ |
+| Price alerts (10 types, multi-channel) | ✅ |
+| Advanced filtering & saved views | ✅ |
+| Bulk repricing automation (5 strategies) | ✅ |
+| Competitor intelligence profiles | ✅ |
+| Historical analysis & price forecasting | ✅ |
+| Auto competitor discovery | ✅ |
+| Actionable insights dashboard | ✅ |
+| Mobile-first UI (sidebar + topbar + bottom nav) | ✅ |
+| Settings page (Profile / Billing / Notifications / API / Team) | ✅ |
 
-## 📋 Prerequisites
+---
 
-Make sure you have these installed:
+## Prerequisites
 
-- Python 3.11+ ([Download](https://www.python.org/downloads/))
-- Node.js 20+ ([Download](https://nodejs.org/))
-- Git ([Download](https://git-scm.com/))
+- Python 3.11+
+- Node.js 20+
 
-## 🛠️ Installation
+---
 
-### 1. Clone the repository
+## Installation
+
+### 1. Backend
 
 ```bash
-git clone <your-repo-url>
-cd Scrape
-```
-
-### 2. Set up the Backend (Python)
-
-```bash
-# Install Python dependencies
 pip install -r backend/requirements.txt
-
-# Install Playwright browsers (needed for web scraping)
 playwright install chromium
-
-# Create the database
-python backend/database/setup.py
 ```
 
-### 3. Set up the Frontend (Next.js)
+### 2. Frontend
 
 ```bash
-# Navigate to frontend directory
 cd frontend
-
-# Install Node.js dependencies
 npm install
-
-# Go back to root directory
-cd ..
 ```
 
-## 🏃 Running the Application
+### 3. Environment
 
-You need to run both the backend and frontend servers.
+Copy `backend/.env.example` to `backend/.env` and fill in:
 
-### Option 1: Using Startup Scripts (Windows - Easiest!)
+```env
+DATABASE_URL=sqlite:///./marketintel.db
+JWT_SECRET_KEY=<generate with: python -c "import secrets; print(secrets.token_hex(32))">
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=30
 
-**Terminal 1 - Start Backend:**
-```bash
-start-backend.bat
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+CORS_ORIGINS=http://localhost:3000
+REDIS_URL=redis://localhost:6379
 ```
 
-**Terminal 2 - Start Frontend:**
-```bash
-start-frontend.bat
-```
+---
 
-### Option 2: Manual Commands
+## Running
 
-**Terminal 1 - Backend API:**
+**Terminal 1 — Backend:**
 ```bash
 cd backend
 uvicorn api.main:app --reload
 ```
+API: http://localhost:8000 · Docs: http://localhost:8000/docs
 
-The API will be available at: http://localhost:8000
-
-API Documentation: http://localhost:8000/docs
-
-**Terminal 2 - Frontend Dashboard:**
+**Terminal 2 — Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
+App: http://localhost:3000
 
-The dashboard will be available at: http://localhost:3000
-
-## 📁 Project Structure
-
-```
-Scrape/
-├── backend/               # Python backend
-│   ├── api/              # FastAPI REST API
-│   ├── database/         # Database models & setup
-│   ├── scrapers/         # Web scraping logic
-│   ├── matchers/         # Product matching algorithms
-│   └── requirements.txt  # Python dependencies
-├── frontend/             # Next.js frontend
-│   ├── pages/           # React pages
-│   ├── components/      # Reusable UI components
-│   ├── lib/             # Utility functions
-│   └── package.json     # Node.js dependencies
-├── data/                # SQLite database files
-└── README.md           # This file
-```
-
-## 🎯 How to Use
-
-### Adding Your First Product
-
-1. **Start both servers** (run `start-backend.bat` and `start-frontend.bat`)
-2. **Open your browser** to http://localhost:3000
-3. **Click "Add Product"** in the top navigation
-4. **Fill in product details**:
-   - Title: "Sony WH-1000XM5 Headphones"
-   - Brand: "Sony"
-   - SKU: "WH1000XM5-BLK" (optional)
-5. **Click "Create Product"**
-6. **On the product detail page**, click "Scrape Amazon"
-7. **View competitor matches** and price history
-
-### Adding Custom Competitor Websites
-
-1. **Navigate to "Competitors"** in the top navigation
-2. **Click "Add Competitor"**
-3. **Enter competitor details**:
-   - Name: "CompetitorStore"
-   - Base URL: "https://www.competitor.com"
-   - CSS Selectors for price, title, stock, image
-4. **Click "Create Competitor"**
-5. **Go to a product detail page**
-6. **Use "Scrape URL"** to scrape a specific competitor product page
-
-### Finding CSS Selectors
-
-To extract data from custom competitor websites:
-
-1. Open the competitor's product page in Chrome
-2. Right-click the price → "Inspect"
-3. In DevTools, right-click the highlighted HTML
-4. Select "Copy" → "Copy selector"
-5. Paste into the competitor form
-
-## 🔧 Configuration
-
-Edit `backend/.env` to customize settings:
-
-```env
-# Database
-DATABASE_URL=sqlite:///./data/products.db
-
-# API Settings
-API_PORT=8000
-
-# Scraping Settings
-SCRAPE_DELAY_MIN=2
-SCRAPE_DELAY_MAX=5
-```
-
-## 🐛 Troubleshooting
-
-### "Module not found" errors
+**Terminal 3 — Celery worker (optional, for alerts & background tasks):**
 ```bash
-# Make sure you're in the right directory and dependencies are installed
+cd backend
+celery -A tasks.celery_app worker --loglevel=info
+```
+
+---
+
+## Project Structure
+
+```
+marketintel/
+├── backend/
+│   ├── api/
+│   │   ├── main.py                  # FastAPI app, router registration
+│   │   ├── dependencies.py          # Auth middleware, usage limit helpers
+│   │   └── routes/
+│   │       ├── auth.py              # Signup, login, refresh, me, password
+│   │       ├── billing.py           # Stripe checkout, portal, webhooks
+│   │       ├── products.py          # CRUD + pricing summary
+│   │       ├── competitors.py       # Competitor websites
+│   │       ├── alerts.py            # Price alerts (10 types)
+│   │       ├── analytics.py         # Trendline, date-range comparison
+│   │       ├── insights.py          # Actionable insights dashboard
+│   │       ├── filters.py           # Advanced filtering & saved views
+│   │       ├── repricing.py         # Bulk repricing rules
+│   │       ├── competitor_intel.py  # Competitor profiles
+│   │       ├── forecasting.py       # Price forecasting
+│   │       ├── discovery.py         # Auto competitor discovery
+│   │       ├── integrations.py      # XML / WooCommerce / Shopify import
+│   │       └── crawler.py           # Auto site crawler
+│   ├── database/
+│   │   ├── models.py                # SQLAlchemy models
+│   │   ├── connection.py            # DB session factory
+│   │   └── setup.py                 # Table creation
+│   ├── scrapers/                    # Amazon, generic, site crawler
+│   ├── integrations/                # XML, WooCommerce, Shopify parsers
+│   ├── services/                    # Business logic services
+│   └── requirements.txt
+├── frontend/
+│   ├── pages/
+│   │   ├── auth/                    # login, signup, forgot/reset password
+│   │   ├── dashboard/               # Insights + comparison dashboard
+│   │   ├── products/                # Card grid, add, detail [id]
+│   │   ├── competitors/             # List, add, detail [id]
+│   │   ├── alerts/                  # Alert management
+│   │   ├── integrations/            # Import wizard
+│   │   ├── pricing.js               # Pricing tiers page
+│   │   └── settings/                # 5-tab settings page
+│   ├── components/
+│   │   ├── Layout.js                # Sidebar + Topbar + BottomNav
+│   │   ├── Toast.js                 # Toast notification system
+│   │   └── ...
+│   ├── context/
+│   │   └── AuthContext.js           # JWT auth state + helpers
+│   ├── lib/
+│   │   └── api.js                   # Centralised fetch client
+│   └── styles/
+│       └── globals.css              # Tailwind base + utilities
+└── data/                            # SQLite database
+```
+
+---
+
+## API Reference
+
+### Authentication (`/api/auth/`)
+| Method | Path | Description |
+|---|---|---|
+| POST | `/signup` | Create account, returns JWT pair |
+| POST | `/login` | Login, returns JWT pair |
+| POST | `/refresh` | Refresh access token |
+| GET | `/me` | Get current user |
+| PUT | `/me` | Update profile (full_name) |
+| POST | `/change-password` | Change password |
+| POST | `/forgot-password` | Request password reset email |
+| POST | `/reset-password` | Reset password with token |
+| GET | `/verify-email/{token}` | Verify email address |
+| POST | `/logout` | Logout |
+
+### Billing (`/api/billing/`)
+| Method | Path | Description |
+|---|---|---|
+| POST | `/create-checkout-session` | Start Stripe Checkout |
+| POST | `/create-portal-session` | Open Stripe billing portal |
+| GET | `/subscription` | Get subscription info |
+| POST | `/webhook` | Stripe webhook handler |
+
+### Products (`/products/`)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | List products with pricing summary |
+| POST | `/` | Create product |
+| GET | `/{id}` | Get product details |
+| PUT | `/{id}` | Update product (title, sku, brand, image_url, my_price) |
+| DELETE | `/{id}` | Delete product |
+| GET | `/{id}/matches` | Get competitor matches |
+| GET | `/{id}/price-history` | Get price history |
+| POST | `/{id}/scrape` | Trigger Amazon scrape |
+
+Pricing summary fields returned on list: `lowest_price`, `avg_price`, `in_stock_count`, `price_position` (cheapest/mid/expensive), `price_change_pct`.
+
+### Full API docs: http://localhost:8000/docs
+
+---
+
+## Subscription Tiers
+
+| Tier | Price | Products | Matches | Alerts |
+|---|---|---|---|---|
+| FREE | $0 | 5 | 10 | 1 |
+| PRO | $49/mo | 50 | 100 | 10 |
+| BUSINESS | $149/mo | 200 | 500 | 50 |
+| ENTERPRISE | Custom | Unlimited | Unlimited | Unlimited |
+
+---
+
+## UI Design
+
+The frontend uses a **mobile-first design** with:
+
+- **Sidebar** (desktop): Fixed left, `w-64`, logo + navigation + user avatar dropdown
+- **Topbar**: Fixed top, search bar (desktop), avatar (mobile)
+- **Bottom navigation**: Fixed bottom with centre FAB, hidden on desktop
+- **Product cards**: 80×80px image, SKU, stock badge, price-position badge, inline `my_price` editor, sparkline, competitor count
+- **Filter tabs**: All / Watchlist / Need Repricing / Low Stock
+- **Bulk actions**: Floating bar with Export and Reprice buttons
+
+---
+
+## Troubleshooting
+
+**Backend won't start**
+```bash
 pip install -r backend/requirements.txt
+python -c "from api import main"   # check imports
+```
+
+**Frontend won't start**
+```bash
 cd frontend && npm install
+rm -rf .next && npm run dev
 ```
 
-### Database errors
+**Database errors**
 ```bash
-# Recreate the database
-rm data/products.db
-python backend/database/setup.py
+cd backend && python database/setup.py
 ```
 
-### Port already in use
-```bash
-# Backend (port 8000)
-# Change API_PORT in backend/.env
-
-# Frontend (port 3000)
-# Next.js will automatically suggest port 3001
-```
-
-### Playwright browser not found
+**Playwright not found**
 ```bash
 playwright install chromium
 ```
 
-## 📚 API Endpoints
+---
 
-### Products
-- `POST /products` - Add a new product to monitor
-- `GET /products` - List all monitored products
-- `GET /products/{id}` - Get product details
-- `GET /products/{id}/matches` - Get competitor matches
-- `GET /products/{id}/price-history` - Get price history
-- `POST /products/{id}/scrape` - Search for product on website (e.g., Amazon)
-- `POST /products/{id}/scrape-url` - Scrape specific competitor URL
-- `DELETE /products/{id}` - Delete a product
+## Tech Stack
 
-### Competitors
-- `GET /competitors` - List all competitor websites
-- `POST /competitors` - Add a new competitor website
-- `GET /competitors/{id}` - Get competitor details
-- `PUT /competitors/{id}` - Update competitor
-- `POST /competitors/{id}/toggle` - Activate/deactivate competitor
-- `DELETE /competitors/{id}` - Delete competitor
-
-Full API documentation: http://localhost:8000/docs
-
-## 🚢 Deployment (Coming Soon)
-
-- Backend: Railway.app or Render
-- Frontend: Vercel
-- Database: PostgreSQL (production)
-
-## 📝 Development Roadmap
-
-### MVP (Completed ✅)
-- [x] Basic project setup
-- [x] Database models (4 tables)
-- [x] Amazon scraper with anti-bot detection
-- [x] Generic web scraper (works with ANY website)
-- [x] Custom competitor websites feature
-- [x] REST API endpoints (15+ endpoints)
-- [x] Dashboard UI (Next.js + Tailwind CSS)
-- [x] Price history charts
-- [x] Products management
-- [x] Competitors management
-
-### Next Steps
-- [ ] Product matching algorithm (AI-based)
-- [ ] Automated scraping (Celery + Redis)
-- [ ] Email alerts for price drops
-- [ ] Walmart scraper
-- [ ] eBay scraper
-- [ ] User authentication
-- [ ] Multi-tenancy (SaaS mode)
-- [ ] Deploy to production (Railway + Vercel)
-
-## 🤝 Contributing
-
-This is a learning project! Feel free to:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📄 License
-
-MIT License - Feel free to use this project for learning and commercial purposes.
-
-## 🙏 Acknowledgments
-
-- Inspired by Intelligence Node
-- Built with FastAPI, Next.js, and Playwright
-- Following best practices from the MarketIntel architecture docs
+| Layer | Technology |
+|---|---|
+| Backend API | FastAPI + Uvicorn |
+| ORM | SQLAlchemy |
+| Database | SQLite (dev) / PostgreSQL (prod) |
+| Auth | JWT (HS256), passlib/bcrypt |
+| Payments | Stripe |
+| Background jobs | Celery + Redis |
+| Web scraping | Playwright + BeautifulSoup4 |
+| AI matching | sentence-transformers |
+| Frontend | Next.js 14 + React 18 |
+| Styling | Tailwind CSS 3 |
+| Charts | Chart.js |
 
 ---
 
-**Questions?** Open an issue or reach out!
+## Deployment
 
-**Happy coding!** 🎉
+- **Backend**: Railway, Render, or any Docker host
+- **Frontend**: Vercel (recommended for Next.js)
+- **Database**: Migrate to PostgreSQL for production
+- **Environment**: Set all `.env` variables on your host
+
+---
+
+## License
+
+MIT — free for personal and commercial use.

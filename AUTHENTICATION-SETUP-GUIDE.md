@@ -464,6 +464,8 @@ POST   /api/auth/signup           - Create new account
 POST   /api/auth/login            - Login to existing account
 POST   /api/auth/refresh          - Refresh access token
 GET    /api/auth/me               - Get current user info
+PUT    /api/auth/me               - Update profile (full_name)
+POST   /api/auth/change-password  - Change password (requires current password)
 POST   /api/auth/verify-email     - Verify email address
 POST   /api/auth/forgot-password  - Request password reset
 POST   /api/auth/reset-password   - Reset password with token
@@ -512,9 +514,10 @@ Before moving to frontend, verify:
 7. ✅ Password reset flow works end-to-end
 8. ✅ No passwords stored in plain text
 
-**Current Status:** 🎉 **BACKEND AUTH COMPLETE!**
+**Current Status:** 🎉 **FULL AUTH COMPLETE — BACKEND + FRONTEND!**
 
-Next: Build frontend login/signup pages → Test end-to-end → Add Stripe billing
+Frontend auth pages (login, signup, forgot/reset password) are built at `frontend/pages/auth/`.
+Settings page at `frontend/pages/settings/` includes Profile tab for name editing and password change.
 
 ---
 

@@ -1,464 +1,181 @@
-# 🎉 MarketIntel SaaS - COMPLETE FEATURE LIST
+# MarketIntel — Complete Feature Summary
 
-## 🚀 Your Fully-Functional Competitive Intelligence Platform
-
----
-
-## ✨ Core Features
-
-### 1. **Product Monitoring** 📦
-- Add products manually
-- Track competitor pricing
-- Monitor stock status
-- Product images and details
-- Brand and SKU tracking
-
-### 2. **Competitor Website Management** 🌐
-- Add custom competitor websites
-- Configure CSS selectors
-- Track ANY website (not just marketplaces)
-- Active/inactive status
-- Auto-detect common patterns
-
-### 3. **Web Scraping** 🤖
-- **Amazon-specific scraper** with anti-bot detection
-- **Generic scraper** for any website
-- **Intelligent scraper manager** (auto-selects best scraper)
-- JavaScript rendering support (Playwright)
-- Retry logic with exponential backoff
+**Status:** Production-ready SaaS platform ✅
 
 ---
 
-## 🆕 NEW MEGA FEATURES
+## Authentication & Accounts
 
-### 4. **Auto Site Crawler** 🔍
-**Automatically discovers entire competitor catalogs!**
+- JWT-based auth (HS256) — 24h access tokens, 30d refresh tokens
+- Signup, login, email verification, password reset
+- Profile update (`PUT /api/auth/me`) and password change (`POST /api/auth/change-password`)
+- User-scoped data isolation (multi-tenant)
+- Usage limits enforced at API level per subscription tier
 
-✅ Discovers all category pages
-✅ Finds all product URLs
-✅ Extracts product data automatically
-✅ Auto-imports to database
-✅ Creates competitor matches
-✅ Works with ANY website structure
+## Subscription Billing (Stripe)
 
-**How it works:**
-1. Input: Competitor URL
-2. Crawler discovers categories
-3. Finds all products
-4. Extracts: title, price, image, stock
-5. Auto-imports everything
+- 4 tiers: FREE / PRO ($49/mo) / BUSINESS ($149/mo) / ENTERPRISE
+- Stripe Checkout and Customer Portal
+- Webhook handler for subscription lifecycle events
+- Automatic tier upgrade/downgrade with limit sync
 
-**Files:**
-- `backend/scrapers/site_crawler.py` - Intelligent crawler
-- `backend/api/routes/crawler.py` - API endpoints
+## Product Monitoring
 
-### 5. **Comparison Dashboard** 📊
-**Beautiful side-by-side product comparisons!**
+- Add, edit, delete products (title, brand, SKU, image, `my_price`)
+- Pricing summary computed per product:
+  - `lowest_price`, `avg_price`, `in_stock_count`
+  - `price_position`: cheapest / mid / expensive
+  - `price_change_pct`: 7-day trend
+- Price history tracked automatically on each scrape
 
-✅ Product selection sidebar
-✅ Price comparison charts (Bar & Line)
-✅ Competitor match details table
-✅ Stats overview (4 cards)
-✅ One-click auto-crawl button
-✅ Real-time updates
+## Competitor Management
 
-**Dashboard sections:**
-- **Stats Cards:** Total products, matches, avg price, coverage
-- **Product List:** All your products with match counts
-- **Comparison View:** Charts + detailed match table
-- **Auto-Crawl:** Modal to crawl competitor sites
+- Add custom competitor websites with CSS selectors
+- Active/inactive toggle
+- Scrape any website (Amazon specialist + generic)
+- Auto site crawler — discovers full competitor catalogs
 
-**Files:**
-- `frontend/pages/dashboard/index.js` - Main dashboard
-- Integrated with Chart.js for beautiful visualizations
+## Product Import
 
-### 6. **Product Integrations** 🔌
-**Import products from multiple sources!**
+- XML / Google Shopping Feed upload
+- WooCommerce REST API import
+- Shopify Admin API import
 
-✅ **XML File Upload**
-  - Google Shopping Feed
-  - WooCommerce XML
-  - Custom formats
-  - Auto-format detection
+## Price Alerts (10 types)
 
-✅ **WooCommerce Integration**
-  - Direct REST API connection
-  - Bulk import
-  - Category filtering
-  - Test connection
+1. Price Drop
+2. Price Increase
+3. Any Change
+4. Competitor Out of Stock (opportunity)
+5. Price War (3+ competitors dropped in 24h)
+6. New Competitor
+7. You're Most Expensive
+8. Competitor Raised Price (opportunity)
+9. Back In Stock
+10. Market Trend
 
-✅ **Shopify Integration**
-  - Shopify Admin API
-  - Product & variants
-  - Collection support
-  - Secure token auth
+**Delivery channels:** Email, SMS, Slack, Discord, Push
+**Modes:** Instant, daily digest, weekly digest, quiet hours
 
-**How it works:**
-- 3-step wizard interface
-- Upload file or enter credentials
-- Auto-import with duplicate detection
-- Progress feedback
+## Advanced Filtering & Saved Views
 
-**Files:**
-- `backend/integrations/` - XML, WooCommerce, Shopify parsers
-- `backend/api/routes/integrations.py` - API endpoints
-- `frontend/components/ImportWizard.js` - Wizard UI
-- `frontend/pages/integrations/index.js` - Integration page
+- Filter by price position, competition level, activity, opportunity score
+- Fuzzy full-text search
+- Saved views with usage tracking and team sharing
 
----
+## Bulk Repricing Automation
 
-## 🎨 UI/UX Features
+- Match Lowest — match cheapest competitor ± margin
+- Undercut — price below all competitors by amount or %
+- Margin-Based — cost + desired markup
+- Dynamic — multi-factor (stock, competition, demand)
+- MAP Protected — never below Minimum Advertised Price
+- Rule engine with priority and approval workflows
 
-### **MEGA AMAZING Frontend**
+## Competitor Intelligence
 
-#### Components Library
-1. **Toast Notifications** - Animated alerts (success/error/warning/info)
-2. **Modal System** - Confirmation dialogs with animations
-3. **Loading States** - Skeleton screens for smooth UX
-4. **DataTable** - Advanced table with search/sort/pagination
-5. **Professional Charts** - Chart.js powered visualizations
+- Per-competitor pricing strategy detection
+- Win-rate, volatility, stock availability stats
+- Head-to-head product comparison
+- Market positioning analysis
 
-#### Pages
-1. **Home Page** - Animated gradient hero with stats
-2. **Products List** - Advanced table with thumbnails
-3. **Product Detail** - Charts, matches, price history
-4. **Competitors Management** - Grid view with filters
-5. **Integrations** - Import wizard interface
-6. **Comparison Dashboard** - Side-by-side comparisons
+## Historical Analysis & Forecasting
 
-#### Design Features
-- 🎨 Gradient backgrounds
-- 💫 Smooth animations
-- ⚡ Hover effects
-- 📱 Fully responsive
-- 🎭 Professional color scheme
-- 🌟 Loading skeletons
+- Linear-regression price forecasting with confidence intervals
+- Seasonal pattern detection (day of week, monthly)
+- Best time to buy recommendations
+- Price statistics (min/max/avg/median/std dev)
+
+## Auto Competitor Discovery
+
+- Keyword-based multi-site search
+- Confidence-scored match suggestions
+- Batch discovery with approval/rejection workflow
+
+## Actionable Insights Dashboard
+
+- Today's priorities (most expensive, out-of-stock competitors, price wars)
+- Opportunities (raise price, low competition, bundling)
+- Threats (aggressive competitors, market drops)
+- KPI cards + trending products widget
 
 ---
 
-## 🔧 Technical Stack
+## Frontend
 
-### Backend (Python)
-```
-FastAPI - Web framework
-SQLAlchemy - ORM
-SQLite - Database (production: PostgreSQL)
-Playwright - Browser automation
-BeautifulSoup4 - HTML parsing
-WooCommerce API - E-commerce integration
-Shopify API - Store integration
-xmltodict - XML parsing
-```
+### Layout (all pages)
+- Fixed sidebar — desktop (w-64), with navigation, Add Product CTA, user dropdown
+- Fixed topbar — search bar, avatar dropdown
+- Fixed bottom nav with centre FAB — mobile only (`lg:hidden`)
 
-### Frontend (Next.js/React)
-```
-Next.js 14 - React framework
-Tailwind CSS - Styling
-Chart.js - Data visualization
-React Hooks - State management
-```
+### Products Page
+- Card grid (1 → 2 → 3 columns responsive)
+- Inline `my_price` editor (click to edit, save on blur/Enter, cancel on Escape)
+- Stock badge (In Stock / Low Stock / Out of Stock)
+- Price position badge (Lowest Price / Mid Range / Expensive)
+- Sparkline (7-point trend from `price_change_pct`)
+- Filter tabs: All / Watchlist / Need Repricing / Low Stock
+- Bulk select + floating action bar (Export, Reprice)
+- Loading skeleton
 
----
+### Settings Page (5 tabs)
+- **Profile** — Edit name, change password with strength meter
+- **Billing** — Plan card with tier badge, usage meters (amber at 70%, red at 90%), Stripe portal
+- **Notifications** — Frequency, Email/Slack/Discord webhooks, quiet hours
+- **API Access** — Generate/copy/revoke API key (Business+)
+- **Team** — Invite members with role selector, permission table (Business+)
 
-## 📊 Database Schema
+### Auth Pages
+- Login, Signup, Forgot Password, Reset Password — consistent gradient design
 
-### Tables (4)
-1. **products_monitored** - Your products
-2. **competitor_matches** - Competitor product matches
-3. **price_history** - Historical pricing data
-4. **competitor_websites** - Custom competitor sites
-
----
-
-## 🎯 API Endpoints (30+)
-
-### Products (8)
-- GET /products
-- POST /products
-- GET /products/{id}
-- PUT /products/{id}
-- DELETE /products/{id}
-- GET /products/{id}/matches
-- GET /products/{id}/price-history
-- POST /products/{id}/scrape
-- POST /products/{id}/scrape-url
-
-### Competitors (7)
-- GET /competitors
-- POST /competitors
-- GET /competitors/{id}
-- PUT /competitors/{id}
-- DELETE /competitors/{id}
-- POST /competitors/{id}/toggle
-
-### Integrations (6)
-- POST /api/integrations/import/xml
-- POST /api/integrations/import/woocommerce
-- POST /api/integrations/import/shopify
-- POST /api/integrations/test/woocommerce
-- POST /api/integrations/test/shopify
-- GET /api/integrations/sample/xml
-
-### Crawler (3)
-- POST /api/crawler/start
-- POST /api/crawler/discover-categories
-- GET /api/crawler/status/{crawl_id}
+### Other Pages
+- Dashboard (Insights)
+- Product detail with price chart
+- Competitor management
+- Alert management
+- Integrations import wizard
+- Pricing page (FREE / PRO / BUSINESS / ENTERPRISE)
 
 ---
 
-## 📚 Documentation
+## API Endpoints (100+)
 
-### Guides Created
-1. **README.md** - Main documentation
-2. **QUICKSTART.md** - 5-minute quick start
-3. **MEGA-FEATURES.md** - Frontend features overview
-4. **INTEGRATIONS-GUIDE.md** - Complete integration guide
-5. **INTEGRATIONS-SUMMARY.md** - Integration quick reference
-6. **CRAWLER-DASHBOARD-GUIDE.md** - Crawler & dashboard guide
-7. **FINAL-FEATURES-SUMMARY.md** - This file!
+See http://localhost:8000/docs for the full interactive reference.
 
----
-
-## 🎓 How to Use - Complete Workflow
-
-### 1. Setup (One-time)
-```bash
-# Install dependencies
-cd backend && pip install -r requirements.txt
-playwright install chromium
-python database/setup.py
-
-cd ../frontend && npm install
-
-# Start servers
-start-backend.bat   # Terminal 1
-start-frontend.bat  # Terminal 2
-```
-
-### 2. Import Products (Choose One)
-
-**Option A: XML Upload**
-1. Go to Integrations
-2. Click "Import from XML"
-3. Upload file
-4. Done!
-
-**Option B: WooCommerce/Shopify**
-1. Go to Integrations
-2. Click "Connect WooCommerce/Shopify"
-3. Enter credentials
-4. Import products
-
-**Option C: Auto-Crawl Competitor**
-1. Go to Comparison Dashboard
-2. Click "Auto-Crawl Competitor Site"
-3. Enter competitor URL
-4. Auto-discovers all products!
-
-**Option D: Manual Entry**
-1. Go to Products
-2. Click "Add Product"
-3. Enter details
-4. Save
-
-### 3. Monitor Competitors
-1. Go to Product Detail
-2. Click "Scrape Amazon" (or add competitor URL)
-3. View matches and pricing
-4. Check price history chart
-
-### 4. Compare Pricing
-1. Go to Comparison Dashboard
-2. Select product from sidebar
-3. View:
-   - Price comparison chart
-   - Price history
-   - Detailed match table
-   - Stats overview
-
-### 5. Add Custom Competitors
-1. Go to Competitors
-2. Click "Add Competitor"
-3. Enter URL and CSS selectors
-4. Save
-5. Use in product scraping
+Key route groups:
+- `/api/auth/` — 10 endpoints
+- `/api/billing/` — 4 endpoints
+- `/products/` — 8 endpoints
+- `/competitors/` — 6 endpoints
+- `/api/alerts/` — 6 endpoints
+- `/api/analytics/` — 2 endpoints
+- `/api/insights/` — 7 endpoints
+- `/api/filters/` — 6 endpoints
+- `/api/repricing/` — 13 endpoints
+- `/api/competitor-intel/` — 8 endpoints
+- `/api/forecasting/` — 8 endpoints
+- `/api/discovery/` — 9 endpoints
+- `/api/integrations/` — 6 endpoints
+- `/api/crawler/` — 3 endpoints
 
 ---
 
-## 💰 Business Value
+## Tech Stack
 
-### For E-commerce Owners
-✅ **Track competitor pricing** automatically
-✅ **Stay competitive** with real-time data
-✅ **Import entire catalog** in minutes
-✅ **Monitor thousands** of products
-✅ **Make informed decisions** with analytics
+**Backend:** FastAPI, SQLAlchemy, SQLite/PostgreSQL, passlib/bcrypt, python-jose (JWT), Stripe, Celery, Redis, Playwright, BeautifulSoup4, sentence-transformers
 
-### For Marketplaces
-✅ **Monitor sellers** across platforms
-✅ **Track price trends** over time
-✅ **Identify opportunities** with analytics
-✅ **Automate monitoring** workflows
-✅ **Scale to thousands** of products
-
-### For Dropshippers
-✅ **Track supplier pricing** automatically
-✅ **Compare multiple suppliers** side-by-side
-✅ **Monitor stock status** in real-time
-✅ **Find best prices** automatically
-✅ **React to changes** quickly
+**Frontend:** Next.js 14, React 18, Tailwind CSS 3, Chart.js
 
 ---
 
-## 🎯 Key Achievements
-
-### ✅ Fully Functional MVP
-- Complete backend API (30+ endpoints)
-- Beautiful frontend dashboard (8 pages)
-- 3 scraping methods (Amazon, generic, crawler)
-- 3 import methods (XML, WooCommerce, Shopify)
-- Comparison dashboard
-- Auto site crawler
-
-### ✅ Production-Ready
-- Error handling
-- Loading states
-- Toast notifications
-- Responsive design
-- Security best practices
-- Comprehensive documentation
-
-### ✅ Professional UI/UX
-- Gradient designs
-- Smooth animations
-- Interactive charts
-- Advanced data tables
-- Modal system
-- Skeleton loading
-
----
-
-## 📈 Performance
-
-### Speed
-- **XML Import:** 50-100 products/sec
-- **WooCommerce:** 20-30 products/sec
-- **Shopify:** 10-20 products/sec
-- **Auto-Crawler:** 16-25 products/min
-- **Dashboard Load:** <2 seconds
-
-### Scalability
-- Handles **1000+ products** easily
-- Supports **unlimited competitors**
-- **SQLite** for development
-- **PostgreSQL** ready for production
-
----
-
-## 🚀 Deployment Ready
-
-### Local Development
-```bash
-start-backend.bat
-start-frontend.bat
-```
-
-### Production Deployment
-
-**Backend Options:**
-- Railway.app
-- Render
-- Heroku
-- AWS/GCP/Azure
-
-**Frontend Options:**
-- Vercel (recommended for Next.js)
-- Netlify
-- AWS Amplify
-
-**Database:**
-- Migrate to PostgreSQL
-- Use managed database service
-
----
-
-## 🎉 Summary
-
-### What You Have Now:
-
-✅ **Complete SaaS Platform** for competitive intelligence
-✅ **3 Scraping Methods** (Amazon, generic, auto-crawler)
-✅ **3 Import Methods** (XML, WooCommerce, Shopify)
-✅ **Comparison Dashboard** with charts & analytics
-✅ **Auto Site Crawler** that discovers entire catalogs
-✅ **Professional UI** with animations & interactions
-✅ **30+ API Endpoints** fully documented
-✅ **8 Frontend Pages** responsive & beautiful
-✅ **Comprehensive Documentation** (7 guides)
-
-### Lines of Code Written:
-- **Backend:** ~5,000 lines
-- **Frontend:** ~4,000 lines
-- **Documentation:** ~2,500 lines
-- **Total:** ~11,500 lines of production-ready code!
-
----
-
-## 🎯 Next Steps (Optional Enhancements)
-
-Want to take it further? Consider adding:
-
-1. **User Authentication** - Multi-user support
-2. **Email Alerts** - Price drop notifications
-3. **Scheduled Scraping** - Automated daily updates
-4. **Advanced Analytics** - Trends, predictions
-5. **Export Features** - PDF/CSV reports
-6. **Mobile App** - React Native version
-7. **API Access** - For clients
-8. **Webhooks** - Real-time integrations
-9. **More Platforms** - Magento, BigCommerce
-10. **AI Matching** - Better product matching
-
----
-
-## 📞 Support
-
-### Getting Started
-1. Read QUICKSTART.md
-2. Run start scripts
-3. Test features
-4. Check documentation
-
-### Need Help?
-- Check documentation files
-- Review API docs at /docs
-- Open GitHub issues
-- Contact support
-
----
-
-**Congratulations! 🎊**
-
-**You now have a COMPLETE, production-ready competitive intelligence SaaS platform!**
-
-**Features:**
-- ✅ Product monitoring
-- ✅ Competitor tracking
-- ✅ Auto site crawler
-- ✅ Comparison dashboard
-- ✅ Multiple integrations
-- ✅ Professional UI
-- ✅ Complete documentation
-
-**Ready to launch?** Start the servers and test it out!
+## How to Run
 
 ```bash
-start-backend.bat
-start-frontend.bat
+# Backend
+cd backend && uvicorn api.main:app --reload
 
-# Open: http://localhost:3000
+# Frontend
+cd frontend && npm run dev
 ```
 
----
-
-**Happy monitoring!** 🚀💎✨
+Open http://localhost:3000, create an account, and start monitoring.

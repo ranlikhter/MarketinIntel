@@ -1,5 +1,7 @@
 # 🔌 Product Integrations Guide
 
+> **Updated 2026-02-22** — XML, WooCommerce, and Shopify integrations are fully implemented. Use the Integrations page in the app.
+
 Import products from XML files, WooCommerce, or Shopify stores instantly!
 
 ---

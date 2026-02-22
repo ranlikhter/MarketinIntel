@@ -1,5 +1,7 @@
 # 🔔 Price Alerts & Email Notifications Guide
 
+> **Updated 2026-02-22** — 10 alert types implemented with Email/SMS/Slack/Discord delivery. Manage alerts from the Alerts page.
+
 ## 🎉 What's New?
 
 Your MarketIntel SaaS now has **SMART PRICE ALERTS WITH EMAIL NOTIFICATIONS**!

@@ -1,5 +1,7 @@
 # Custom Competitor Websites Feature
 
+> **Updated 2026-02-22** — Custom competitor websites with CSS selectors are fully supported via the Competitors page.
+
 ## Overview
 
 MarketIntel now supports monitoring **ANY competitor website** - not just marketplaces like Amazon or eBay!

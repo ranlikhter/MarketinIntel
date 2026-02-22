@@ -1,5 +1,7 @@
 # 🚀 Auto-Crawler & Comparison Dashboard Guide
 
+> **Updated 2026-02-22** — Auto site crawler and comparison dashboard are fully functional.
+
 ## 🎉 What's New?
 
 Your MarketIntel SaaS now has **2 MEGA powerful features**:

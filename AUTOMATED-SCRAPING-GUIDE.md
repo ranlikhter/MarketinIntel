@@ -1,5 +1,7 @@
 # 🤖 Automated Scraping with Celery + Redis Guide
 
+> **Updated 2026-02-22** — Celery + Redis automated scraping is implemented. Start the worker: cd backend && celery -A tasks.celery_app worker --loglevel=info
+
 ## 🎉 What's New?
 
 Your MarketIntel SaaS now has **FULLY AUTOMATED BACKGROUND SCRAPING**!
