@@ -131,6 +131,8 @@ class AmazonScraper:
             "review_count": None,
             "brand": None,
             "description": None,
+            "mpn": None,
+            "upc_ean": None,
             "promotion_label": None,
             "seller_name": None,
             "seller_count": None,
@@ -185,6 +187,7 @@ class AmazonScraper:
                 result["category"] = self._extract_category(soup)
                 result["variant"] = self._extract_variant(soup)
                 result["shipping_cost"] = self._extract_shipping_cost(soup)
+                result["mpn"], result["upc_ean"] = self._extract_product_identifiers(soup)
                 result["scrape_quality"] = "partial" if not result["price"] else "clean"
 
                 # Compute derived fields
@@ -482,15 +485,67 @@ class AmazonScraper:
 
 
     def _extract_description(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract product description (first 500 chars)"""
+        """Extract product description / feature bullets (up to 1000 chars)"""
         features = soup.select('#feature-bullets ul li span.a-list-item')
         if features:
-            description = ' '.join([f.text.strip() for f in features[:3]])
-            return description[:500]
+            description = ' | '.join([f.text.strip() for f in features[:5] if f.text.strip()])
+            return description[:1000]
         desc_elem = soup.select_one('#productDescription')
         if desc_elem:
-            return desc_elem.text.strip()[:500]
+            return desc_elem.text.strip()[:1000]
         return None
+
+
+    def _extract_product_identifiers(self, soup: BeautifulSoup) -> tuple[Optional[str], Optional[str]]:
+        """
+        Extract MPN (Manufacturer Part Number) and UPC/EAN barcode from Amazon's
+        product detail tables and bullet lists.
+
+        Returns:
+            (mpn, upc_ean) — either can be None if not found
+        """
+        mpn = None
+        upc_ean = None
+
+        # 1. Tech specs table (e.g., #productDetails_techSpec_section_1)
+        for row in soup.select(
+            '#productDetails_techSpec_section_1 tr, '
+            '#productDetails_detailBullets_sections1 tr'
+        ):
+            th = row.select_one('th')
+            td = row.select_one('td')
+            if not th or not td:
+                continue
+            label = th.get_text(strip=True).lower()
+            value = td.get_text(strip=True)
+            if any(k in label for k in ['part number', 'item model number', 'model number', 'mpn']):
+                if not mpn:
+                    mpn = value
+            elif 'upc' in label:
+                if not upc_ean:
+                    upc_ean = re.sub(r'\s+', '', value)  # Remove spaces from barcode
+            elif 'ean' in label:
+                if not upc_ean:
+                    upc_ean = re.sub(r'\s+', '', value)
+
+        # 2. Detail bullets list (alternate Amazon layout)
+        for li in soup.select('#detailBulletsWrapper_feature_div li, #detail-bullets .content li'):
+            text = li.get_text(' ', strip=True)
+            label_lower = text.lower()
+            if ('part number' in label_lower or 'item model number' in label_lower) and not mpn:
+                m = re.search(r'[:\u200e]\s*(.+)', text)
+                if m:
+                    mpn = m.group(1).strip()
+            elif 'upc' in label_lower and not upc_ean:
+                m = re.search(r'[:\u200e]\s*([\d ]+)', text)
+                if m:
+                    upc_ean = re.sub(r'\s+', '', m.group(1))
+            elif 'ean' in label_lower and not upc_ean:
+                m = re.search(r'[:\u200e]\s*([\d ]+)', text)
+                if m:
+                    upc_ean = re.sub(r'\s+', '', m.group(1))
+
+        return mpn, upc_ean
 
 
     def _extract_was_price(self, soup: BeautifulSoup) -> Optional[float]:

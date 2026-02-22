@@ -99,6 +99,10 @@ class GenericWebScraper:
             "shipping_cost": None,
             "total_price": None,
             "promotion_label": None,
+            "brand": None,
+            "description": None,
+            "mpn": None,
+            "upc_ean": None,
             "scrape_quality": "clean",
             "error": None
         }
@@ -183,6 +187,11 @@ class GenericWebScraper:
 
                 # Extract promotion label
                 result["promotion_label"] = self._extract_promotion_fallback(soup)
+
+                # Extract match-rate identifiers
+                result["brand"] = self._extract_brand_fallback(soup)
+                result["description"] = self._extract_description_fallback(soup)
+                result["mpn"], result["upc_ean"] = self._extract_identifiers_fallback(soup)
 
                 await browser.close()
 
@@ -410,6 +419,98 @@ class GenericWebScraper:
         if 'free shipping' in page_text or 'free delivery' in page_text:
             return 0.0
         return None
+
+
+    def _extract_brand_fallback(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract brand from meta tags, JSON-LD, or common markup patterns."""
+        # JSON-LD structured data
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                import json
+                data = json.loads(script.string or '{}')
+                if isinstance(data, dict):
+                    brand = data.get('brand')
+                    if isinstance(brand, dict):
+                        brand = brand.get('name')
+                    if brand and isinstance(brand, str):
+                        return brand.strip()
+            except Exception:
+                pass
+        # Meta / itemprop
+        for attr, val in [('itemprop', 'brand'), ('property', 'product:brand')]:
+            elem = soup.find(attrs={attr: val})
+            if elem:
+                text = elem.get('content') or elem.get_text(strip=True)
+                if text:
+                    return text.strip()
+        # Common class/id patterns
+        for pattern in [{'class': 'brand'}, {'id': 'brand'}, {'class': 'product-brand'}]:
+            elem = soup.find(attrs=pattern)
+            if elem:
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:
+                    return text
+        return None
+
+
+    def _extract_description_fallback(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract product description from meta tags or common markup patterns."""
+        # og:description / meta description
+        for prop in ['og:description', 'description']:
+            meta = soup.find('meta', attrs={'property': prop}) or soup.find('meta', attrs={'name': prop})
+            if meta and meta.get('content'):
+                return meta['content'].strip()[:1000]
+        # JSON-LD description
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                import json
+                data = json.loads(script.string or '{}')
+                if isinstance(data, dict):
+                    desc = data.get('description')
+                    if desc and isinstance(desc, str):
+                        return desc.strip()[:1000]
+            except Exception:
+                pass
+        # itemprop=description
+        elem = soup.find(attrs={'itemprop': 'description'})
+        if elem:
+            return elem.get_text(strip=True)[:1000]
+        return None
+
+
+    def _extract_identifiers_fallback(self, soup: BeautifulSoup) -> tuple[Optional[str], Optional[str]]:
+        """Extract MPN and UPC/EAN from JSON-LD, microdata, or common markup."""
+        import json as _json
+        mpn = None
+        upc_ean = None
+
+        # JSON-LD (Schema.org Product)
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                data = _json.loads(script.string or '{}')
+                if isinstance(data, dict):
+                    if not mpn and data.get('mpn'):
+                        mpn = str(data['mpn']).strip()
+                    # gtin13 = EAN, gtin12 = UPC
+                    for key in ('gtin13', 'gtin12', 'gtin8', 'gtin'):
+                        if not upc_ean and data.get(key):
+                            upc_ean = re.sub(r'\s+', '', str(data[key]))
+                            break
+            except Exception:
+                pass
+
+        # Microdata itemprop attributes
+        if not mpn:
+            elem = soup.find(attrs={'itemprop': 'mpn'})
+            if elem:
+                mpn = (elem.get('content') or elem.get_text(strip=True)).strip()
+        for gtin_prop in ('gtin13', 'gtin12', 'gtin8', 'gtin'):
+            if not upc_ean:
+                elem = soup.find(attrs={'itemprop': gtin_prop})
+                if elem:
+                    upc_ean = re.sub(r'\s+', '', elem.get('content') or elem.get_text(strip=True))
+
+        return mpn, upc_ean
 
 
     def _extract_promotion_fallback(self, soup: BeautifulSoup) -> Optional[str]:

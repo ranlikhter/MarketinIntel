@@ -54,6 +54,10 @@ class ProductMonitored(Base):
     brand = Column(String(100), nullable=True)    # e.g., "Apple"
     image_url = Column(Text, nullable=True)       # URL to product image
     my_price = Column(Float, nullable=True)       # User's own selling price for this product
+    # Match-rate identifiers (gold standard for exact product matching)
+    description = Column(Text, nullable=True)     # Product description / feature bullets
+    mpn = Column(String(100), nullable=True)      # Manufacturer Part Number (e.g., "WH1000XM5/B")
+    upc_ean = Column(String(50), nullable=True)   # UPC-12 or EAN-13 barcode
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -97,6 +101,11 @@ class CompetitorMatch(Base):
     seller_name = Column(String(200), nullable=True)         # Who is selling it
     category = Column(String(200), nullable=True)            # Product category/breadcrumb
     variant = Column(String(200), nullable=True)             # Which variant (size/color/model)
+    # Match-rate identifiers (used to confirm product identity)
+    brand = Column(String(200), nullable=True)               # Brand extracted from competitor page
+    description = Column(Text, nullable=True)                # Feature bullets / product description
+    mpn = Column(String(100), nullable=True)                 # Manufacturer Part Number
+    upc_ean = Column(String(50), nullable=True)              # UPC-12 or EAN-13 barcode
 
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")

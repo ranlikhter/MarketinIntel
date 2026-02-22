@@ -40,6 +40,9 @@ class ProductCreate(BaseModel):
     brand: str | None = None
     image_url: str | None = None
     my_price: float | None = None
+    description: str | None = None
+    mpn: str | None = None       # Manufacturer Part Number — used for exact matching
+    upc_ean: str | None = None   # UPC-12 or EAN-13 barcode — gold-standard exact match
 
 
 class ProductUpdate(BaseModel):
@@ -49,6 +52,9 @@ class ProductUpdate(BaseModel):
     brand: str | None = None
     image_url: str | None = None
     my_price: float | None = None
+    description: str | None = None
+    mpn: str | None = None
+    upc_ean: str | None = None
 
 
 class ProductResponse(BaseModel):
@@ -62,6 +68,9 @@ class ProductResponse(BaseModel):
     brand: str | None
     image_url: str | None
     my_price: float | None = None
+    description: str | None = None
+    mpn: str | None = None
+    upc_ean: str | None = None
     created_at: datetime
     competitor_count: int = 0
     # Pricing summary (populated in list endpoint)
@@ -96,6 +105,11 @@ class CompetitorMatchResponse(BaseModel):
     seller_name: str | None = None
     category: str | None = None
     variant: str | None = None
+    # Match-rate identifiers
+    brand: str | None = None
+    description: str | None = None
+    mpn: str | None = None
+    upc_ean: str | None = None
     # Latest price snapshot detail
     was_price: float | None = None
     discount_pct: float | None = None
@@ -160,6 +174,9 @@ def create_product(
         brand=product.brand,
         image_url=product.image_url,
         my_price=product.my_price,
+        description=product.description,
+        mpn=product.mpn,
+        upc_ean=product.upc_ean,
         user_id=current_user.id  # Associate product with user
     )
 
@@ -174,6 +191,9 @@ def create_product(
         brand=db_product.brand,
         image_url=db_product.image_url,
         my_price=db_product.my_price,
+        description=db_product.description,
+        mpn=db_product.mpn,
+        upc_ean=db_product.upc_ean,
         created_at=db_product.created_at,
         competitor_count=0
     )
@@ -259,6 +279,9 @@ def get_all_products(
             brand=product.brand,
             image_url=product.image_url,
             my_price=product.my_price,
+            description=product.description,
+            mpn=product.mpn,
+            upc_ean=product.upc_ean,
             created_at=product.created_at,
             competitor_count=len(product.competitor_matches),
             lowest_price=round(lowest_price, 2) if lowest_price else None,
@@ -298,6 +321,9 @@ def get_product(
         brand=product.brand,
         image_url=product.image_url,
         my_price=product.my_price,
+        description=product.description,
+        mpn=product.mpn,
+        upc_ean=product.upc_ean,
         created_at=product.created_at,
         competitor_count=len(product.competitor_matches)
     )
@@ -334,6 +360,9 @@ def update_product(
         brand=product.brand,
         image_url=product.image_url,
         my_price=product.my_price,
+        description=product.description,
+        mpn=product.mpn,
+        upc_ean=product.upc_ean,
         created_at=product.created_at,
         competitor_count=len(product.competitor_matches)
     )
@@ -391,6 +420,10 @@ def get_product_matches(
             seller_name=match.seller_name,
             category=match.category,
             variant=match.variant,
+            brand=match.brand,
+            description=match.description,
+            mpn=match.mpn,
+            upc_ean=match.upc_ean,
             was_price=latest.was_price if latest else None,
             discount_pct=latest.discount_pct if latest else None,
             shipping_cost=latest.shipping_cost if latest else None,
@@ -530,6 +563,14 @@ async def trigger_scrape(
                     existing.category = result['category']
                 if result.get('variant'):
                     existing.variant = result['variant']
+                if result.get('brand'):
+                    existing.brand = result['brand']
+                if result.get('description'):
+                    existing.description = result['description']
+                if result.get('mpn'):
+                    existing.mpn = result['mpn']
+                if result.get('upc_ean'):
+                    existing.upc_ean = result['upc_ean']
                 match_id = existing.id
             else:
                 # Create new match
@@ -552,6 +593,10 @@ async def trigger_scrape(
                     seller_name=result.get('seller_name'),
                     category=result.get('category'),
                     variant=result.get('variant'),
+                    brand=result.get('brand'),
+                    description=result.get('description'),
+                    mpn=result.get('mpn'),
+                    upc_ean=result.get('upc_ean'),
                 )
                 db.add(new_match)
                 db.flush()
@@ -680,6 +725,10 @@ async def scrape_competitor_url(
             if result.get('seller_name'): existing.seller_name = result['seller_name']
             if result.get('category'): existing.category = result['category']
             if result.get('variant'): existing.variant = result['variant']
+            if result.get('brand'): existing.brand = result['brand']
+            if result.get('description'): existing.description = result['description']
+            if result.get('mpn'): existing.mpn = result['mpn']
+            if result.get('upc_ean'): existing.upc_ean = result['upc_ean']
             match_id = existing.id
         else:
             new_match = CompetitorMatch(
@@ -701,6 +750,10 @@ async def scrape_competitor_url(
                 seller_name=result.get('seller_name'),
                 category=result.get('category'),
                 variant=result.get('variant'),
+                brand=result.get('brand'),
+                description=result.get('description'),
+                mpn=result.get('mpn'),
+                upc_ean=result.get('upc_ean'),
             )
             db.add(new_match)
             db.flush()
