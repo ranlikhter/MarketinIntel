@@ -4,7 +4,7 @@ Advanced filtering and search for products
 """
 
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, or_, func, desc, select
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -118,28 +118,71 @@ class FilterService:
         return query
 
     def _filter_by_price_position(self, query: Query, position: str) -> Query:
-        """Filter by price position (cheapest, most_expensive, mid_range)"""
-        # This would need complex subqueries to compare prices
-        # For now, return as-is (TODO: implement price comparison logic)
-        return query
+        """Filter by price position relative to competitors (cheapest, most_expensive, mid_range)"""
+        # Fetch all products with a known my_price and compare against competitor prices in Python
+        all_products = query.all()
+        matching_ids = []
+
+        for product in all_products:
+            if not product.my_price:
+                continue
+
+            competitor_prices = []
+            for match in product.competitor_matches:
+                latest = self.db.query(PriceHistory).filter(
+                    PriceHistory.match_id == match.id
+                ).order_by(desc(PriceHistory.timestamp)).first()
+                if latest and latest.in_stock:
+                    competitor_prices.append(latest.price)
+
+            if not competitor_prices:
+                continue
+
+            min_comp = min(competitor_prices)
+            max_comp = max(competitor_prices)
+            my = product.my_price
+
+            if position == "cheapest" and my <= min_comp:
+                matching_ids.append(product.id)
+            elif position == "most_expensive" and my >= max_comp:
+                matching_ids.append(product.id)
+            elif position == "mid_range" and min_comp < my < max_comp:
+                matching_ids.append(product.id)
+
+        return query.filter(ProductMonitored.id.in_(matching_ids))
 
     def _filter_by_competition(self, query: Query, level: str) -> Query:
-        """Filter by competition level"""
-        if level == "none":
-            # No competitors
-            query = query.filter(
-                ~ProductMonitored.competitor_matches.any()
+        """Filter by competition level using a count subquery"""
+        # Subquery: number of competitor matches per product
+        match_count_sq = (
+            select(
+                CompetitorMatch.monitored_product_id,
+                func.count(CompetitorMatch.id).label("match_count"),
             )
+            .group_by(CompetitorMatch.monitored_product_id)
+            .subquery()
+        )
+
+        if level == "none":
+            query = query.filter(~ProductMonitored.competitor_matches.any())
         elif level == "low":
-            # 1-2 competitors
-            # This requires a subquery to count matches
-            pass  # TODO: Implement with subquery
+            query = (
+                query
+                .join(match_count_sq, ProductMonitored.id == match_count_sq.c.monitored_product_id)
+                .filter(match_count_sq.c.match_count.between(1, 2))
+            )
         elif level == "medium":
-            # 3-5 competitors
-            pass  # TODO: Implement with subquery
+            query = (
+                query
+                .join(match_count_sq, ProductMonitored.id == match_count_sq.c.monitored_product_id)
+                .filter(match_count_sq.c.match_count.between(3, 5))
+            )
         elif level == "high":
-            # 6+ competitors
-            pass  # TODO: Implement with subquery
+            query = (
+                query
+                .join(match_count_sq, ProductMonitored.id == match_count_sq.c.monitored_product_id)
+                .filter(match_count_sq.c.match_count >= 6)
+            )
 
         return query
 
@@ -148,9 +191,19 @@ class FilterService:
         week_ago = datetime.utcnow() - timedelta(days=7)
 
         if activity == "price_dropped":
-            # Products with price drops in last 7 days
-            # Requires price history analysis
-            pass  # TODO: Implement
+            # Products where any competitor dropped price in last 7 days
+            all_products = query.all()
+            matching_ids = []
+            for product in all_products:
+                for match in product.competitor_matches:
+                    recent = self.db.query(PriceHistory).filter(
+                        PriceHistory.match_id == match.id,
+                        PriceHistory.timestamp >= week_ago
+                    ).order_by(PriceHistory.timestamp).all()
+                    if len(recent) >= 2 and recent[-1].price < recent[0].price:
+                        matching_ids.append(product.id)
+                        break
+            query = query.filter(ProductMonitored.id.in_(matching_ids))
 
         elif activity == "new_competitor":
             # Products with new competitors in last 7 days
@@ -161,12 +214,31 @@ class FilterService:
             )
 
         elif activity == "out_of_stock":
-            # Products where competitors are out of stock
-            pass  # TODO: Implement
+            # Products where any competitor is currently out of stock
+            all_products = query.all()
+            matching_ids = []
+            for product in all_products:
+                for match in product.competitor_matches:
+                    latest = self.db.query(PriceHistory).filter(
+                        PriceHistory.match_id == match.id
+                    ).order_by(desc(PriceHistory.timestamp)).first()
+                    if latest and not latest.in_stock:
+                        matching_ids.append(product.id)
+                        break
+            query = query.filter(ProductMonitored.id.in_(matching_ids))
 
         elif activity == "trending":
-            # Products with high price change frequency
-            pass  # TODO: Implement
+            # Products with 5+ price changes in last 7 days
+            all_products = query.all()
+            matching_ids = []
+            for product in all_products:
+                change_count = self.db.query(PriceHistory).join(CompetitorMatch).filter(
+                    CompetitorMatch.monitored_product_id == product.id,
+                    PriceHistory.timestamp >= week_ago
+                ).count()
+                if change_count >= 5:
+                    matching_ids.append(product.id)
+            query = query.filter(ProductMonitored.id.in_(matching_ids))
 
         return query
 
@@ -176,11 +248,15 @@ class FilterService:
         min_score: int,
         max_score: int
     ) -> Query:
-        """Filter by opportunity score range"""
-        # Would need to calculate scores for all products
-        # Or store scores in database
-        # For now, return as-is
-        return query
+        """Filter by opportunity score range (calculated in Python)"""
+        from services.insights_service import InsightsService
+        insights = InsightsService(self.db, self.user)
+        all_products = query.all()
+        matching_ids = [
+            p.id for p in all_products
+            if min_score <= insights.calculate_opportunity_score(p.id) <= max_score
+        ]
+        return query.filter(ProductMonitored.id.in_(matching_ids))
 
     def _filter_by_price_range(
         self,
@@ -188,9 +264,11 @@ class FilterService:
         min_price: Optional[float],
         max_price: Optional[float]
     ) -> Query:
-        """Filter by price range (based on competitor prices)"""
-        # Would need to join with price history and calculate ranges
-        # For now, return as-is
+        """Filter by the user's own price range (my_price field)"""
+        if min_price is not None:
+            query = query.filter(ProductMonitored.my_price >= min_price)
+        if max_price is not None:
+            query = query.filter(ProductMonitored.my_price <= max_price)
         return query
 
     def search_products(self, search_term: str, limit: int = 50) -> List[ProductMonitored]:

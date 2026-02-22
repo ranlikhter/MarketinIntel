@@ -7,7 +7,10 @@ from sentence_transformers import SentenceTransformer, util
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import re
+import json
+import os
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -301,20 +304,41 @@ class AIProductMatcher:
             competitor_title: Competitor product
             user_confirmed: True if user confirmed it's a match
         """
-        # TODO: Implement feedback storage and model fine-tuning
-        # Could store in a feedback database table:
-        # - product_title
-        # - competitor_title
-        # - ai_score
-        # - user_confirmed (True/False)
-        # - timestamp
+        # Persist feedback to a JSON file alongside the data directory.
+        # Over time this log can be used to:
+        #   - Adjust match thresholds (e.g. if AI says 85% but user rejects)
+        #   - Fine-tune or retrain the embedding model
+        try:
+            # Resolve feedback file relative to repo root (../../data/)
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            feedback_file = os.path.join(base_dir, "..", "data", "match_feedback.json")
+            feedback_file = os.path.normpath(feedback_file)
 
-        # Over time, analyze patterns:
-        # - If AI says 85% but user rejects -> adjust threshold
-        # - If AI says 60% but user confirms -> learn what patterns matter
+            existing: List[Dict] = []
+            if os.path.exists(feedback_file):
+                with open(feedback_file, "r") as f:
+                    existing = json.load(f)
 
-        logger.info(f"Feedback received: {user_confirmed} for match")
-        pass
+            # Calculate the AI score for this pair
+            result = self.calculate_similarity(product_title, competitor_title)
+
+            existing.append({
+                "product_title": product_title,
+                "competitor_title": competitor_title,
+                "ai_score": result["score"],
+                "user_confirmed": user_confirmed,
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+
+            os.makedirs(os.path.dirname(feedback_file), exist_ok=True)
+            with open(feedback_file, "w") as f:
+                json.dump(existing, f, indent=2)
+
+            logger.info(
+                f"Feedback stored: confirmed={user_confirmed}, ai_score={result['score']:.1f}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to store match feedback: {e}")
 
 
 # Singleton instance

@@ -3,6 +3,8 @@ Authentication API Endpoints
 Handles signup, login, logout, password reset, email verification
 """
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -126,15 +128,18 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     access_token = create_access_token(data={"sub": str(new_user.id)})
     refresh_token = create_refresh_token(data={"sub": str(new_user.id)})
 
-    # Send verification email
+    # Send welcome + verification emails
     verification_token = create_email_verification_token(new_user.email)
-    verification_url = f"http://localhost:3000/verify-email?token={verification_token}"
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    verification_url = f"{frontend_url}/verify-email?token={verification_token}"
 
     try:
         email_service.send_welcome_email(new_user.email, new_user.full_name or "there")
-        # TODO: Send verification email with link
+        email_service.send_verification_email(
+            new_user.email, new_user.full_name or "there", verification_url
+        )
     except Exception as e:
-        print(f"Failed to send welcome email: {e}")
+        print(f"Failed to send welcome/verification email: {e}")
 
     return TokenResponse(
         access_token=access_token,
@@ -355,14 +360,13 @@ async def forgot_password(request: PasswordResetRequest, db: Session = Depends(g
             "message": "If that email exists, a reset link has been sent"
         }
 
-    # Generate reset token
+    # Generate reset token and send email
     reset_token = create_password_reset_token(user.email)
-    reset_url = f"http://localhost:3000/reset-password?token={reset_token}"
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    reset_url = f"{frontend_url}/reset-password?token={reset_token}"
 
-    # TODO: Send email with reset link
     try:
-        # email_service.send_password_reset_email(user.email, reset_url)
-        print(f"Password reset link: {reset_url}")
+        email_service.send_password_reset_email(user.email, reset_url)
     except Exception as e:
         print(f"Failed to send reset email: {e}")
 

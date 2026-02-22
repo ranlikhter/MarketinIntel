@@ -3,6 +3,8 @@ Notification Background Tasks
 Handles email alerts and daily digests
 """
 
+import os
+
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert
@@ -218,7 +220,28 @@ def send_price_drop_alert(self, product_id: int, match_id: int):
 
         logger.info(f"Price drop alert for {product.title}: ${match.latest_price}")
 
-        # TODO: Send push notification or email
+        # Send email to all active alert rules for this product
+        alert_rules = self.db.query(PriceAlert).filter(
+            PriceAlert.product_id == product_id,
+            PriceAlert.enabled == True,
+            PriceAlert.notify_email == True,
+        ).all()
+
+        for rule in alert_rules:
+            if not rule.email:
+                continue
+            try:
+                email_service.send_price_alert(
+                    to_email=rule.email,
+                    product_title=product.title,
+                    competitor=match.competitor_name,
+                    old_price=match.latest_price or 0,
+                    new_price=match.latest_price or 0,
+                    change_pct=0,
+                    product_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{product_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to send email for rule {rule.id}: {e}")
 
         return {
             'success': True,

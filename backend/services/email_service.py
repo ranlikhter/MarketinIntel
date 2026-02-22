@@ -395,6 +395,61 @@ class EmailService:
 
         return self.send_email(to_email, subject, html_content)
 
+    def send_verification_email(self, to_email: str, user_name: str, verification_url: str) -> bool:
+        """Send email verification link to new user"""
+        subject = "Verify your MarketIntel email address"
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="margin: 0;">Verify your email</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                <p>Hi {user_name},</p>
+                <p>Click the button below to verify your email address and activate your MarketIntel account.</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{verification_url}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Verify Email Address
+                    </a>
+                </p>
+                <p style="color: #6b7280; font-size: 13px;">This link expires in 24 hours. If you did not create an account, you can safely ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_content = f"Hi {user_name},\n\nVerify your email: {verification_url}\n\nLink expires in 24 hours."
+        return self.send_email(to_email, subject, html_content, text_content)
+
+    def send_password_reset_email(self, to_email: str, reset_url: str) -> bool:
+        """Send password reset link"""
+        subject = "Reset your MarketIntel password"
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+                <h1 style="margin: 0;">Password Reset</h1>
+            </div>
+            <div style="background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+                <p>We received a request to reset your MarketIntel password.</p>
+                <p style="text-align: center; margin: 30px 0;">
+                    <a href="{reset_url}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                        Reset Password
+                    </a>
+                </p>
+                <p style="color: #6b7280; font-size: 13px;">This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_content = f"Reset your MarketIntel password: {reset_url}\n\nLink expires in 1 hour."
+        return self.send_email(to_email, subject, html_content, text_content)
+
     def send_welcome_email(self, to_email: str, user_name: str) -> bool:
         """Send welcome email to new users"""
         subject = "Welcome to MarketIntel! 🎉"

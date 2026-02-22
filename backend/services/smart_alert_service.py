@@ -208,13 +208,12 @@ class SmartAlertService:
         if not prices:
             return False
 
-        # Simplified: In real implementation, compare with user's actual price
-        # For now, check if average competitor price is lower
-        avg_competitor_price = sum(prices) / len(prices)
+        # Compare user's own price (my_price) against competitor prices
+        if not product.my_price:
+            return False
 
-        # This is placeholder logic - needs user's actual product price
-        # Assuming user's price is stored somewhere or we need to add it
-        return False  # TODO: Implement with actual user price comparison
+        # User is "most expensive" if every in-stock competitor is cheaper
+        return all(p < product.my_price for p in prices)
 
     def _check_competitor_raised(self, alert: PriceAlert) -> bool:
         """Check if any competitor raised their price (opportunity!)"""
@@ -387,15 +386,27 @@ class SmartAlertService:
 
     def _send_sms_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send SMS notification via Twilio"""
-        # TODO: Implement Twilio SMS
-        # from twilio.rest import Client
-        # client = Client(account_sid, auth_token)
-        # message = client.messages.create(
-        #     body=f"{data['alert_name']}: {data['product_title']}",
-        #     from_=os.getenv('TWILIO_PHONE_NUMBER'),
-        #     to=alert.phone_number
-        # )
-        pass
+        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+        from_number = os.getenv('TWILIO_PHONE_NUMBER')
+
+        if not all([account_sid, auth_token, from_number]):
+            print(f"Twilio not configured – skipping SMS for alert {alert.id}")
+            return
+
+        try:
+            from twilio.rest import Client
+            client = Client(account_sid, auth_token)
+            body = (
+                f"{data['alert_name']}: {data['product_title']} | "
+                f"{data['competitor_count']} competitors | "
+                f"View: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
+            )
+            client.messages.create(body=body, from_=from_number, to=alert.phone_number)
+        except ImportError:
+            print("twilio package not installed – skipping SMS")
+        except Exception as e:
+            print(f"Failed to send SMS for alert {alert.id}: {e}")
 
     def _send_slack_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send Slack webhook notification"""
@@ -487,22 +498,133 @@ class SmartAlertService:
             print(f"Failed to send Discord notification for alert {alert.id}: {e}")
 
     def _send_push_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send push notification (PWA)"""
-        # TODO: Implement web push notifications
-        # Requires setting up push notification service
-        pass
+        """Send push notification (PWA) via Web Push / VAPID"""
+        vapid_private_key = os.getenv('VAPID_PRIVATE_KEY')
+        vapid_public_key = os.getenv('VAPID_PUBLIC_KEY')
+        vapid_claims_email = os.getenv('VAPID_CLAIMS_EMAIL', 'alerts@marketintel.com')
+
+        if not all([vapid_private_key, vapid_public_key]):
+            print(f"VAPID keys not configured – skipping push notification for alert {alert.id}")
+            return
+
+        # Push subscription endpoint stored on the alert (or user) record would be needed.
+        # For now we log the intent; the frontend registers a subscription and stores it in the DB.
+        push_subscription = getattr(alert, 'push_subscription', None)
+        if not push_subscription:
+            print(f"No push subscription registered for alert {alert.id}")
+            return
+
+        try:
+            from pywebpush import webpush, WebPushException
+            import json
+            payload = json.dumps({
+                "title": data['alert_name'],
+                "body": data['product_title'],
+                "url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
+            })
+            webpush(
+                subscription_info=push_subscription,
+                data=payload,
+                vapid_private_key=vapid_private_key,
+                vapid_claims={"sub": f"mailto:{vapid_claims_email}"}
+            )
+        except ImportError:
+            print("pywebpush package not installed – skipping push notification")
+        except Exception as e:
+            print(f"Failed to send push notification for alert {alert.id}: {e}")
 
     # Digest Management
 
     def send_daily_digest(self, user_id: int):
-        """Send daily digest of all triggered alerts"""
-        # TODO: Implement digest logic
-        pass
+        """Send daily digest of all triggered alerts for a user"""
+        self._send_digest(user_id, days=1, label="Daily")
 
     def send_weekly_digest(self, user_id: int):
-        """Send weekly digest of all triggered alerts"""
-        # TODO: Implement digest logic
-        pass
+        """Send weekly digest of all triggered alerts for a user"""
+        self._send_digest(user_id, days=7, label="Weekly")
+
+    def _send_digest(self, user_id: int, days: int, label: str):
+        """Build and send a digest email for the given time window"""
+        from services.email_service import email_service
+        from database.models import User
+
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if not user or not user.email:
+            return
+
+        since = datetime.utcnow() - timedelta(days=days)
+
+        # Alerts that triggered within the window
+        triggered_alerts = self.db.query(PriceAlert).filter(
+            PriceAlert.user_id == user_id,
+            PriceAlert.last_triggered_at >= since
+        ).all()
+
+        if not triggered_alerts:
+            return  # Nothing to report
+
+        # Build top price drops / increases from recent price history
+        top_drops = []
+        top_increases = []
+
+        for alert in triggered_alerts:
+            product = alert.product
+            for match in product.competitor_matches:
+                prices = self.db.query(PriceHistory).filter(
+                    PriceHistory.match_id == match.id,
+                    PriceHistory.timestamp >= since
+                ).order_by(PriceHistory.timestamp).all()
+
+                if len(prices) < 2:
+                    continue
+
+                first_price = prices[0].price
+                last_price = prices[-1].price
+                change_pct = ((last_price - first_price) / first_price) * 100 if first_price else 0
+
+                entry = {
+                    "product": product.title,
+                    "competitor": match.competitor_name,
+                    "new_price": last_price,
+                    "change_pct": abs(change_pct),
+                }
+                if change_pct < -1:
+                    top_drops.append(entry)
+                elif change_pct > 1:
+                    top_increases.append(entry)
+
+        # Sort by magnitude
+        top_drops.sort(key=lambda x: x["change_pct"], reverse=True)
+        top_increases.sort(key=lambda x: x["change_pct"], reverse=True)
+
+        stats = {
+            "products_monitored": self.db.query(ProductMonitored).filter(
+                ProductMonitored.user_id == user_id
+            ).count(),
+            "price_updates": self.db.query(PriceHistory).join(CompetitorMatch).join(
+                ProductMonitored
+            ).filter(
+                ProductMonitored.user_id == user_id,
+                PriceHistory.timestamp >= since
+            ).count(),
+            "competitors_tracked": self.db.query(CompetitorMatch).join(
+                ProductMonitored
+            ).filter(
+                ProductMonitored.user_id == user_id
+            ).count(),
+        }
+
+        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        try:
+            email_service.send_daily_digest(
+                to_email=user.email,
+                date=f"{label} Digest – {date_str}",
+                stats=stats,
+                top_price_drops=top_drops[:5],
+                top_price_increases=top_increases[:5],
+            )
+        except Exception as e:
+            print(f"Failed to send {label.lower()} digest to user {user_id}: {e}")
 
 
 # Factory function

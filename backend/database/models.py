@@ -53,6 +53,7 @@ class ProductMonitored(Base):
     sku = Column(String(100), nullable=True)      # e.g., "IPHONE13-128" (optional)
     brand = Column(String(100), nullable=True)    # e.g., "Apple"
     image_url = Column(Text, nullable=True)       # URL to product image
+    my_price = Column(Float, nullable=True)       # User's own selling price for this product
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -453,3 +454,22 @@ class WorkspaceMember(Base):
 
     def __repr__(self):
         return f"<WorkspaceMember(workspace_id={self.workspace_id}, user_id={self.user_id}, role='{self.role.value}')>"
+
+
+class MatchFeedback(Base):
+    """
+    Table: match_feedback
+    Stores user feedback on AI product matching decisions.
+    Used to track accuracy and improve matching thresholds over time.
+    """
+    __tablename__ = "match_feedback"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_title = Column(String(500), nullable=False)
+    competitor_title = Column(String(500), nullable=False)
+    ai_score = Column(Float, nullable=False)       # Score the AI gave
+    user_confirmed = Column(Boolean, nullable=False)  # True = match, False = not a match
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<MatchFeedback(id={self.id}, confirmed={self.user_confirmed}, ai_score={self.ai_score})>"
