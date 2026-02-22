@@ -75,6 +75,15 @@ class PasswordResetConfirm(BaseModel):
     new_password: str
 
 
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
 # ============================================
 # Authentication Endpoints
 # ============================================
@@ -300,6 +309,94 @@ async def get_current_user_info(
         alerts_limit=user.alerts_limit,
         created_at=user.created_at
     )
+
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    request: UpdateProfileRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Update current user's profile information (full name)"""
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+
+    user_id = payload.get("sub")
+    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if request.full_name is not None:
+        user.full_name = request.full_name
+
+    db.commit()
+    db.refresh(user)
+
+    return UserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        subscription_tier=user.subscription_tier.value,
+        subscription_status=user.subscription_status.value,
+        is_verified=user.is_verified,
+        products_limit=user.products_limit,
+        matches_limit=user.matches_limit,
+        alerts_limit=user.alerts_limit,
+        created_at=user.created_at
+    )
+
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    """Change password for authenticated user"""
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+
+    user_id = payload.get("sub")
+    user = db.query(User).filter(User.id == int(user_id)).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    if not verify_password(request.current_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect"
+        )
+
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 8 characters"
+        )
+
+    user.hashed_password = hash_password(request.new_password)
+    db.commit()
+
+    return {"success": True, "message": "Password changed successfully"}
 
 
 @router.post("/verify-email")
