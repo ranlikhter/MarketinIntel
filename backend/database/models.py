@@ -65,6 +65,7 @@ class ProductMonitored(Base):
     # Relationships
     user = relationship("User", back_populates="products")
     competitor_matches = relationship("CompetitorMatch", back_populates="monitored_product", cascade="all, delete-orphan")
+    my_price_history = relationship("MyPriceHistory", back_populates="product", cascade="all, delete-orphan", order_by="MyPriceHistory.changed_at")
 
     def __repr__(self):
         return f"<ProductMonitored(id={self.id}, title='{self.title}')>"
@@ -490,6 +491,28 @@ class WorkspaceMember(Base):
 
     def __repr__(self):
         return f"<WorkspaceMember(workspace_id={self.workspace_id}, user_id={self.user_id}, role='{self.role.value}')>"
+
+
+class MyPriceHistory(Base):
+    """
+    Table: my_price_history
+    Tracks the user's own price changes over time for each product.
+    Auto-recorded whenever my_price is updated via the API.
+    Enables "did my price change correlate with sales impact?" analysis.
+    """
+    __tablename__ = "my_price_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False, index=True)
+    old_price = Column(Float, nullable=True)      # Previous price (null if first record)
+    new_price = Column(Float, nullable=False)     # New price being set
+    note = Column(String(300), nullable=True)     # Optional reason ("Black Friday", "matched Amazon")
+    changed_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    product = relationship("ProductMonitored", back_populates="my_price_history")
+
+    def __repr__(self):
+        return f"<MyPriceHistory(product_id={self.product_id}, old={self.old_price}, new={self.new_price})>"
 
 
 class MatchFeedback(Base):

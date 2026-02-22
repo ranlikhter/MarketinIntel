@@ -177,6 +177,18 @@ const api = {
       }),
     }),
 
+  // ─── My Price History ─────────────────────────────────────────────────────────
+  getMyPriceHistory: (id) => request(`/products/${id}/my-price-history`),
+
+  // ─── Competitor Intelligence ──────────────────────────────────────────────────
+  getCompetitorComparison: (names = []) => {
+    const qs = names.map((n) => `competitors=${encodeURIComponent(n)}`).join('&');
+    return request(`/api/competitor-intel/compare${qs ? `?${qs}` : ''}`);
+  },
+  getCompetitorStrategies: () => request('/api/competitor-intel/strategies'),
+  getCompetitorProfile: (name) =>
+    request(`/api/competitor-intel/competitors/${encodeURIComponent(name)}`),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

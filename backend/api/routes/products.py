@@ -21,7 +21,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User
+from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User, MyPriceHistory
 from scrapers.scraper_manager import scrape_url, search_products
 from api.dependencies import get_current_user, check_usage_limit
 
@@ -354,7 +354,17 @@ def update_product(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    for field, value in product_update.dict(exclude_none=True).items():
+    # Auto-record my_price change before applying the update
+    updates = product_update.dict(exclude_none=True)
+    if 'my_price' in updates and updates['my_price'] != product.my_price:
+        price_record = MyPriceHistory(
+            product_id=product.id,
+            old_price=product.my_price,
+            new_price=updates['my_price'],
+        )
+        db.add(price_record)
+
+    for field, value in updates.items():
         setattr(product, field, value)
 
     db.commit()
@@ -799,6 +809,46 @@ async def scrape_competitor_url(
             "status": "error",
             "error": str(e)
         }
+
+
+@router.get("/{product_id}/my-price-history")
+def get_my_price_history(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    GET /products/{id}/my-price-history
+
+    Returns the log of MY OWN price changes for this product.
+    Recorded automatically every time my_price is updated.
+    """
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    records = (
+        db.query(MyPriceHistory)
+        .filter(MyPriceHistory.product_id == product_id)
+        .order_by(MyPriceHistory.changed_at.asc())
+        .all()
+    )
+
+    return [
+        {
+            "id": r.id,
+            "old_price": r.old_price,
+            "new_price": r.new_price,
+            "change": round(r.new_price - r.old_price, 2) if r.old_price else None,
+            "change_pct": round((r.new_price - r.old_price) / r.old_price * 100, 1) if r.old_price else None,
+            "note": r.note,
+            "changed_at": r.changed_at.isoformat(),
+        }
+        for r in records
+    ]
 
 
 @router.get("/{product_id}/export.csv")

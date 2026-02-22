@@ -10,6 +10,7 @@ from tasks.scraping_tasks import DatabaseTask
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert
 from services.email_service import email_service
 from services.webhook_service import send_slack_alert, send_discord_alert, send_slack_digest
+from services.sms_service import send_price_alert_sms
 from sqlalchemy import func
 from datetime import datetime, timedelta
 import logging
@@ -135,6 +136,20 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                                         )
                                     except Exception as discord_err:
                                         logger.error(f"Discord webhook failed: {discord_err}")
+
+                                # Send SMS notification
+                                if rule.notify_sms and rule.phone_number:
+                                    try:
+                                        send_price_alert_sms(
+                                            to_number=rule.phone_number,
+                                            product_title=product.title,
+                                            competitor_name=match.competitor_name,
+                                            new_price=current_price,
+                                            change_pct=change_pct,
+                                            product_url=product_url,
+                                        )
+                                    except Exception as sms_err:
+                                        logger.error(f"SMS alert failed: {sms_err}")
 
                                 # Update last triggered
                                 rule.last_triggered_at = datetime.utcnow()

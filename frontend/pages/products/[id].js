@@ -184,6 +184,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState(null);
   const [matches, setMatches] = useState([]);
   const [priceHistory, setPriceHistory] = useState([]);
+  const [myPriceHistory, setMyPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
   const [editingPrice, setEditingPrice] = useState(false);
@@ -260,8 +261,13 @@ export default function ProductDetailPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [p, m, h] = await Promise.all([api.getProduct(id), api.getProductMatches(id), api.getProductPriceHistory(id)]);
-      setProduct(p); setMatches(m); setPriceHistory(h);
+      const [p, m, h, mph] = await Promise.all([
+        api.getProduct(id),
+        api.getProductMatches(id),
+        api.getProductPriceHistory(id),
+        api.getMyPriceHistory(id).catch(() => []),
+      ]);
+      setProduct(p); setMatches(m); setPriceHistory(h); setMyPriceHistory(mph || []);
     } catch { addToast('Failed to load product', 'error'); }
     finally { setLoading(false); }
   };
@@ -599,6 +605,58 @@ export default function ProductDetailPage() {
             </div>
           )}
         </div>
+
+        {/* My Price History timeline */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-gray-900">My Price History</p>
+            <span className="text-xs text-gray-400">{myPriceHistory.length} change{myPriceHistory.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {myPriceHistory.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-gray-500">No price changes recorded yet</p>
+              <p className="text-xs text-gray-400 mt-1">Every time you update your price, it's logged here automatically</p>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Vertical timeline line */}
+              <div className="absolute left-3 top-2 bottom-2 w-px bg-gray-100" />
+              <div className="space-y-3">
+                {[...myPriceHistory].reverse().map((entry, i) => {
+                  const isUp = entry.change != null && entry.change > 0;
+                  const isDown = entry.change != null && entry.change < 0;
+                  return (
+                    <div key={entry.id} className="flex items-start gap-3 pl-8 relative">
+                      {/* Dot */}
+                      <div className={`absolute left-1.5 top-1.5 w-3 h-3 rounded-full border-2 border-white ${
+                        isUp ? 'bg-emerald-400' : isDown ? 'bg-red-400' : 'bg-gray-300'
+                      }`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-gray-900">${entry.new_price.toFixed(2)}</span>
+                          {entry.old_price != null && (
+                            <span className="text-xs text-gray-400 line-through">${entry.old_price.toFixed(2)}</span>
+                          )}
+                          {entry.change_pct != null && (
+                            <span className={`text-xs font-semibold ${isUp ? 'text-emerald-600' : isDown ? 'text-red-600' : 'text-gray-500'}`}>
+                              {entry.change_pct > 0 ? '+' : ''}{entry.change_pct.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(entry.changed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                          {entry.note && <span className="ml-1.5 text-gray-500">— {entry.note}</span>}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </Layout>
   );
