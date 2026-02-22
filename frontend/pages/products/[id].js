@@ -39,49 +39,137 @@ function StockBadge({ status }) {
   return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Low Stock</span>;
 }
 
-function MatchCard({ match }) {
+function StarRating({ rating }) {
+  if (!rating) return null;
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5;
+  return (
+    <span className="flex items-center gap-0.5">
+      {[...Array(5)].map((_, i) => (
+        <svg key={i} className={`w-3 h-3 ${i < full ? 'text-amber-400' : i === full && half ? 'text-amber-300' : 'text-gray-200'}`} fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function MatchCard({ match, myPrice }) {
   const [imgErr, setImgErr] = useState(false);
+  const priceDiff = myPrice != null && match.latest_price != null ? match.latest_price - myPrice : null;
+  const priceDiffPct = priceDiff != null && myPrice ? ((priceDiff / myPrice) * 100).toFixed(1) : null;
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-      {/* Image */}
-      <div className="h-40 bg-gray-50 flex items-center justify-center overflow-hidden">
+      {/* Image with badge overlay */}
+      <div className="relative h-36 bg-gray-50 flex items-center justify-center overflow-hidden">
         {!imgErr && match.image_url ? (
           <img src={match.image_url} alt={match.competitor_product_title} className="w-full h-full object-contain p-2" onError={() => setImgErr(true)} />
         ) : (
           <div className="text-gray-200">{Ico.image}</div>
         )}
+        <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+          {match.is_prime && (
+            <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs font-bold rounded">Prime</span>
+          )}
+          {match.promotion_label && (
+            <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs font-semibold rounded truncate max-w-[120px]" title={match.promotion_label}>
+              {match.promotion_label}
+            </span>
+          )}
+          {match.product_condition && match.product_condition !== 'New' && (
+            <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-semibold rounded">{match.product_condition}</span>
+          )}
+        </div>
       </div>
 
       {/* Body */}
       <div className="p-4 flex-1 flex flex-col">
-        <p className="text-xs text-gray-400 font-medium mb-1 uppercase tracking-wide">{match.competitor_name}</p>
-        <p className="text-sm font-medium text-gray-900 line-clamp-2 flex-1 mb-3">{match.competitor_product_title}</p>
+        {/* Source + match score */}
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wide">{match.competitor_name}</span>
+          {match.match_score != null && (
+            <span className="text-xs font-semibold text-gray-400" title="Match confidence">{match.match_score.toFixed(0)}% match</span>
+          )}
+        </div>
 
-        <div className="space-y-2 mb-4">
+        {/* Title */}
+        <p className="text-sm font-medium text-gray-900 line-clamp-2 mb-1">{match.competitor_product_title}</p>
+
+        {/* Variant */}
+        {match.variant && (
+          <p className="text-xs text-gray-400 mb-2 truncate" title={match.variant}>{match.variant}</p>
+        )}
+
+        {/* Rating */}
+        {(match.rating != null || match.review_count != null) && (
+          <div className="flex items-center gap-1.5 mb-3">
+            {match.rating != null && <StarRating rating={match.rating} />}
+            {match.rating != null && <span className="text-xs font-semibold text-gray-700">{match.rating.toFixed(1)}</span>}
+            {match.review_count != null && <span className="text-xs text-gray-400">({match.review_count.toLocaleString()})</span>}
+          </div>
+        )}
+
+        {/* Price block */}
+        <div className="bg-gray-50 rounded-xl p-3 mb-3 space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500">Price</span>
-            <span className="text-base font-bold text-blue-600">${match.latest_price?.toFixed(2) ?? '—'}</span>
+            <div className="flex items-center gap-2">
+              {match.was_price && (
+                <span className="text-xs text-gray-400 line-through">${match.was_price.toFixed(2)}</span>
+              )}
+              <span className="text-base font-bold text-blue-600">
+                {match.latest_price != null ? `$${match.latest_price.toFixed(2)}` : '—'}
+              </span>
+              {match.discount_pct != null && (
+                <span className="text-xs font-bold text-red-500">-{match.discount_pct.toFixed(0)}%</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">Stock</span>
-            <StockBadge status={match.stock_status} />
-          </div>
-          {match.match_score != null && (
+          {match.shipping_cost != null && (
             <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Match</span>
-              <span className="text-xs font-semibold text-gray-700">{(match.match_score * 100).toFixed(0)}%</span>
+              <span className="text-xs text-gray-500">Shipping</span>
+              <span className={`text-xs font-medium ${match.shipping_cost === 0 ? 'text-emerald-600' : 'text-gray-700'}`}>
+                {match.shipping_cost === 0 ? '✓ Free' : `+$${match.shipping_cost.toFixed(2)}`}
+              </span>
+            </div>
+          )}
+          {match.total_price != null && match.shipping_cost > 0 && (
+            <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+              <span className="text-xs font-semibold text-gray-600">Total landed</span>
+              <span className="text-sm font-bold text-gray-900">${match.total_price.toFixed(2)}</span>
+            </div>
+          )}
+          {priceDiff != null && (
+            <div className="flex items-center justify-between border-t border-gray-200 pt-1.5">
+              <span className="text-xs text-gray-500">vs My Price</span>
+              <span className={`text-xs font-bold ${priceDiff < 0 ? 'text-red-500' : priceDiff > 0 ? 'text-emerald-600' : 'text-gray-500'}`}>
+                {priceDiff > 0 ? `+$${priceDiff.toFixed(2)} (+${priceDiffPct}%)` : priceDiff < 0 ? `-$${Math.abs(priceDiff).toFixed(2)} (${priceDiffPct}%)` : 'Same'}
+              </span>
             </div>
           )}
         </div>
 
+        {/* Meta row: stock + fulfillment + seller */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-xs text-gray-400">
+          <StockBadge status={match.stock_status} />
+          {match.fulfillment_type && <span>{match.fulfillment_type}</span>}
+          {match.seller_name && <span className="truncate max-w-[90px]" title={match.seller_name}>by {match.seller_name}</span>}
+        </div>
+
+        {/* Category */}
+        {match.category && (
+          <p className="text-xs text-gray-400 mb-2 truncate" title={match.category}>{match.category}</p>
+        )}
+
         <a
           href={match.competitor_url} target="_blank" rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-colors"
+          className="mt-auto flex items-center justify-center gap-1.5 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-colors"
         >
           View Product {Ico.external}
         </a>
         <p className="text-center text-xs text-gray-400 mt-2">
-          Updated {new Date(match.last_checked).toLocaleDateString()}
+          Updated {match.last_checked ? new Date(match.last_checked).toLocaleDateString() : '—'}
         </p>
       </div>
     </div>
@@ -507,7 +595,7 @@ export default function ProductDetailPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {matches.map(m => <MatchCard key={m.id} match={m} />)}
+              {matches.map(m => <MatchCard key={m.id} match={m} myPrice={product?.my_price} />)}
             </div>
           )}
         </div>

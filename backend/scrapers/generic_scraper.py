@@ -91,9 +91,15 @@ class GenericWebScraper:
             "url": url,
             "title": None,
             "price": None,
+            "was_price": None,
+            "discount_pct": None,
             "currency": "USD",
             "in_stock": True,
             "image_url": None,
+            "shipping_cost": None,
+            "total_price": None,
+            "promotion_label": None,
+            "scrape_quality": "clean",
             "error": None
         }
 
@@ -132,7 +138,6 @@ class GenericWebScraper:
                 if title_selector:
                     result["title"] = self._extract_text(soup, title_selector)
                 else:
-                    # Fallback: try common title patterns
                     result["title"] = self._extract_title_fallback(soup)
 
                 # Extract price
@@ -140,24 +145,44 @@ class GenericWebScraper:
                     price_text = self._extract_text(soup, price_selector)
                     if price_text:
                         result["price"], result["currency"] = self._parse_price(price_text)
+                        result["scrape_quality"] = "clean"
+                    else:
+                        result["scrape_quality"] = "partial"
                 else:
-                    # Fallback: try common price patterns
                     result["price"], result["currency"] = self._extract_price_fallback(soup)
+                    result["scrape_quality"] = "fallback" if result["price"] else "partial"
+
+                # Extract was/original price (strike-through)
+                result["was_price"] = self._extract_was_price_fallback(soup)
+
+                # Compute discount percentage
+                if result["was_price"] and result["price"] and result["was_price"] > result["price"]:
+                    result["discount_pct"] = round((1 - result["price"] / result["was_price"]) * 100, 1)
 
                 # Extract stock status
                 if stock_selector:
                     stock_text = self._extract_text(soup, stock_selector)
                     result["in_stock"] = self._parse_stock_status(stock_text)
                 else:
-                    # Assume in stock if no selector provided
                     result["in_stock"] = True
 
                 # Extract image
                 if image_selector:
                     result["image_url"] = self._extract_image(soup, image_selector, url)
                 else:
-                    # Fallback: try common image patterns
                     result["image_url"] = self._extract_image_fallback(soup, url)
+
+                # Extract shipping cost
+                result["shipping_cost"] = self._extract_shipping_fallback(soup)
+
+                # Total landed price
+                if result["price"] is not None and result["shipping_cost"] is not None:
+                    result["total_price"] = round(result["price"] + result["shipping_cost"], 2)
+                elif result["price"] is not None:
+                    result["total_price"] = result["price"]
+
+                # Extract promotion label
+                result["promotion_label"] = self._extract_promotion_fallback(soup)
 
                 await browser.close()
 
@@ -320,25 +345,99 @@ class GenericWebScraper:
 
     def _extract_image_fallback(self, soup: BeautifulSoup, base_url: str) -> Optional[str]:
         """Try common image patterns if no selector provided."""
-        # Try meta tags
         meta_image = soup.find("meta", property="og:image")
         if meta_image and meta_image.get("content"):
             return urljoin(base_url, meta_image["content"])
-
-        # Try images with product-related classes
-        img_patterns = [
-            {"class": "product-image"},
-            {"class": "main-image"},
-            {"id": "main-image"}
-        ]
-
-        for pattern in img_patterns:
+        for pattern in [{"class": "product-image"}, {"class": "main-image"}, {"id": "main-image"}]:
             img = soup.find("img", attrs=pattern)
             if img:
                 img_url = img.get("src") or img.get("data-src")
                 if img_url:
                     return urljoin(base_url, img_url)
+        return None
 
+
+    def _extract_was_price_fallback(self, soup: BeautifulSoup) -> Optional[float]:
+        """Look for crossed-out / original prices using common patterns."""
+        # Strikethrough HTML tags
+        for tag in soup.find_all(['del', 's', 'strike']):
+            text = tag.get_text(strip=True)
+            price, _ = self._parse_price(text)
+            if price and price > 0:
+                return price
+        # Common CSS class names
+        for pattern in [
+            {"class": "was-price"}, {"class": "original-price"}, {"class": "old-price"},
+            {"class": "regular-price"}, {"class": "list-price"}, {"itemprop": "highPrice"},
+        ]:
+            elem = soup.find(attrs=pattern)
+            if elem:
+                text = elem.get_text(strip=True)
+                price, _ = self._parse_price(text)
+                if price and price > 0:
+                    return price
+        # JSON-LD structured data
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                import json
+                data = json.loads(script.string or '{}')
+                if isinstance(data, dict):
+                    high = data.get('highPrice') or data.get('offers', {}).get('highPrice')
+                    if high:
+                        return float(high)
+            except Exception:
+                pass
+        return None
+
+
+    def _extract_shipping_fallback(self, soup: BeautifulSoup) -> Optional[float]:
+        """Attempt to detect shipping cost from page text."""
+        shipping_patterns = [
+            {"class": "shipping-cost"}, {"class": "delivery-price"},
+            {"id": "shipping-cost"}, {"class": "freight"},
+        ]
+        for pattern in shipping_patterns:
+            elem = soup.find(attrs=pattern)
+            if elem:
+                text = elem.get_text(strip=True).lower()
+                if 'free' in text:
+                    return 0.0
+                price, _ = self._parse_price(text)
+                if price is not None:
+                    return price
+        # Search page text for free shipping keywords
+        page_text = soup.get_text(' ', strip=True).lower()
+        if 'free shipping' in page_text or 'free delivery' in page_text:
+            return 0.0
+        return None
+
+
+    def _extract_promotion_fallback(self, soup: BeautifulSoup) -> Optional[str]:
+        """Look for discount banners, sale badges, coupon labels."""
+        promo_patterns = [
+            {"class": "promo-badge"}, {"class": "sale-badge"}, {"class": "offer-badge"},
+            {"class": "discount-badge"}, {"class": "deal-badge"}, {"class": "coupon"},
+            {"class": "savings"}, {"class": "promotion"},
+        ]
+        for pattern in promo_patterns:
+            elem = soup.find(attrs=pattern)
+            if elem:
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:
+                    return text
+        # JSON-LD: look for priceValidUntil or name in Offer
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                import json
+                data = json.loads(script.string or '{}')
+                offers = data.get('offers', {}) if isinstance(data, dict) else {}
+                if isinstance(offers, list) and offers:
+                    offers = offers[0]
+                promo = offers.get('description') or offers.get('name')
+                if promo and len(promo) < 100:
+                    return promo
+            except Exception:
+                pass
         return None
 
 

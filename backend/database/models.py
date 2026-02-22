@@ -87,6 +87,17 @@ class CompetitorMatch(Base):
     image_url = Column(Text, nullable=True)                  # Product image URL
     competitor_website_id = Column(Integer, ForeignKey("competitor_websites.id"), nullable=True)
 
+    # Rich competitor intelligence (populated from scraping)
+    external_id = Column(String(100), nullable=True)         # ASIN (Amazon) or platform-specific ID
+    rating = Column(Float, nullable=True)                    # Star rating (e.g., 4.5)
+    review_count = Column(Integer, nullable=True)            # Number of customer reviews
+    is_prime = Column(Boolean, nullable=True)                # Amazon Prime eligible
+    fulfillment_type = Column(String(20), nullable=True)     # 'FBA', 'FBM', 'merchant'
+    product_condition = Column(String(30), nullable=True)    # 'New', 'Used', 'Refurbished'
+    seller_name = Column(String(200), nullable=True)         # Who is selling it
+    category = Column(String(200), nullable=True)            # Product category/breadcrumb
+    variant = Column(String(200), nullable=True)             # Which variant (size/color/model)
+
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
     price_history = relationship("PriceHistory", back_populates="competitor_match", cascade="all, delete-orphan")
@@ -105,10 +116,21 @@ class PriceHistory(Base):
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False)
 
-    price = Column(Float, nullable=False)           # e.g., 799.99
-    currency = Column(String(10), default="USD")    # e.g., "USD", "EUR"
-    in_stock = Column(Boolean, default=True)        # Is the product available?
+    price = Column(Float, nullable=False)                    # e.g., 799.99
+    currency = Column(String(10), default="USD")             # e.g., "USD", "EUR"
+    in_stock = Column(Boolean, default=True)                 # Is the product available?
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Rich price snapshot fields
+    was_price = Column(Float, nullable=True)                 # Strike-through/original price (detects fake sales)
+    discount_pct = Column(Float, nullable=True)              # Active discount percentage (0-100)
+    shipping_cost = Column(Float, nullable=True)             # Shipping cost (0 = free shipping)
+    total_price = Column(Float, nullable=True)               # price + shipping (true landed cost)
+    promotion_label = Column(String(200), nullable=True)     # e.g., "Coupon: 20% off", "Limited time deal"
+    seller_name = Column(String(200), nullable=True)         # Who held the buy box at this snapshot
+    seller_count = Column(Integer, nullable=True)            # Number of competing sellers at scrape time
+    is_buy_box_winner = Column(Boolean, nullable=True)       # Did this seller own the buy box?
+    scrape_quality = Column(String(20), nullable=True)       # 'clean', 'partial', 'fallback'
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")

@@ -76,32 +76,54 @@ class ProductResponse(BaseModel):
 
 
 class CompetitorMatchResponse(BaseModel):
-    """
-    Schema for competitor match data.
-    """
+    """Schema for competitor match data — includes all rich intelligence fields."""
     id: int
     competitor_name: str
     competitor_url: str
-    competitor_title: str
-    competitor_image_url: str | None
+    competitor_product_title: str
+    image_url: str | None = None
     match_score: float
-    last_crawled_at: datetime
+    last_checked: datetime
     latest_price: float | None = None
-    in_stock: bool | None = None
+    stock_status: str | None = None
+    # Rich intelligence fields
+    external_id: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    is_prime: bool | None = None
+    fulfillment_type: str | None = None
+    product_condition: str | None = None
+    seller_name: str | None = None
+    category: str | None = None
+    variant: str | None = None
+    # Latest price snapshot detail
+    was_price: float | None = None
+    discount_pct: float | None = None
+    shipping_cost: float | None = None
+    total_price: float | None = None
+    promotion_label: str | None = None
 
     class Config:
         from_attributes = True
 
 
 class PriceHistoryResponse(BaseModel):
-    """
-    Schema for price history data (for charts).
-    """
+    """Schema for price history data (for charts and trend analysis)."""
     timestamp: datetime
     price: float
     currency: str
     in_stock: bool
     competitor_name: str
+    # Rich snapshot fields
+    was_price: float | None = None
+    discount_pct: float | None = None
+    shipping_cost: float | None = None
+    total_price: float | None = None
+    promotion_label: str | None = None
+    seller_name: str | None = None
+    seller_count: int | None = None
+    is_buy_box_winner: bool | None = None
+    scrape_quality: str | None = None
 
     class Config:
         from_attributes = True
@@ -343,11 +365,10 @@ def get_product_matches(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
 
-    # Convert to response format with latest price
+    # Convert to response format with latest price snapshot
     response_matches = []
     for match in matches:
-        # Get the most recent price
-        latest_price_record = db.query(PriceHistory).filter(
+        latest = db.query(PriceHistory).filter(
             PriceHistory.match_id == match.id
         ).order_by(PriceHistory.timestamp.desc()).first()
 
@@ -355,12 +376,26 @@ def get_product_matches(
             id=match.id,
             competitor_name=match.competitor_name,
             competitor_url=match.competitor_url,
-            competitor_title=match.competitor_title,
-            competitor_image_url=match.competitor_image_url,
-            match_score=match.match_score,
-            last_crawled_at=match.last_crawled_at,
-            latest_price=latest_price_record.price if latest_price_record else None,
-            in_stock=latest_price_record.in_stock if latest_price_record else None
+            competitor_product_title=match.competitor_product_title or '',
+            image_url=match.image_url,
+            match_score=match.match_score or 0.0,
+            last_checked=match.last_scraped_at,
+            latest_price=match.latest_price,
+            stock_status=match.stock_status,
+            external_id=match.external_id,
+            rating=match.rating,
+            review_count=match.review_count,
+            is_prime=match.is_prime,
+            fulfillment_type=match.fulfillment_type,
+            product_condition=match.product_condition,
+            seller_name=match.seller_name,
+            category=match.category,
+            variant=match.variant,
+            was_price=latest.was_price if latest else None,
+            discount_pct=latest.discount_pct if latest else None,
+            shipping_cost=latest.shipping_cost if latest else None,
+            total_price=latest.total_price if latest else None,
+            promotion_label=latest.promotion_label if latest else None,
         ))
 
     return response_matches
@@ -395,8 +430,17 @@ def get_price_history(
                 timestamp=price_record.timestamp,
                 price=price_record.price,
                 currency=price_record.currency,
-                in_stock=price_record.in_stock,
-                competitor_name=match.competitor_name
+                in_stock=bool(price_record.in_stock),
+                competitor_name=match.competitor_name,
+                was_price=price_record.was_price,
+                discount_pct=price_record.discount_pct,
+                shipping_cost=price_record.shipping_cost,
+                total_price=price_record.total_price,
+                promotion_label=price_record.promotion_label,
+                seller_name=price_record.seller_name,
+                seller_count=price_record.seller_count,
+                is_buy_box_winner=price_record.is_buy_box_winner,
+                scrape_quality=price_record.scrape_quality,
             ))
 
     # Sort by timestamp
@@ -456,11 +500,36 @@ async def trigger_scrape(
                 CompetitorMatch.competitor_url == result['url']
             ).first()
 
+            new_price = result.get('price')
+            stock = result.get('in_stock', True)
+            stock_status = 'In Stock' if stock else 'Out of Stock'
+
             if existing:
-                # Update existing match
-                existing.competitor_title = result.get('title', '')
-                existing.competitor_image_url = result.get('image_url')
-                existing.last_crawled_at = datetime.utcnow()
+                # Update existing match with latest data
+                existing.competitor_product_title = result.get('title', '') or existing.competitor_product_title
+                existing.image_url = result.get('image_url') or existing.image_url
+                existing.last_scraped_at = datetime.utcnow()
+                existing.latest_price = new_price if new_price is not None else existing.latest_price
+                existing.stock_status = stock_status
+                # Update rich fields if present
+                if result.get('asin') or result.get('external_id'):
+                    existing.external_id = result.get('asin') or result.get('external_id')
+                if result.get('rating') is not None:
+                    existing.rating = result['rating']
+                if result.get('review_count') is not None:
+                    existing.review_count = result['review_count']
+                if result.get('is_prime') is not None:
+                    existing.is_prime = result['is_prime']
+                if result.get('fulfillment_type'):
+                    existing.fulfillment_type = result['fulfillment_type']
+                if result.get('product_condition'):
+                    existing.product_condition = result['product_condition']
+                if result.get('seller_name'):
+                    existing.seller_name = result['seller_name']
+                if result.get('category'):
+                    existing.category = result['category']
+                if result.get('variant'):
+                    existing.variant = result['variant']
                 match_id = existing.id
             else:
                 # Create new match
@@ -468,22 +537,43 @@ async def trigger_scrape(
                     monitored_product_id=product_id,
                     competitor_name=website.split('.')[0].capitalize(),
                     competitor_url=result['url'],
-                    competitor_title=result.get('title', ''),
-                    competitor_image_url=result.get('image_url'),
-                    match_score=85.0  # Default score for search results
+                    competitor_product_title=result.get('title', ''),
+                    image_url=result.get('image_url'),
+                    match_score=85.0,
+                    latest_price=new_price,
+                    stock_status=stock_status,
+                    last_scraped_at=datetime.utcnow(),
+                    external_id=result.get('asin') or result.get('external_id'),
+                    rating=result.get('rating'),
+                    review_count=result.get('review_count'),
+                    is_prime=result.get('is_prime'),
+                    fulfillment_type=result.get('fulfillment_type'),
+                    product_condition=result.get('product_condition', 'New'),
+                    seller_name=result.get('seller_name'),
+                    category=result.get('category'),
+                    variant=result.get('variant'),
                 )
                 db.add(new_match)
-                db.flush()  # Get the ID
+                db.flush()
                 match_id = new_match.id
                 matches_created += 1
 
-            # Save price history
-            if result.get('price'):
+            # Save rich price history snapshot
+            if new_price is not None:
                 price_record = PriceHistory(
                     match_id=match_id,
-                    price=result['price'],
+                    price=new_price,
                     currency=result.get('currency', 'USD'),
-                    in_stock=True
+                    in_stock=stock,
+                    was_price=result.get('was_price'),
+                    discount_pct=result.get('discount_pct'),
+                    shipping_cost=result.get('shipping_cost'),
+                    total_price=result.get('total_price'),
+                    promotion_label=result.get('promotion_label'),
+                    seller_name=result.get('seller_name'),
+                    seller_count=result.get('seller_count'),
+                    is_buy_box_winner=result.get('is_buy_box_winner'),
+                    scrape_quality=result.get('scrape_quality', 'clean'),
                 )
                 db.add(price_record)
 
@@ -571,33 +661,66 @@ async def scrape_competitor_url(
             CompetitorMatch.competitor_url == competitor_url
         ).first()
 
+        scrape_price = result.get('price')
+        scrape_stock = result.get('in_stock', True)
+
         if existing:
-            # Update existing match
-            existing.competitor_title = result.get('title', '')
-            existing.competitor_image_url = result.get('image_url')
-            existing.last_crawled_at = datetime.utcnow()
+            existing.competitor_product_title = result.get('title', '') or existing.competitor_product_title
+            existing.image_url = result.get('image_url') or existing.image_url
+            existing.last_scraped_at = datetime.utcnow()
+            existing.latest_price = scrape_price if scrape_price is not None else existing.latest_price
+            existing.stock_status = 'In Stock' if scrape_stock else 'Out of Stock'
+            if result.get('asin') or result.get('external_id'):
+                existing.external_id = result.get('asin') or result.get('external_id')
+            if result.get('rating') is not None: existing.rating = result['rating']
+            if result.get('review_count') is not None: existing.review_count = result['review_count']
+            if result.get('is_prime') is not None: existing.is_prime = result['is_prime']
+            if result.get('fulfillment_type'): existing.fulfillment_type = result['fulfillment_type']
+            if result.get('product_condition'): existing.product_condition = result['product_condition']
+            if result.get('seller_name'): existing.seller_name = result['seller_name']
+            if result.get('category'): existing.category = result['category']
+            if result.get('variant'): existing.variant = result['variant']
             match_id = existing.id
         else:
-            # Create new match
             new_match = CompetitorMatch(
                 monitored_product_id=product_id,
                 competitor_name=competitor_name,
                 competitor_url=competitor_url,
-                competitor_title=result.get('title', ''),
-                competitor_image_url=result.get('image_url'),
-                match_score=100.0  # Manual match
+                competitor_product_title=result.get('title', ''),
+                image_url=result.get('image_url'),
+                match_score=100.0,
+                latest_price=scrape_price,
+                stock_status='In Stock' if scrape_stock else 'Out of Stock',
+                last_scraped_at=datetime.utcnow(),
+                external_id=result.get('asin') or result.get('external_id'),
+                rating=result.get('rating'),
+                review_count=result.get('review_count'),
+                is_prime=result.get('is_prime'),
+                fulfillment_type=result.get('fulfillment_type'),
+                product_condition=result.get('product_condition', 'New'),
+                seller_name=result.get('seller_name'),
+                category=result.get('category'),
+                variant=result.get('variant'),
             )
             db.add(new_match)
             db.flush()
             match_id = new_match.id
 
-        # Save price history
-        if result.get('price'):
+        if scrape_price is not None:
             price_record = PriceHistory(
                 match_id=match_id,
-                price=result['price'],
+                price=scrape_price,
                 currency=result.get('currency', 'USD'),
-                in_stock=result.get('in_stock', True)
+                in_stock=scrape_stock,
+                was_price=result.get('was_price'),
+                discount_pct=result.get('discount_pct'),
+                shipping_cost=result.get('shipping_cost'),
+                total_price=result.get('total_price'),
+                promotion_label=result.get('promotion_label'),
+                seller_name=result.get('seller_name'),
+                seller_count=result.get('seller_count'),
+                is_buy_box_winner=result.get('is_buy_box_winner'),
+                scrape_quality=result.get('scrape_quality', 'clean'),
             )
             db.add(price_record)
 

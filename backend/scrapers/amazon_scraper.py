@@ -122,6 +122,8 @@ class AmazonScraper:
             "title": None,
             "asin": None,
             "price": None,
+            "was_price": None,
+            "discount_pct": None,
             "currency": "USD",
             "in_stock": True,
             "image_url": None,
@@ -129,6 +131,17 @@ class AmazonScraper:
             "review_count": None,
             "brand": None,
             "description": None,
+            "promotion_label": None,
+            "seller_name": None,
+            "seller_count": None,
+            "is_prime": None,
+            "fulfillment_type": None,
+            "product_condition": "New",
+            "category": None,
+            "variant": None,
+            "shipping_cost": None,
+            "total_price": None,
+            "scrape_quality": "clean",
             "error": None
         }
 
@@ -158,11 +171,29 @@ class AmazonScraper:
                 # Extract data using multiple selectors (Amazon has different layouts)
                 result["title"] = self._extract_title(soup)
                 result["price"], result["currency"] = self._extract_price(soup)
+                result["was_price"] = self._extract_was_price(soup)
                 result["in_stock"] = self._extract_stock_status(soup)
                 result["image_url"] = self._extract_image(soup, url)
                 result["rating"], result["review_count"] = self._extract_reviews(soup)
                 result["brand"] = self._extract_brand(soup)
                 result["description"] = self._extract_description(soup)
+                result["promotion_label"] = self._extract_promotion_label(soup)
+                result["seller_name"], result["fulfillment_type"] = self._extract_seller_info(soup)
+                result["seller_count"] = self._extract_seller_count(soup)
+                result["is_prime"] = self._extract_is_prime(soup)
+                result["product_condition"] = self._extract_condition(soup)
+                result["category"] = self._extract_category(soup)
+                result["variant"] = self._extract_variant(soup)
+                result["shipping_cost"] = self._extract_shipping_cost(soup)
+                result["scrape_quality"] = "partial" if not result["price"] else "clean"
+
+                # Compute derived fields
+                if result["was_price"] and result["price"] and result["was_price"] > result["price"]:
+                    result["discount_pct"] = round((1 - result["price"] / result["was_price"]) * 100, 1)
+                if result["price"] is not None and result["shipping_cost"] is not None:
+                    result["total_price"] = round(result["price"] + result["shipping_cost"], 2)
+                elif result["price"] is not None:
+                    result["total_price"] = result["price"]
 
                 await browser.close()
 
@@ -277,15 +308,36 @@ class AmazonScraper:
                 if review_match:
                     review_count = int(review_match.group(1).replace(',', ''))
 
+            # Was/original price (strike-through in search results)
+            was_price = None
+            was_elem = card.select_one('.a-price.a-text-price .a-offscreen')
+            if was_elem:
+                try:
+                    was_price = float(was_elem.get_text(strip=True).replace('$','').replace(',',''))
+                except ValueError:
+                    pass
+
+            # Promotion badge in search card
+            promo_elem = card.select_one('.a-badge-label, .s-coupon-unclipped')
+            promotion_label = promo_elem.get_text(strip=True)[:100] if promo_elem else None
+
+            # Prime badge
+            is_prime = bool(card.select_one('.a-icon-prime'))
+
             return {
                 "title": title,
                 "asin": asin,
                 "price": price,
+                "was_price": was_price,
+                "discount_pct": round((1 - price/was_price)*100, 1) if (was_price and price and was_price > price) else None,
                 "currency": "USD",
                 "url": url,
                 "image_url": image_url,
                 "rating": rating,
-                "review_count": review_count
+                "review_count": review_count,
+                "promotion_label": promotion_label,
+                "is_prime": is_prime,
+                "scrape_quality": "clean" if price else "partial",
             }
 
         except Exception as e:
@@ -431,17 +483,197 @@ class AmazonScraper:
 
     def _extract_description(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract product description (first 500 chars)"""
-        # Try feature bullets
         features = soup.select('#feature-bullets ul li span.a-list-item')
         if features:
             description = ' '.join([f.text.strip() for f in features[:3]])
             return description[:500]
-
-        # Try product description
         desc_elem = soup.select_one('#productDescription')
         if desc_elem:
             return desc_elem.text.strip()[:500]
+        return None
 
+
+    def _extract_was_price(self, soup: BeautifulSoup) -> Optional[float]:
+        """Extract the original/crossed-out price to detect discounts"""
+        # Amazon shows the was-price in a span with class a-text-price inside
+        # a parent with aria-label containing the full price
+        selectors = [
+            '.a-price.a-text-price .a-offscreen',
+            '#listPrice',
+            '.a-text-strike',
+            '[data-a-strike="true"] .a-offscreen',
+        ]
+        for selector in selectors:
+            elem = soup.select_one(selector)
+            if elem:
+                text = elem.get_text(strip=True).replace('$', '').replace(',', '')
+                try:
+                    val = float(text)
+                    if val > 0:
+                        return val
+                except ValueError:
+                    pass
+        # Try basis price element
+        basis = soup.select_one('#basisPrice .a-offscreen')
+        if basis:
+            text = basis.get_text(strip=True).replace('$', '').replace(',', '')
+            try:
+                return float(text)
+            except ValueError:
+                pass
+        return None
+
+
+    def _extract_promotion_label(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract promotion/deal badge text"""
+        selectors = [
+            '#dealBadgeOverlay .a-badge-label',
+            '#promotionBadgeWrapper',
+            '.promoPriceBlockMessage',
+            '[id^="couponBadge"]',
+            '.a-badge-text',
+            '#savingsCallout',
+        ]
+        for selector in selectors:
+            elem = soup.select_one(selector)
+            if elem:
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:
+                    return text[:100]
+        # Look for coupon checkbox label
+        coupon = soup.select_one('#couponBadge_feature_div')
+        if coupon:
+            text = coupon.get_text(strip=True)
+            if text:
+                return text[:100]
+        return None
+
+
+    def _extract_seller_info(self, soup: BeautifulSoup) -> tuple[Optional[str], Optional[str]]:
+        """Return (seller_name, fulfillment_type)"""
+        seller_name = None
+        fulfillment_type = 'merchant'
+
+        merchant_info = soup.select_one('#merchantInfo')
+        if not merchant_info:
+            merchant_info = soup.select_one('#tabular-buybox')
+        if merchant_info:
+            text = merchant_info.get_text(' ', strip=True)
+            # "Ships from and sold by Amazon.com" → FBA
+            if 'amazon.com' in text.lower() or 'amazon' in text.lower():
+                seller_name = 'Amazon'
+                fulfillment_type = 'FBA'
+            else:
+                # Extract seller name after "Sold by"
+                sold_by_match = re.search(r'(?:Sold by|seller:)\s+([^\n.]+)', text, re.IGNORECASE)
+                if sold_by_match:
+                    seller_name = sold_by_match.group(1).strip()
+                ships_match = re.search(r'Fulfilled by Amazon', text, re.IGNORECASE)
+                if ships_match:
+                    fulfillment_type = 'FBA'
+                elif seller_name:
+                    fulfillment_type = 'FBM'
+
+        # Fallback: check byline / sold-by link
+        if not seller_name:
+            sold_by = soup.select_one('#sellerProfileTriggerId')
+            if sold_by:
+                seller_name = sold_by.get_text(strip=True)
+                fulfillment_type = 'FBM'
+
+        return seller_name, fulfillment_type
+
+
+    def _extract_seller_count(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract how many sellers are competing on this listing"""
+        # "X new" offers link
+        offers_link = soup.select_one('#olp-upd-new a, #olp_feature_div a, .olp-link')
+        if offers_link:
+            text = offers_link.get_text(strip=True)
+            match = re.search(r'(\d+)\s+(?:new|used)', text, re.IGNORECASE)
+            if match:
+                return int(match.group(1))
+        # Try offer count in buybox
+        other_sellers = soup.select_one('#buybox-see-all-buying-choices')
+        if other_sellers:
+            text = other_sellers.get_text(strip=True)
+            match = re.search(r'(\d+)', text)
+            if match:
+                return int(match.group(1))
+        return None
+
+
+    def _extract_is_prime(self, soup: BeautifulSoup) -> Optional[bool]:
+        """Detect Amazon Prime eligibility"""
+        prime_icon = soup.select_one('.a-icon-prime, #primeSavingsUpsellCaption, [aria-label*="Prime"]')
+        if prime_icon:
+            return True
+        prime_text = soup.find(string=re.compile(r'FREE Prime delivery|Prime FREE', re.IGNORECASE))
+        if prime_text:
+            return True
+        no_prime = soup.find(string=re.compile(r'Not Prime eligible', re.IGNORECASE))
+        if no_prime:
+            return False
+        return None
+
+
+    def _extract_condition(self, soup: BeautifulSoup) -> str:
+        """Extract product condition (New / Used / Refurbished)"""
+        # Check URL for condition param
+        cond_elem = soup.select_one('#newAccordionRow .a-color-secondary')
+        if cond_elem:
+            text = cond_elem.get_text(strip=True).lower()
+            if 'used' in text:
+                return 'Used'
+            if 'refurb' in text or 'renewed' in text:
+                return 'Refurbished'
+        # Default is New for main listing
+        return 'New'
+
+
+    def _extract_category(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract product category from breadcrumb"""
+        breadcrumbs = soup.select('#wayfinding-breadcrumbs_container li:not(.a-breadcrumb-divider)')
+        if breadcrumbs:
+            crumbs = [b.get_text(strip=True) for b in breadcrumbs if b.get_text(strip=True)]
+            if crumbs:
+                return ' > '.join(crumbs[:3])  # Keep first 3 levels
+        return None
+
+
+    def _extract_variant(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract the selected variant (colour/size/model)"""
+        # Selected swatch text
+        selected_variant = soup.select_one('.selection, #selected-color-name, #selected-size-name')
+        if selected_variant:
+            return selected_variant.get_text(strip=True)[:100]
+        # Try twister (variation widget) selected value
+        twister_selected = soup.select('.a-form-label + .selection')
+        if twister_selected:
+            parts = [t.get_text(strip=True) for t in twister_selected[:2] if t.get_text(strip=True)]
+            if parts:
+                return ', '.join(parts)[:100]
+        return None
+
+
+    def _extract_shipping_cost(self, soup: BeautifulSoup) -> Optional[float]:
+        """Extract shipping cost (0.0 = free shipping)"""
+        delivery_elem = soup.select_one('#deliveryMessageMirId, #ddmDeliveryMessage, #fast-track-message')
+        if delivery_elem:
+            text = delivery_elem.get_text(strip=True).lower()
+            if 'free' in text or 'FREE' in text:
+                return 0.0
+        shipping_elem = soup.select_one('#shippingMessageInsideBuyBox_feature_div, .shipping3P')
+        if shipping_elem:
+            text = shipping_elem.get_text(strip=True)
+            if 'FREE' in text or 'free' in text:
+                return 0.0
+            price_match = re.search(r'\$(\d+\.?\d*)', text)
+            if price_match:
+                try:
+                    return float(price_match.group(1))
+                except ValueError:
+                    pass
         return None
 
 
