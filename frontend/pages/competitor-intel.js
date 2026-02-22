@@ -50,10 +50,10 @@ function MetricBar({ label, value, max, color = 'bg-blue-500' }) {
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-gray-500">{label}</span>
-        <span className="font-semibold text-gray-700">{value}</span>
+        <span className="text-slate-500">{label}</span>
+        <span className="font-semibold text-slate-700">{value}</span>
       </div>
-      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-white/40 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -70,18 +70,18 @@ function CompetitorCard({ competitor, maxProducts, maxChanges, onSelect }) {
 
   return (
     <div
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+      className="glass-card rounded-2xl hover:shadow-glass-lg transition-shadow cursor-pointer group"
       onClick={() => onSelect(competitor.competitor_name ?? competitor.name)}
     >
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+            <p className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors">
               {competitor.competitor_name ?? competitor.name}
             </p>
             {competitor.competitor_website && (
-              <p className="text-xs text-gray-400 mt-0.5">{competitor.competitor_website}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{competitor.competitor_website}</p>
             )}
           </div>
           <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium border ${strategy.bg}`}>
@@ -98,19 +98,19 @@ function CompetitorCard({ competitor, maxProducts, maxChanges, onSelect }) {
         {/* Stats row */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           {avgDiff != null && (
-            <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <div className="bg-white/40 rounded-xl p-3 text-center">
               <p className={`text-lg font-bold ${avgDiff < 0 ? 'text-red-600' : avgDiff > 0 ? 'text-emerald-600' : 'text-gray-700'}`}>
                 {avgDiff > 0 ? '+' : ''}{avgDiff.toFixed(1)}%
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">vs market avg</p>
+              <p className="text-xs text-slate-400 mt-0.5">vs market avg</p>
             </div>
           )}
           {stockRate != null && (
-            <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <div className="bg-white/40 rounded-xl p-3 text-center">
               <p className={`text-lg font-bold ${stockRate >= 80 ? 'text-emerald-600' : stockRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
                 {stockRate.toFixed(0)}%
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">in stock rate</p>
+              <p className="text-xs text-slate-400 mt-0.5">in stock rate</p>
             </div>
           )}
         </div>
@@ -140,12 +140,12 @@ function CompetitorDetail({ name, onClose }) {
   }, [name]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="glass-card rounded-2xl shadow-glass-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 flex items-center justify-between">
-          <h2 className="font-bold text-gray-900 text-lg">{name}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+        <div className="sticky top-0 glass border-b border-white/40 px-5 py-4 flex items-center justify-between">
+          <h2 className="font-bold text-slate-900 text-lg">{name}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/40 text-slate-400 hover:text-slate-600 transition-colors">
             {Ico.close}
           </button>
         </div>
@@ -154,7 +154,7 @@ function CompetitorDetail({ name, onClose }) {
           {loading && (
             <div className="space-y-4 animate-pulse">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-gray-100 rounded-xl" />
+                <div key={i} className="h-16 bg-white/40 rounded-xl" />
               ))}
             </div>
           )}
@@ -173,9 +173,9 @@ function CompetitorDetail({ name, onClose }) {
                     { label: 'Similar to market', value: `${(profile.pricing_profile.similar_pct ?? 0).toFixed(0)}%`, color: 'text-blue-600' },
                     { label: 'More expensive', value: `${(profile.pricing_profile.expensive_pct ?? 0).toFixed(0)}%`, color: 'text-red-600' },
                   ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-gray-50 rounded-xl p-3 text-center">
+                    <div key={label} className="bg-white/40 rounded-xl p-3 text-center">
                       <p className={`text-xl font-bold ${color}`}>{value}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{label}</p>
                     </div>
                   ))}
                 </div>
@@ -184,15 +184,15 @@ function CompetitorDetail({ name, onClose }) {
               {/* Availability */}
               {profile.availability && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Stock Availability</h3>
-                  <div className="bg-gray-50 rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Stock Availability</h3>
+                  <div className="bg-white/40 rounded-xl p-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-gray-500">In Stock Rate</p>
-                      <p className="font-bold text-gray-900">{(profile.availability.in_stock_rate ?? 0).toFixed(0)}%</p>
+                      <p className="text-slate-500">In Stock Rate</p>
+                      <p className="font-bold text-slate-900">{(profile.availability.in_stock_rate ?? 0).toFixed(0)}%</p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Total Products</p>
-                      <p className="font-bold text-gray-900">{profile.total_products_tracked}</p>
+                      <p className="text-slate-500">Total Products</p>
+                      <p className="font-bold text-slate-900">{profile.total_products_tracked}</p>
                     </div>
                   </div>
                 </div>
@@ -201,11 +201,11 @@ function CompetitorDetail({ name, onClose }) {
               {/* Recent activity */}
               {profile.recent_activity && profile.recent_activity.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Recent Price Activity (7d)</h3>
-                  <div className="divide-y divide-gray-50">
+                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Recent Price Activity (7d)</h3>
+                  <div className="divide-y divide-white/40">
                     {profile.recent_activity.slice(0, 8).map((act, i) => (
                       <div key={i} className="py-2.5 flex items-center justify-between text-xs">
-                        <p className="text-gray-700 flex-1 min-w-0 truncate">{act.product_title}</p>
+                        <p className="text-slate-700 flex-1 min-w-0 truncate">{act.product_title}</p>
                         <span className={`ml-3 font-semibold shrink-0 ${
                           (act.change_pct ?? 0) < 0 ? 'text-red-600' : 'text-emerald-600'
                         }`}>
@@ -220,12 +220,12 @@ function CompetitorDetail({ name, onClose }) {
               {/* Product sample */}
               {profile.product_sample && profile.product_sample.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Sample Products</h3>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-2">Sample Products</h3>
                   <div className="space-y-2">
                     {profile.product_sample.slice(0, 5).map((p, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-3 py-2">
-                        <span className="text-gray-700 flex-1 min-w-0 truncate">{p.title}</span>
-                        {p.price && <span className="font-semibold text-gray-900 ml-3 shrink-0">${p.price.toFixed(2)}</span>}
+                      <div key={i} className="flex items-center justify-between text-xs bg-white/40 rounded-lg px-3 py-2">
+                        <span className="text-slate-700 flex-1 min-w-0 truncate">{p.title}</span>
+                        {p.price && <span className="font-semibold text-slate-900 ml-3 shrink-0">${p.price.toFixed(2)}</span>}
                       </div>
                     ))}
                   </div>
@@ -244,13 +244,13 @@ function StrategyTile({ strategyKey, competitors = [] }) {
   const s = strategyFor(strategyKey);
   if (competitors.length === 0) return null;
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+    <div className="glass-card rounded-2xl shadow-glass p-5">
       <div className="flex items-center gap-2 mb-3">
         <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
-        <h3 className="text-sm font-semibold text-gray-800">{s.label}</h3>
-        <span className="text-xs text-gray-400">({competitors.length})</span>
+        <h3 className="text-sm font-semibold text-slate-800">{s.label}</h3>
+        <span className="text-xs text-slate-400">({competitors.length})</span>
       </div>
-      <p className="text-xs text-gray-400 mb-3">{s.desc}</p>
+      <p className="text-xs text-slate-400 mb-3">{s.desc}</p>
       <div className="flex flex-wrap gap-1.5">
         {competitors.map((c) => (
           <span key={c} className={`px-2 py-0.5 rounded-full text-xs border ${s.bg}`}>{c}</span>
@@ -303,8 +303,8 @@ export default function CompetitorIntel() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Competitor Intelligence</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <h1 className="text-2xl font-bold text-slate-900">Competitor Intelligence</h1>
+            <p className="text-sm text-slate-500 mt-0.5">
               Deep profiles of every competitor — pricing strategy, aggressiveness, availability
             </p>
           </div>
@@ -312,14 +312,14 @@ export default function CompetitorIntel() {
             <button
               onClick={load}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 glass border border-white/60 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/40 transition-colors shadow-glass disabled:opacity-50"
             >
               <span className={loading ? 'animate-spin' : ''}>{Ico.refresh}</span>
               Refresh
             </button>
             <Link
               href="/competitors"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 shadow-gradient"
             >
               {Ico.users} Manage Competitors
             </Link>
@@ -343,7 +343,7 @@ export default function CompetitorIntel() {
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 h-52 animate-pulse" />
+              <div key={i} className="glass-card rounded-2xl h-52 animate-pulse" />
             ))}
           </div>
         )}
@@ -353,7 +353,7 @@ export default function CompetitorIntel() {
             {/* Market Leader banner */}
             {comparison?.market_leader && (
               <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-5 mb-6 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-amber-100/60 flex items-center justify-center text-amber-600 shrink-0">
                   {Ico.fire}
                 </div>
                 <div>
@@ -375,11 +375,11 @@ export default function CompetitorIntel() {
                   { label: 'Most Reliable Stock', value: comparison.summary.most_reliable, icon: Ico.shield, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                   { label: 'Most Dynamic Pricing', value: comparison.summary.most_dynamic, icon: Ico.chart, color: 'text-blue-600', bg: 'bg-blue-50' },
                 ].filter((s) => s.value).map(({ label, value, icon, color, bg }) => (
-                  <div key={label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center gap-3">
+                  <div key={label} className="glass-card rounded-2xl shadow-glass p-4 flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${bg} ${color}`}>{icon}</div>
                     <div>
-                      <p className="text-xs text-gray-500">{label}</p>
-                      <p className="text-sm font-bold text-gray-900">{value}</p>
+                      <p className="text-xs text-slate-500">{label}</p>
+                      <p className="text-sm font-bold text-slate-900">{value}</p>
                     </div>
                   </div>
                 ))}
@@ -389,7 +389,7 @@ export default function CompetitorIntel() {
             {/* Competitor cards */}
             {competitors.length > 0 ? (
               <>
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">
+                <h2 className="text-sm font-semibold text-slate-700 mb-3">
                   All Competitors ({competitors.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -405,10 +405,10 @@ export default function CompetitorIntel() {
                 </div>
               </>
             ) : (
-              <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border border-gray-100 mb-8">
+              <div className="text-center py-16 text-slate-400 glass-card rounded-2xl shadow-glass mb-8">
                 <p className="text-lg font-medium">No competitor data yet</p>
                 <p className="text-sm mt-1">Add competitors and run a scrape to see intelligence profiles</p>
-                <Link href="/competitors/add" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors">
+                <Link href="/competitors/add" className="inline-flex items-center gap-2 mt-4 px-4 py-2 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 shadow-gradient">
                   {Ico.users} Add First Competitor
                 </Link>
               </div>
@@ -417,7 +417,7 @@ export default function CompetitorIntel() {
             {/* Strategy breakdown */}
             {Object.keys(byStrategy).length > 0 && (
               <>
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Pricing Strategy Breakdown</h2>
+                <h2 className="text-sm font-semibold text-slate-700 mb-3">Pricing Strategy Breakdown</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Object.entries(byStrategy).map(([key, names]) => (
                     <StrategyTile key={key} strategyKey={key} competitors={Array.isArray(names) ? names : []} />

@@ -16,18 +16,18 @@ const DAYS_OPTIONS = [
 ];
 
 function StatCard({ label, value, color, icon }) {
-  const bg = {
-    blue:    'bg-blue-50 text-blue-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    amber:   'bg-amber-50 text-amber-600',
-    violet:  'bg-violet-50 text-violet-600',
+  const grad = {
+    blue:    'stat-blue',
+    emerald: 'stat-emerald',
+    amber:   'stat-amber',
+    violet:  'stat-violet',
   }[color];
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>{icon}</div>
+    <div className={`${grad} rounded-2xl shadow-gradient p-5 flex items-center gap-4`}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{icon}</div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 leading-none">{value ?? '—'}</p>
-        <p className="text-xs text-gray-500 mt-1">{label}</p>
+        <p className="text-2xl font-bold text-white leading-none">{value ?? '—'}</p>
+        <p className="text-xs text-white/80 mt-1">{label}</p>
       </div>
     </div>
   );
@@ -157,21 +157,21 @@ export default function AnalyticsPage() {
 
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Price trendlines, forecasting and historical analysis</p>
+          <h1 className="text-xl font-bold text-slate-900">Analytics</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Price trendlines, forecasting and historical analysis</p>
         </div>
 
         {/* Product + Days selectors */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-48">
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Product</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Product</label>
             {loadingProducts ? (
-              <div className="h-10 bg-gray-100 rounded-xl animate-pulse" />
+              <div className="h-10 bg-white/40 rounded-xl animate-pulse" />
             ) : (
               <select
                 value={selectedId}
                 onChange={e => setSelectedId(e.target.value)}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
               >
                 {products.length === 0 && <option value="">No products yet</option>}
                 {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -179,13 +179,13 @@ export default function AnalyticsPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1.5">Period</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Period</label>
             <div className="flex gap-1">
               {DAYS_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setDays(opt.value)}
-                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${days === opt.value ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${days === opt.value ? 'gradient-brand text-white shadow-gradient' : 'glass border border-white/60 text-slate-600 hover:bg-white/40'}`}
                 >
                   {opt.label}
                 </button>
@@ -205,16 +205,16 @@ export default function AnalyticsPage() {
         )}
 
         {/* Chart */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">
+        <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/40">
+            <h2 className="text-sm font-semibold text-slate-900">
               {selectedProduct ? selectedProduct.title : 'Price Trendline'}
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">Market price over time with linear regression forecast</p>
+            <p className="text-xs text-slate-500 mt-0.5">Market price over time with linear regression forecast</p>
           </div>
           <div className="p-5">
             {!selectedId || loadingProducts ? (
-              <div className="h-72 flex items-center justify-center text-sm text-gray-400">
+              <div className="h-72 flex items-center justify-center text-sm text-slate-400">
                 Select a product to view trendline
               </div>
             ) : loading ? (
@@ -227,9 +227,9 @@ export default function AnalyticsPage() {
               </div>
             ) : (
               <div className="h-72 flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-300 mb-3">{Ico.chart}</div>
-                <p className="text-sm font-medium text-gray-700">No price history yet</p>
-                <p className="text-xs text-gray-400 mt-1">Scrape products to start building historical data</p>
+                <div className="w-12 h-12 bg-white/40 rounded-2xl flex items-center justify-center text-slate-300 mb-3">{Ico.chart}</div>
+                <p className="text-sm font-medium text-slate-700">No price history yet</p>
+                <p className="text-xs text-slate-400 mt-1">Scrape products to start building historical data</p>
               </div>
             )}
           </div>
@@ -237,27 +237,27 @@ export default function AnalyticsPage() {
 
         {/* Forecast info */}
         {trendline?.forecast && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Forecast</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Linear regression projection with confidence interval</p>
+          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/40">
+              <h2 className="text-sm font-semibold text-slate-900">Forecast</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Linear regression projection with confidence interval</p>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-xl">
-                <p className="text-xs text-gray-500 mb-1">7-Day Forecast</p>
-                <p className="text-xl font-bold text-gray-900">
+              <div className="text-center p-4 bg-white/40 rounded-xl">
+                <p className="text-xs text-slate-500 mb-1">7-Day Forecast</p>
+                <p className="text-xl font-bold text-slate-900">
                   {trendline.forecast.price_7d != null ? `$${trendline.forecast.price_7d.toFixed(2)}` : '—'}
                 </p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-xl">
-                <p className="text-xs text-gray-500 mb-1">30-Day Forecast</p>
-                <p className="text-xl font-bold text-gray-900">
+              <div className="text-center p-4 bg-white/40 rounded-xl">
+                <p className="text-xs text-slate-500 mb-1">30-Day Forecast</p>
+                <p className="text-xl font-bold text-slate-900">
                   {trendline.forecast.price_30d != null ? `$${trendline.forecast.price_30d.toFixed(2)}` : '—'}
                 </p>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-xl">
-                <p className="text-xs text-gray-500 mb-1">Trend Direction</p>
-                <p className={`text-xl font-bold ${trendline.forecast.slope > 0 ? 'text-red-600' : trendline.forecast.slope < 0 ? 'text-emerald-600' : 'text-gray-700'}`}>
+              <div className="text-center p-4 bg-white/40 rounded-xl">
+                <p className="text-xs text-slate-500 mb-1">Trend Direction</p>
+                <p className={`text-xl font-bold ${trendline.forecast.slope > 0 ? 'text-red-600' : trendline.forecast.slope < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
                   {trendline.forecast.slope > 0 ? 'Rising' : trendline.forecast.slope < 0 ? 'Falling' : 'Stable'}
                 </p>
               </div>
@@ -267,14 +267,14 @@ export default function AnalyticsPage() {
 
         {/* Seasonal patterns */}
         {trendline?.seasonal_patterns && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-50">
-              <h2 className="text-sm font-semibold text-gray-900">Seasonal Patterns</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Day-of-week and monthly price patterns</p>
+          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/40">
+              <h2 className="text-sm font-semibold text-slate-900">Seasonal Patterns</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Day-of-week and monthly price patterns</p>
             </div>
             <div className="p-5">
               {trendline.seasonal_patterns.best_time_to_buy && (
-                <div className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-xl text-xs text-emerald-700 font-medium">
+                <div className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-100/40 rounded-xl text-xs text-emerald-700 font-medium">
                   Best time to buy: {trendline.seasonal_patterns.best_time_to_buy}
                 </div>
               )}
@@ -284,8 +284,8 @@ export default function AnalyticsPage() {
                     const val = trendline.seasonal_patterns.day_of_week[i];
                     return (
                       <div key={d} className="text-center">
-                        <p className="text-xs text-gray-500 mb-1">{d}</p>
-                        <div className="h-16 bg-gray-100 rounded-lg flex items-end overflow-hidden">
+                        <p className="text-xs text-slate-500 mb-1">{d}</p>
+                        <div className="h-16 bg-white/40 rounded-lg flex items-end overflow-hidden">
                           {val != null && (
                             <div
                               className="w-full bg-blue-400 rounded-lg"

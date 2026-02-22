@@ -53,8 +53,8 @@ function AlertCard({ alert, onToggle, onDelete }) {
   };
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${alert.is_active ? 'border-gray-100' : 'border-gray-100 opacity-75'}`}>
-      <div className={`h-1 ${alert.is_active ? 'bg-blue-400' : 'bg-gray-200'}`} />
+    <div className={`glass-card rounded-2xl shadow-glass overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${!alert.is_active ? 'opacity-75' : ''}`}>
+      <div className={`h-1 ${alert.is_active ? 'bg-blue-400' : 'bg-white/40'}`} />
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
@@ -63,7 +63,7 @@ function AlertCard({ alert, onToggle, onDelete }) {
               {typeLabel}
             </span>
             {alert.product_title && (
-              <p className="text-sm font-semibold text-gray-900 truncate">{alert.product_title}</p>
+              <p className="text-sm font-semibold text-slate-900 truncate">{alert.product_title}</p>
             )}
           </div>
           <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium ${alert.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -73,35 +73,35 @@ function AlertCard({ alert, onToggle, onDelete }) {
 
         {/* Threshold */}
         {alert.threshold_value != null && (
-          <p className="text-xs text-gray-500 mb-2">
-            Threshold: <span className="font-medium text-gray-700">{alert.threshold_value}%</span>
+          <p className="text-xs text-slate-500 mb-2">
+            Threshold: <span className="font-medium text-slate-700">{alert.threshold_value}%</span>
           </p>
         )}
 
         {/* Notes */}
         {alert.notes && (
-          <p className="text-xs text-gray-400 line-clamp-2 mb-3">{alert.notes}</p>
+          <p className="text-xs text-slate-400 line-clamp-2 mb-3">{alert.notes}</p>
         )}
 
         {/* Last triggered */}
         {alert.last_triggered_at && (
-          <p className="text-xs text-gray-400 mb-3">
+          <p className="text-xs text-slate-400 mb-3">
             Last triggered: {new Date(alert.last_triggered_at).toLocaleDateString()}
           </p>
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+        <div className="flex items-center justify-between pt-3 border-t border-white/40">
           <button
             onClick={() => onToggle(alert.id)}
-            className={`text-xs font-medium transition-colors ${alert.is_active ? 'text-gray-500 hover:text-gray-900' : 'text-blue-600 hover:text-blue-700'}`}
+            className={`text-xs font-medium transition-colors ${alert.is_active ? 'text-slate-500 hover:text-slate-900' : 'text-blue-600 hover:text-blue-700'}`}
           >
             {alert.is_active ? 'Deactivate' : 'Activate'}
           </button>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
           >
             {Ico.trash}
           </button>
@@ -138,10 +138,10 @@ function CreateModal({ products, onClose, onCreate }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+      <div className="relative glass-card rounded-2xl shadow-glass-lg w-full max-w-md p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900">New Alert</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">{Ico.x}</button>
+          <h2 className="text-base font-bold text-slate-900">New Alert</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">{Ico.x}</button>
         </div>
 
         {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
@@ -149,11 +149,11 @@ function CreateModal({ products, onClose, onCreate }) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Alert type */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Alert Type</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">Alert Type</label>
             <select
               value={form.alert_type}
               onChange={e => set('alert_type', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
             >
               {ALERT_TYPES.map(t => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -163,11 +163,11 @@ function CreateModal({ products, onClose, onCreate }) {
 
           {/* Product */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Product (optional)</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">Product (optional)</label>
             <select
               value={form.product_id}
               onChange={e => set('product_id', e.target.value)}
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
             >
               <option value="">All products</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -176,7 +176,7 @@ function CreateModal({ products, onClose, onCreate }) {
 
           {/* Threshold */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Threshold % (optional)</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">Threshold % (optional)</label>
             <input
               type="number"
               step="0.1"
@@ -184,27 +184,27 @@ function CreateModal({ products, onClose, onCreate }) {
               value={form.threshold_value}
               onChange={e => set('threshold_value', e.target.value)}
               placeholder="e.g. 5 for 5% change"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
             />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Notes (optional)</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1.5">Notes (optional)</label>
             <input
               type="text"
               value={form.notes}
               onChange={e => set('notes', e.target.value)}
               placeholder="Internal note…"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
             />
           </div>
 
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+            <button type="button" onClick={onClose} className="flex-1 py-2.5 glass border border-white/60 rounded-xl text-sm font-medium text-slate-700 hover:bg-white/40 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50">
+            <button type="submit" disabled={saving} className="flex-1 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient disabled:opacity-50">
               {saving ? 'Creating…' : 'Create Alert'}
             </button>
           </div>
@@ -268,10 +268,10 @@ export default function AlertsPage() {
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
         <div className="grid grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 glass-card rounded-2xl animate-pulse" />)}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-44 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+          {[...Array(6)].map((_, i) => <div key={i} className="h-44 glass-card rounded-2xl animate-pulse" />)}
         </div>
       </div>
     </Layout>
@@ -284,12 +284,12 @@ export default function AlertsPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Alerts</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Price alerts across 10 types, delivered by email, SMS, Slack and more</p>
+            <h1 className="text-xl font-bold text-slate-900">Alerts</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Price alerts across 10 types, delivered by email, SMS, Slack and more</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient"
           >
             {Ico.plus} New Alert
           </button>
@@ -297,25 +297,25 @@ export default function AlertsPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-50 text-blue-600">{Ico.bell}</div>
+          <div className="stat-blue rounded-2xl shadow-gradient p-5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{Ico.bell}</div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 leading-none">{alerts.length}</p>
-              <p className="text-xs text-gray-500 mt-1">Total</p>
+              <p className="text-2xl font-bold text-white leading-none">{alerts.length}</p>
+              <p className="text-xs text-white/80 mt-1">Total</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600">{Ico.check}</div>
+          <div className="stat-emerald rounded-2xl shadow-gradient p-5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{Ico.check}</div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 leading-none">{active.length}</p>
-              <p className="text-xs text-gray-500 mt-1">Active</p>
+              <p className="text-2xl font-bold text-white leading-none">{active.length}</p>
+              <p className="text-xs text-white/80 mt-1">Active</p>
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-gray-100 text-gray-500">{Ico.pause}</div>
+          <div className="glass-card rounded-2xl shadow-glass p-5 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/40 text-slate-500">{Ico.pause}</div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 leading-none">{inactive.length}</p>
-              <p className="text-xs text-gray-500 mt-1">Inactive</p>
+              <p className="text-2xl font-bold text-slate-900 leading-none">{inactive.length}</p>
+              <p className="text-xs text-slate-500 mt-1">Inactive</p>
             </div>
           </div>
         </div>
@@ -326,13 +326,13 @@ export default function AlertsPage() {
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                tab === t ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                tab === t ? 'gradient-brand text-white shadow-gradient' : 'text-slate-500 hover:text-slate-900 hover:bg-white/40'
               }`}
             >
               {t}
               {t !== 'All' && (
-                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : 'text-gray-400'}`}>
+                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : 'text-slate-400'}`}>
                   ({t === 'Active' ? active.length : inactive.length})
                 </span>
               )}
@@ -342,18 +342,18 @@ export default function AlertsPage() {
 
         {/* Grid */}
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center">
-            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">{Ico.bell}</div>
-            <p className="text-sm font-medium text-gray-900">
+          <div className="glass-card rounded-2xl shadow-glass p-16 text-center">
+            <div className="w-14 h-14 bg-white/40 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">{Ico.bell}</div>
+            <p className="text-sm font-medium text-slate-900">
               {tab === 'All' ? 'No alerts yet' : `No ${tab.toLowerCase()} alerts`}
             </p>
-            <p className="text-xs text-gray-400 mt-1 mb-5">
+            <p className="text-xs text-slate-400 mt-1 mb-5">
               {tab === 'All' ? 'Create an alert to get notified of price changes' : 'Change the filter to see other alerts'}
             </p>
             {tab === 'All' && (
               <button
                 onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient"
               >
                 {Ico.plus} New Alert
               </button>
@@ -368,10 +368,10 @@ export default function AlertsPage() {
         )}
 
         {/* Alert types reference */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">Available Alert Types</h2>
-            <p className="text-xs text-gray-500 mt-0.5">10 trigger types to keep you ahead of the market</p>
+        <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+          <div className="px-5 py-4 border-b border-white/40">
+            <h2 className="text-sm font-semibold text-slate-900">Available Alert Types</h2>
+            <p className="text-xs text-slate-500 mt-0.5">10 trigger types to keep you ahead of the market</p>
           </div>
           <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {ALERT_TYPES.map(t => (

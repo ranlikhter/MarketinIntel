@@ -28,10 +28,10 @@ async function apiFetch(path, options = {}) {
 
 function Section({ title, description, children }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <div className="px-6 py-5 border-b border-gray-100">
-        <h3 className="text-base font-semibold text-gray-900">{title}</h3>
-        {description && <p className="mt-0.5 text-sm text-gray-500">{description}</p>}
+    <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+      <div className="px-6 py-5 border-b border-white/40">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
       </div>
       <div className="px-6 py-5">{children}</div>
     </div>
@@ -42,8 +42,8 @@ function Field({ label, hint, children }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-8 py-3 first:pt-0 last:pb-0">
       <div className="sm:w-48 shrink-0">
-        <label className="block text-sm font-medium text-gray-700">{label}</label>
-        {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
+        <label className="block text-sm font-medium text-slate-700">{label}</label>
+        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
       </div>
       <div className="flex-1">{children}</div>
     </div>
@@ -53,8 +53,8 @@ function Field({ label, hint, children }) {
 function Input({ className = '', ...props }) {
   return (
     <input
-      className={`block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400
-        focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-shadow ${className}`}
+      className={`block w-full rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-900 placeholder-slate-400
+        focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none transition-shadow ${className}`}
       {...props}
     />
   );
@@ -65,9 +65,9 @@ function SaveButton({ loading, children = 'Save Changes' }) {
     <button
       type="submit"
       disabled={loading}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium
-        hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none
-        focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg gradient-brand text-white text-sm font-medium
+        hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-gradient focus:outline-none
+        focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
     >
       {loading && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -93,13 +93,13 @@ function UsageMeter({ label, used, limit, color = 'blue' }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-gray-700">{label}</span>
-        <span className="text-gray-500">
+        <span className="font-medium text-slate-700">{label}</span>
+        <span className="text-slate-500">
           {limit >= 9999 ? `${used} / Unlimited` : `${used} / ${limit}`}
         </span>
       </div>
       {limit < 9999 && (
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+        <div className="h-2 bg-white/40 rounded-full overflow-hidden">
           <div
             className={`h-full rounded-full transition-all duration-500 ${barColor}`}
             style={{ width: `${pct}%` }}
@@ -177,7 +177,7 @@ function ProfileTab({ user, updateUser }) {
     <button
       type="button"
       onClick={() => setShowPw(p => ({ ...p, [key]: !p[key] }))}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
       tabIndex={-1}
     >
       {showPw[key] ? (
@@ -208,8 +208,8 @@ function ProfileTab({ user, updateUser }) {
              user?.email?.[0]?.toUpperCase() || '?'}
           </div>
           <div>
-            <p className="font-semibold text-gray-900">{user?.full_name || 'No name set'}</p>
-            <p className="text-sm text-gray-500">{user?.email}</p>
+            <p className="font-semibold text-slate-900">{user?.full_name || 'No name set'}</p>
+            <p className="text-sm text-slate-500">{user?.email}</p>
             <div className="flex items-center gap-1.5 mt-1">
               {user?.is_verified ? (
                 <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
@@ -223,12 +223,12 @@ function ProfileTab({ user, updateUser }) {
                   Email not verified
                 </span>
               )}
-              <span className="text-xs text-gray-400">Member since {memberSince}</span>
+              <span className="text-xs text-slate-400">Member since {memberSince}</span>
             </div>
           </div>
         </div>
 
-        <form onSubmit={handleSaveName} className="divide-y divide-gray-100">
+        <form onSubmit={handleSaveName} className="divide-y divide-white/40">
           <Field label="Full Name" hint="Shown in your account menu">
             <Input
               value={name}
@@ -237,7 +237,7 @@ function ProfileTab({ user, updateUser }) {
             />
           </Field>
           <Field label="Email Address" hint="Cannot be changed">
-            <Input value={user?.email ?? ''} readOnly disabled className="bg-gray-50 text-gray-500 cursor-not-allowed" />
+            <Input value={user?.email ?? ''} readOnly disabled className="bg-white/40 text-slate-500 cursor-not-allowed" />
           </Field>
           <div className="pt-4">
             <SaveButton loading={savingName} />
@@ -247,7 +247,7 @@ function ProfileTab({ user, updateUser }) {
 
       {/* Change password */}
       <Section title="Change Password" description="Use a strong, unique password.">
-        <form onSubmit={handleChangePw} className="divide-y divide-gray-100">
+        <form onSubmit={handleChangePw} className="divide-y divide-white/40">
           <Field label="Current Password">
             <div className="relative">
               <Input
@@ -274,9 +274,9 @@ function ProfileTab({ user, updateUser }) {
             {pw.next.length > 0 && (
               <div className="mt-2 flex gap-1">
                 {[8, 12, 16].map((len, i) => (
-                  <div key={i} className={`h-1 flex-1 rounded-full ${pw.next.length >= len ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div key={i} className={`h-1 flex-1 rounded-full ${pw.next.length >= len ? 'bg-green-500' : 'bg-white/40'}`} />
                 ))}
-                <span className="text-xs text-gray-400 ml-2">
+                <span className="text-xs text-slate-400 ml-2">
                   {pw.next.length < 8 ? 'Too short' : pw.next.length < 12 ? 'OK' : pw.next.length < 16 ? 'Good' : 'Strong'}
                 </span>
               </div>
@@ -480,14 +480,14 @@ function BillingTab({ user }) {
               (tier === 'free') ||
               (tier === 'pro' && p.key !== 'pro')
             ).map(plan => (
-              <div key={plan.key} className="border border-gray-200 rounded-xl overflow-hidden">
+              <div key={plan.key} className="glass-card rounded-xl overflow-hidden">
                 <div className={`bg-gradient-to-br ${plan.gradient} px-4 py-4 text-white`}>
                   <p className="font-bold text-lg">{plan.name}</p>
                   <p className="text-white/80 text-sm">{plan.price}<span className="text-xs">/mo</span></p>
                 </div>
                 <div className="px-4 py-4 space-y-2">
                   {plan.features.map(f => (
-                    <div key={f} className="flex items-center gap-2 text-sm text-gray-600">
+                    <div key={f} className="flex items-center gap-2 text-sm text-slate-600">
                       <svg className="w-4 h-4 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -604,7 +604,7 @@ function NotificationsTab({ user }) {
   return (
     <form onSubmit={handleSave} className="space-y-6">
       <Section title="Default Notification Settings" description="These defaults apply when you create new alert rules.">
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-white/40">
           <Field label="Notification Email" hint="Where alerts will be sent by default">
             <div className="flex gap-2">
               <Input
@@ -618,7 +618,7 @@ function NotificationsTab({ user }) {
                 type="button"
                 onClick={handleTestEmail}
                 disabled={testingSend || !prefs.defaultEmail}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg glass border border-white/60 text-sm text-slate-600 hover:bg-white/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Send a test email to verify delivery"
               >
                 {testingSend ? (
@@ -640,7 +640,7 @@ function NotificationsTab({ user }) {
                 { value: 'weekly',  label: 'Weekly Digest', desc: 'Monday summary' },
               ].map(opt => (
                 <label key={opt.value} className={`flex-1 flex items-center gap-3 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors
-                  ${prefs.digestFrequency === opt.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  ${prefs.digestFrequency === opt.value ? 'border-blue-400 bg-blue-50/60' : 'border-white/60 hover:border-white/80'}`}>
                   <input
                     type="radio"
                     name="digestFrequency"
@@ -650,8 +650,8 @@ function NotificationsTab({ user }) {
                     className="text-blue-600"
                   />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{opt.label}</p>
-                    <p className="text-xs text-gray-500">{opt.desc}</p>
+                    <p className="text-sm font-medium text-slate-900">{opt.label}</p>
+                    <p className="text-xs text-slate-500">{opt.desc}</p>
                   </div>
                 </label>
               ))}
@@ -661,17 +661,17 @@ function NotificationsTab({ user }) {
       </Section>
 
       <Section title="Notification Channels" description="Enable extra channels for alert delivery.">
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-white/40">
           <Field label="Email">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Send email notifications</span>
+              <span className="text-sm text-slate-500">Send email notifications</span>
               <Toggle value={prefs.enableEmail} onChange={v => set('enableEmail', v)} />
             </div>
           </Field>
           <Field label="Slack">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Send Slack notifications</span>
+                <span className="text-sm text-slate-500">Send Slack notifications</span>
                 <Toggle value={prefs.enableSlack} onChange={v => set('enableSlack', v)} />
               </div>
               {prefs.enableSlack && (
@@ -687,7 +687,7 @@ function NotificationsTab({ user }) {
           <Field label="Discord">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Send Discord notifications</span>
+                <span className="text-sm text-slate-500">Send Discord notifications</span>
                 <Toggle value={prefs.enableDiscord} onChange={v => set('enableDiscord', v)} />
               </div>
               {prefs.enableDiscord && (
@@ -704,10 +704,10 @@ function NotificationsTab({ user }) {
       </Section>
 
       <Section title="Quiet Hours" description="Suppress notifications during off hours.">
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-white/40">
           <Field label="Enable Quiet Hours">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Pause all alerts during set hours</span>
+              <span className="text-sm text-slate-500">Pause all alerts during set hours</span>
               <Toggle value={prefs.quietHours} onChange={v => set('quietHours', v)} />
             </div>
           </Field>
@@ -715,24 +715,24 @@ function NotificationsTab({ user }) {
             <Field label="Hours" hint="Your local time">
               <div className="flex items-center gap-3 mt-1">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">From</label>
+                  <label className="block text-xs text-slate-500 mb-1">From</label>
                   <select
                     value={prefs.quietStart}
                     onChange={e => set('quietStart', Number(e.target.value))}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+                    className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
                     ))}
                   </select>
                 </div>
-                <span className="text-gray-400 mt-5">to</span>
+                <span className="text-slate-400 mt-5">to</span>
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">Until</label>
+                  <label className="block text-xs text-slate-500 mb-1">Until</label>
                   <select
                     value={prefs.quietEnd}
                     onChange={e => set('quietEnd', Number(e.target.value))}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+                    className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
@@ -813,10 +813,10 @@ function ApiAccessTab({ user }) {
     <div className="space-y-6">
       {/* New-key reveal banner */}
       {newKey && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="rounded-xl border border-emerald-200/60 bg-emerald-100/40 backdrop-blur-sm p-4">
           <p className="text-sm font-semibold text-emerald-800 mb-2">Save your API key — shown only once</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate">{newKey}</code>
+            <code className="flex-1 bg-white/60 border border-emerald-200/60 rounded-lg px-3 py-2 text-sm font-mono text-slate-800 truncate">{newKey}</code>
             <button onClick={() => { navigator.clipboard.writeText(newKey); addToast('Copied!', 'success'); }}
               className="shrink-0 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">Copy</button>
             <button onClick={() => setNewKey(null)} className="text-emerald-400 hover:text-emerald-600 text-xl leading-none">&times;</button>
@@ -833,17 +833,17 @@ function ApiAccessTab({ user }) {
 
         {/* Key list */}
         {loading ? (
-          <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+          <p className="text-sm text-slate-400 text-center py-4">Loading…</p>
         ) : keys.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No API keys yet.</p>
+          <p className="text-sm text-slate-400 text-center py-4">No API keys yet.</p>
         ) : (
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-white/40">
             {keys.map((k) => (
               <div key={k.id} className="flex items-center justify-between py-3 first:pt-0">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{k.name}</p>
-                  <p className="text-xs text-gray-400 font-mono">{k.key_prefix}••••••••••••</p>
-                  <p className="text-xs text-gray-400">Created {new Date(k.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-slate-900">{k.name}</p>
+                  <p className="text-xs text-slate-400 font-mono">{k.key_prefix}••••••••••••</p>
+                  <p className="text-xs text-slate-400">Created {new Date(k.created_at).toLocaleDateString()}</p>
                 </div>
                 <button onClick={() => revokeKey(k.id, k.name)}
                   className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
@@ -854,7 +854,7 @@ function ApiAccessTab({ user }) {
           </div>
         )}
 
-        <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="mt-4 pt-4 border-t border-white/40">
           <Link href="/settings/api-keys" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
             Full API key management →
           </Link>
@@ -864,13 +864,13 @@ function ApiAccessTab({ user }) {
       <Section title="Quick Reference" description="Authentication and base URL for API requests.">
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Authentication Header</p>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Authentication Header</p>
             <code className="block bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3">
               Authorization: Bearer YOUR_API_KEY
             </code>
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Example Request</p>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Example Request</p>
             <pre className="bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3 overflow-x-auto">{`curl http://localhost:8000/products/ \\
   -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
           </div>
@@ -907,14 +907,14 @@ function TeamTab({ user }) {
 
   if (!hasAccess) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="glass-card rounded-2xl shadow-glass p-12 text-center">
+        <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Team Workspaces — Business Plan</h3>
-        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">Team Workspaces — Business Plan</h3>
+        <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">
           Collaborate with your team on competitive intelligence. Invite members, assign roles, and share
           saved views and alerts across your organization.
         </p>
@@ -924,14 +924,14 @@ function TeamTab({ user }) {
             { initial: 'B', label: 'Business', seats: '5 seats', bg: 'bg-violet-100 text-violet-600' },
             { initial: 'E', label: 'Enterprise', seats: 'Unlimited', bg: 'bg-amber-100 text-amber-600' },
           ].map(p => (
-            <div key={p.label} className="bg-gray-50 rounded-xl p-3 text-center">
+            <div key={p.label} className="bg-white/40 rounded-xl p-3 text-center">
               <div className={`w-8 h-8 rounded-full ${p.bg} flex items-center justify-center text-sm font-bold mx-auto mb-2`}>{p.initial}</div>
-              <p className="text-xs font-semibold text-gray-700">{p.label}</p>
-              <p className="text-xs text-gray-500">{p.seats}</p>
+              <p className="text-xs font-semibold text-slate-700">{p.label}</p>
+              <p className="text-xs text-slate-500">{p.seats}</p>
             </div>
           ))}
         </div>
-        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg gradient-brand text-white text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient">
           Upgrade to Business
         </Link>
       </div>
@@ -984,8 +984,8 @@ function TeamTab({ user }) {
         <div className="flex gap-2 flex-wrap">
           {workspaces.map((w) => (
             <button key={w.id} onClick={() => setActiveWsId(w.id)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                activeWsId === w.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                activeWsId === w.id ? 'gradient-brand text-white shadow-gradient' : 'glass text-slate-700 hover:bg-white/40'
               }`}>
               {w.name}
             </button>
@@ -996,10 +996,10 @@ function TeamTab({ user }) {
       {/* Invite form */}
       <Section title="Invite Team Member" description="Send an invitation to collaborate on your workspace.">
         {loadingWs ? (
-          <p className="text-sm text-gray-400">Loading workspace…</p>
+          <p className="text-sm text-slate-400">Loading workspace…</p>
         ) : workspaces.length === 0 ? (
           <div className="text-center py-4">
-            <p className="text-sm text-gray-500 mb-3">No workspace yet. Create one from the full team page.</p>
+            <p className="text-sm text-slate-500 mb-3">No workspace yet. Create one from the full team page.</p>
             <Link href="/settings/team" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
               Go to Team Management →
             </Link>
@@ -1017,7 +1017,7 @@ function TeamTab({ user }) {
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+              className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
             >
               <option value="editor">Editor</option>
               <option value="viewer">Viewer</option>
@@ -1031,9 +1031,9 @@ function TeamTab({ user }) {
       {/* Member list for active workspace */}
       {ws && (
         <Section title={`Members — ${ws.name}`} description="People with access to this workspace.">
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-white/40">
             {(ws.members || []).length === 0 ? (
-              <p className="text-sm text-gray-400 py-3 text-center">No members yet.</p>
+              <p className="text-sm text-slate-400 py-3 text-center">No members yet.</p>
             ) : (ws.members || []).map((m) => (
               <div key={m.user_id} className="flex items-center justify-between py-3 first:pt-0">
                 <div className="flex items-center gap-3">
@@ -1041,8 +1041,8 @@ function TeamTab({ user }) {
                     {(m.full_name?.[0] || m.email?.[0] || '?').toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{m.full_name || m.email}</p>
-                    <p className="text-xs text-gray-500">{m.email}</p>
+                    <p className="text-sm font-medium text-slate-900">{m.full_name || m.email}</p>
+                    <p className="text-xs text-slate-500">{m.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1166,8 +1166,8 @@ export default function SettingsPage() {
       <div className="p-4 lg:p-6 space-y-5">
         {/* Page header */}
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Settings</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage your account, billing, and preferences.</p>
+          <h1 className="text-xl font-bold text-slate-900">Settings</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Manage your account, billing, and preferences.</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -1178,12 +1178,12 @@ export default function SettingsPage() {
                 <button
                   key={tab.key}
                   onClick={() => switchTab(tab.key)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-left
                     ${activeTab === tab.key
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+                      ? 'gradient-brand text-white shadow-gradient'
+                      : 'text-slate-600 hover:bg-white/40 hover:text-slate-900'}`}
                 >
-                  <span className={activeTab === tab.key ? 'text-blue-600' : 'text-gray-400'}>
+                  <span className={activeTab === tab.key ? 'text-white' : 'text-slate-400'}>
                     {tab.icon}
                   </span>
                   {tab.label}
@@ -1199,10 +1199,10 @@ export default function SettingsPage() {
                 <button
                   key={tab.key}
                   onClick={() => switchTab(tab.key)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0
                     ${activeTab === tab.key
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+                      ? 'gradient-brand text-white shadow-gradient'
+                      : 'glass text-slate-600 border border-white/60 hover:bg-white/40'}`}
                 >
                   {tab.icon}
                   {tab.label}
