@@ -409,115 +409,53 @@ class SmartAlertService:
             print(f"Failed to send email for alert {alert.id}: {e}")
 
     def _send_sms_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send SMS notification via Twilio"""
-        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        from_number = os.getenv('TWILIO_PHONE_NUMBER')
-
-        if not all([account_sid, auth_token, from_number]):
-            print(f"Twilio not configured – skipping SMS for alert {alert.id}")
-            return
-
+        """Send SMS notification — uses stdlib-based sms_service (no twilio package needed)"""
+        from services.sms_service import send_sms
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
+        message = (
+            f"MarketIntel: {data['alert_name']}\n"
+            f"{data['product_title'][:50]}\n"
+            f"{product_url}"
+        )
         try:
-            from twilio.rest import Client
-            client = Client(account_sid, auth_token)
-            body = (
-                f"{data['alert_name']}: {data['product_title']} | "
-                f"{data['competitor_count']} competitors | "
-                f"View: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
-            )
-            client.messages.create(body=body, from_=from_number, to=alert.phone_number)
-        except ImportError:
-            print("twilio package not installed – skipping SMS")
+            send_sms(to_number=alert.phone_number, message=message)
         except Exception as e:
             print(f"Failed to send SMS for alert {alert.id}: {e}")
 
     def _send_slack_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send Slack webhook notification"""
-        import requests
-
-        payload = {
-            "text": f"🚨 *{data['alert_name']}*",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"🚨 {data['alert_name']}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Product:*\n{data['product_title']}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Competitors:*\n{data['competitor_count']}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Threshold:*\n{data['threshold_pct']}%"
-                        }
-                    ]
-                },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "View Details"
-                            },
-                            "url": f"{os.getenv('FRONTEND_URL')}/products/{data['product_id']}"
-                        }
-                    ]
-                }
-            ]
-        }
-
+        """Send Slack webhook notification — uses stdlib-based webhook_service"""
+        from services.webhook_service import send_slack_alert
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
         try:
-            requests.post(alert.slack_webhook_url, json=payload)
+            send_slack_alert(
+                webhook_url=alert.slack_webhook_url,
+                product_title=data['product_title'],
+                competitor_name=f"{data['competitor_count']} competitors",
+                old_price=None,
+                new_price=0.0,
+                change_pct=0.0,
+                product_url=product_url,
+            )
         except Exception as e:
             print(f"Failed to send Slack notification for alert {alert.id}: {e}")
 
     def _send_discord_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send Discord webhook notification"""
-        import requests
-
-        payload = {
-            "embeds": [{
-                "title": f"🚨 {data['alert_name']}",
-                "description": f"**{data['product_title']}**",
-                "color": 15158332,  # Red color
-                "fields": [
-                    {
-                        "name": "SKU",
-                        "value": data['product_sku'] or "N/A",
-                        "inline": True
-                    },
-                    {
-                        "name": "Competitors",
-                        "value": str(data['competitor_count']),
-                        "inline": True
-                    },
-                    {
-                        "name": "Threshold",
-                        "value": f"{data['threshold_pct']}%",
-                        "inline": True
-                    }
-                ],
-                "footer": {
-                    "text": f"Triggered at {data['triggered_at']}"
-                }
-            }]
-        }
-
+        """Send Discord webhook notification — uses stdlib-based webhook_service"""
+        from services.webhook_service import send_discord_alert
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
         try:
-            requests.post(alert.discord_webhook_url, json=payload)
+            send_discord_alert(
+                webhook_url=alert.discord_webhook_url,
+                product_title=data['product_title'],
+                competitor_name=f"{data['competitor_count']} competitors",
+                old_price=None,
+                new_price=0.0,
+                change_pct=0.0,
+                product_url=product_url,
+            )
         except Exception as e:
             print(f"Failed to send Discord notification for alert {alert.id}: {e}")
 

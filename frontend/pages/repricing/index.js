@@ -205,11 +205,123 @@ function CreateModal({ products, onClose, onCreate }) {
   );
 }
 
+// ─── Apply Results Modal ───────────────────────────────────────────────────────
+function ApplyResultsModal({ result, onClose }) {
+  const storeConn = (() => {
+    try { return JSON.parse(localStorage.getItem('marketintel_store_connection') || 'null'); }
+    catch { return null; }
+  })();
+
+  const suggestions = result?.suggestions || result?.products || [];
+  const [pushing, setPushing] = useState({});
+  const [pushed, setPushed] = useState({});
+
+  const pushOne = async (suggestion) => {
+    if (!storeConn) return;
+    setPushing(p => ({ ...p, [suggestion.product_id]: true }));
+    try {
+      if (storeConn.type === 'woocommerce') {
+        await api.pushPriceToWooCommerce(
+          storeConn.storeUrl, storeConn.consumerKey, storeConn.consumerSecret,
+          suggestion.sku || '', suggestion.title || '', suggestion.suggested_price
+        );
+      } else if (storeConn.type === 'shopify') {
+        await api.pushPriceToShopify(
+          storeConn.shopUrl, storeConn.accessToken,
+          suggestion.sku || '', suggestion.title || '', suggestion.suggested_price
+        );
+      }
+      setPushed(p => ({ ...p, [suggestion.product_id]: true }));
+    } catch (e) {
+      alert('Push failed: ' + e.message);
+    } finally {
+      setPushing(p => ({ ...p, [suggestion.product_id]: false }));
+    }
+  };
+
+  const pushAll = async () => {
+    for (const s of suggestions) {
+      if (!pushed[s.product_id]) await pushOne(s);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <div>
+            <h2 className="font-bold text-gray-900">Rule Applied</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {suggestions.length} suggested price{suggestions.length !== 1 ? 's' : ''} calculated
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">{Ico.x}</button>
+        </div>
+
+        {/* Results table */}
+        <div className="overflow-y-auto flex-1 p-5">
+          {suggestions.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">No suggestions generated — add products and competitors first.</p>
+          ) : (
+            <div className="space-y-2">
+              {suggestions.map((s) => (
+                <div key={s.product_id ?? s.title} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{s.title || s.product_title}</p>
+                    {s.current_price != null && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Current: <span className="line-through">${s.current_price?.toFixed(2)}</span>
+                        {' → '}
+                        <span className="font-semibold text-blue-600">${s.suggested_price?.toFixed(2)}</span>
+                      </p>
+                    )}
+                  </div>
+                  {storeConn && (
+                    pushed[s.product_id] ? (
+                      <span className="text-xs text-emerald-600 font-medium shrink-0">Pushed ✓</span>
+                    ) : (
+                      <button
+                        onClick={() => pushOne(s)}
+                        disabled={!!pushing[s.product_id]}
+                        className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {pushing[s.product_id] ? '…' : `Push to ${storeConn.type === 'shopify' ? 'Shopify' : 'WooCommerce'}`}
+                      </button>
+                    )
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0">
+          {storeConn && suggestions.length > 0 && (
+            <button
+              onClick={pushAll}
+              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              Push All to {storeConn.type === 'shopify' ? 'Shopify' : 'WooCommerce'}
+            </button>
+          )}
+          <button onClick={onClose} className={`${storeConn && suggestions.length > 0 ? '' : 'flex-1'} py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors px-6`}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function RepricingPage() {
   const [rules, setRules] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [applyResult, setApplyResult] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
@@ -245,8 +357,8 @@ export default function RepricingPage() {
 
   const handleApply = async (id) => {
     try {
-      await api.request(`/api/repricing/rules/${id}/apply`, { method: 'POST' });
-      alert('Rule applied!');
+      const result = await api.request(`/api/repricing/rules/${id}/apply`, { method: 'POST' });
+      setApplyResult(result ?? {});
     } catch (e) { alert(e.message || 'Failed to apply rule'); }
   };
 
@@ -336,9 +448,8 @@ export default function RepricingPage() {
 
       </div>
 
-      {showCreate && (
-        <CreateModal products={products} onClose={() => setShowCreate(false)} onCreate={handleCreate} />
-      )}
+      {showCreate && <CreateModal products={products} onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
+      {applyResult && <ApplyResultsModal result={applyResult} onClose={() => setApplyResult(null)} />}
     </Layout>
   );
 }

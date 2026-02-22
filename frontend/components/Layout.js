@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
+import usePriceEvents from '../lib/usePriceEvents';
 
 // ─── TIER CONFIG ──────────────────────────────────────────────────────────────
 const TIER = {
@@ -312,6 +313,27 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const { pathname } = router;
 
+  // ── Live price-change toasts ───────────────────────────────────────────────
+  const [liveAlerts, setLiveAlerts] = useState([]);
+
+  const handlePriceEvent = useCallback((ev) => {
+    const id = Date.now();
+    const isDown = ev.change_pct != null ? ev.change_pct < 0 : false;
+    const alert = {
+      id,
+      product_title: ev.product_title,
+      competitor: ev.competitor,
+      new_price: ev.new_price,
+      change_pct: ev.change_pct,
+      product_id: ev.product_id,
+    };
+    setLiveAlerts((prev) => [alert, ...prev].slice(0, 5));
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => setLiveAlerts((prev) => prev.filter((a) => a.id !== id)), 8000);
+  }, []);
+
+  usePriceEvents({ onEvent: handlePriceEvent, enabled: !!user });
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Sidebar pathname={pathname} user={user} logout={logout} />
@@ -323,6 +345,47 @@ export default function Layout({ children }) {
       </main>
 
       <BottomNav pathname={pathname} />
+
+      {/* ── Live price-change notification stack ── */}
+      {liveAlerts.length > 0 && (
+        <div className="fixed bottom-24 lg:bottom-6 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+          {liveAlerts.map((a) => {
+            const isDown = a.change_pct != null ? a.change_pct < 0 : null;
+            return (
+              <div
+                key={a.id}
+                className={`pointer-events-auto flex items-start gap-3 bg-white rounded-2xl shadow-lg border px-4 py-3 animate-fade-in ${
+                  isDown === true ? 'border-red-200' : isDown === false ? 'border-emerald-200' : 'border-blue-200'
+                }`}
+              >
+                <div className={`text-lg shrink-0 mt-0.5 ${isDown === true ? 'text-red-500' : isDown === false ? 'text-emerald-500' : 'text-blue-500'}`}>
+                  {isDown === true ? '📉' : isDown === false ? '📈' : '💰'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-900 truncate">{a.competitor}</p>
+                  <p className="text-xs text-gray-500 truncate">{a.product_title}</p>
+                  {a.new_price != null && (
+                    <p className={`text-xs font-bold mt-0.5 ${isDown === true ? 'text-red-600' : isDown === false ? 'text-emerald-600' : 'text-gray-700'}`}>
+                      ${a.new_price.toFixed(2)}
+                      {a.change_pct != null && (
+                        <span className="font-normal ml-1">
+                          ({a.change_pct > 0 ? '+' : ''}{a.change_pct.toFixed(1)}%)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+                <Link
+                  href={`/products/${a.product_id}`}
+                  className="shrink-0 text-xs text-blue-600 font-medium hover:underline"
+                >
+                  View
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
