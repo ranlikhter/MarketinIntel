@@ -8,28 +8,146 @@
   --bottom-nav-height: 64px;
 }
 
-/* Clean app background — overrides the default gradient */
+/* ─── Gradient background (fixed, covers the whole viewport) ─────────────── */
 body {
-  background-color: #f3f4f6;
-  color: #111827;
+  background:
+    linear-gradient(135deg,
+      #e0e9ff 0%,
+      #ede4ff 30%,
+      #fce4f6 65%,
+      #fff0e4 100%
+    );
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: #0f172a;
 }
 
-/* Hide scrollbars while keeping scroll functionality */
 @layer utilities {
+
+  /* ── Scrollbar ─────────────────────────────────────────────────────────── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .text-balance { text-wrap: balance; }
+  .safe-bottom  { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* ── Glass surfaces ─────────────────────────────────────────────────────── */
+
+  /* Generic glass panel */
+  .glass {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.58);
   }
 
-  .text-balance {
-    text-wrap: balance;
+  /* Card-level glass — slightly more opaque, subtle inner highlight */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.70);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.055),
+      0 1px 2px  rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.90);
   }
 
-  /* Safe-area padding for notched phones */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Sidebar glass */
+  .glass-sidebar {
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(32px) saturate(200%);
+    -webkit-backdrop-filter: blur(32px) saturate(200%);
+    border-right: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Topbar glass */
+  .glass-topbar {
+    background: rgba(255, 255, 255, 0.76);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.68);
+    box-shadow: 0 1px 12px rgba(0, 0, 0, 0.045);
+  }
+
+  /* Bottom nav glass */
+  .glass-nav {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(28px) saturate(180%);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    border-top: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Input glass */
+  .glass-input {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.68);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.82);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    outline: none;
+  }
+
+  /* ── Gradient utilities ─────────────────────────────────────────────────── */
+
+  .gradient-brand {
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  }
+
+  .gradient-brand-hover:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #6d28d9 100%);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Gradient stat-card backgrounds ────────────────────────────────────── */
+  .stat-blue    { background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%); }
+  .stat-violet  { background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); }
+  .stat-emerald { background: linear-gradient(135deg, #059669 0%, #34d399 100%); }
+  .stat-amber   { background: linear-gradient(135deg, #d97706 0%, #fbbf24 100%); }
+  .stat-rose    { background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%); }
+  .stat-sky     { background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); }
+
+  /* ── Shadow glass ───────────────────────────────────────────────────────── */
+  .shadow-glass {
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.055),
+      0 1px 2px  rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  }
+
+  .shadow-glass-lg {
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.08),
+      0 2px 8px  rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  }
+
+  .shadow-gradient {
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.30);
+  }
+
+  /* ── Animations ─────────────────────────────────────────────────────────── */
+  .animate-fade-in {
+    animation: fadeSlideIn 0.18s ease-out both;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0);   }
   }
 }

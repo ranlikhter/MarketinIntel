@@ -73,8 +73,8 @@ function ProductImage({ src, title }) {
   const [err, setErr] = useState(false);
   if (!src || err) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-50">
-        <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="w-full h-full flex items-center justify-center bg-white/40">
+        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
@@ -136,11 +136,11 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
     : null;
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border transition-all ${selected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}>
+    <div className={`glass-card rounded-2xl transition-all ${selected ? 'ring-2 ring-blue-300/60' : 'hover:shadow-glass-lg'}`}>
       <div className="p-4">
         <div className="flex gap-3">
           {/* Image */}
-          <div className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-gray-50 border border-gray-100">
+          <div className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-white/40 border border-white/60">
             <ProductImage src={product.image_url} title={product.title} />
             {changePct !== null && changePct !== undefined && (
               <div className={`absolute bottom-1 left-1 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none ${changePct <= 0 ? 'bg-emerald-600' : 'bg-red-500'}`}>
@@ -155,16 +155,16 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link href={`/products/${product.id}`}
-                  className="font-semibold text-gray-900 text-sm leading-snug hover:text-blue-600 transition-colors line-clamp-2">
+                  className="font-semibold text-slate-900 text-sm leading-snug hover:text-blue-600 transition-colors line-clamp-2">
                   {product.title}
                 </Link>
                 {product.sku && (
-                  <p className="text-[11px] text-gray-400 mt-0.5">SKU: {product.sku}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">SKU: {product.sku}</p>
                 )}
               </div>
               <input type="checkbox" checked={selected}
                 onChange={(e) => onSelect(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer" />
+                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer" />
             </div>
 
             {/* Status badges */}
@@ -178,28 +178,28 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
             {/* Price row */}
             <div className="flex items-end justify-between mt-2.5 gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none mb-1">My Price</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none mb-1">My Price</p>
                 {editingPrice ? (
                   <div className="flex items-center gap-1">
-                    <span className="text-gray-400 text-sm font-medium">$</span>
+                    <span className="text-slate-400 text-sm font-medium">$</span>
                     <input autoFocus type="number" step="0.01" value={priceInput}
                       onChange={(e) => setPriceInput(e.target.value)}
                       onBlur={handleSavePrice}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
-                      className="w-20 text-lg font-bold text-gray-900 border-b-2 border-blue-500 bg-transparent focus:outline-none" />
-                    {saving && <span className="text-xs text-gray-400 animate-pulse">saving…</span>}
+                      className="w-20 text-lg font-bold text-slate-900 border-b-2 border-blue-500 bg-transparent focus:outline-none" />
+                    {saving && <span className="text-xs text-slate-400 animate-pulse">saving…</span>}
                   </div>
                 ) : (
                   <button onClick={() => { setPriceInput(myPrice ?? ''); setEditingPrice(true); }}
-                    className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left leading-tight"
+                    className="text-lg font-bold text-slate-900 hover:text-blue-600 transition-colors text-left leading-tight"
                     title="Click to set your price">
                     {myPrice != null ? `$${myPrice.toFixed(2)}` : (
-                      <span className="text-gray-300 text-base font-medium">Set price</span>
+                      <span className="text-slate-300 text-base font-medium">Set price</span>
                     )}
                   </button>
                 )}
                 {product.lowest_price && (
-                  <p className="text-[11px] text-gray-400 mt-0.5">
+                  <p className="text-[11px] text-slate-400 mt-0.5">
                     Mkt: <span className="font-medium">${product.lowest_price.toFixed(2)}</span>
                   </p>
                 )}
@@ -210,8 +210,8 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-          <span className={`text-xs font-medium ${product.competitor_count > 0 ? 'text-gray-500' : 'text-gray-300'}`}>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/40">
+          <span className={`text-xs font-medium ${product.competitor_count > 0 ? 'text-slate-500' : 'text-slate-300'}`}>
             {product.competitor_count > 0
               ? `${product.competitor_count} competitor${product.competitor_count !== 1 ? 's' : ''}`
               : 'No matches yet'}
@@ -332,20 +332,20 @@ export default function ProductsPage() {
     return (
       <Layout>
         <div className="px-4 sm:px-6 max-w-2xl mx-auto lg:max-w-none lg:px-6">
-          <div className="h-8 bg-gray-200 rounded-xl animate-pulse mb-6 w-40" />
+          <div className="h-8 bg-white/50 rounded-xl animate-pulse mb-6 w-40" />
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {[1,2,3,4,5,6].map(i => (
-              <div key={i} className="bg-white rounded-2xl p-4 border border-gray-100 animate-pulse">
+              <div key={i} className="glass-card rounded-2xl p-4 animate-pulse">
                 <div className="flex gap-3">
-                  <div className="w-20 h-20 bg-gray-100 rounded-xl shrink-0" />
+                  <div className="w-20 h-20 bg-white/60 rounded-xl shrink-0" />
                   <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-4 bg-gray-100 rounded-lg w-3/4" />
-                    <div className="h-3 bg-gray-100 rounded-lg w-1/3" />
+                    <div className="h-4 bg-white/60 rounded-lg w-3/4" />
+                    <div className="h-3 bg-white/60 rounded-lg w-1/3" />
                     <div className="flex gap-1.5 mt-2">
-                      <div className="h-5 w-16 bg-gray-100 rounded-full" />
-                      <div className="h-5 w-20 bg-gray-100 rounded-full" />
+                      <div className="h-5 w-16 bg-white/60 rounded-full" />
+                      <div className="h-5 w-20 bg-white/60 rounded-full" />
                     </div>
-                    <div className="h-5 bg-gray-100 rounded-lg w-1/2 mt-2" />
+                    <div className="h-5 bg-white/60 rounded-lg w-1/2 mt-2" />
                   </div>
                 </div>
               </div>
@@ -360,7 +360,7 @@ export default function ProductsPage() {
     return (
       <Layout>
         <div className="px-4 sm:px-6 max-w-2xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+          <div className="bg-red-50/70 border border-red-200/60 rounded-2xl p-6 text-center backdrop-blur-sm">
             <p className="font-semibold text-red-800 mb-2">{error}</p>
             <button onClick={loadProducts} className="text-sm text-red-600 underline">Try again</button>
           </div>
@@ -376,14 +376,14 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{products.length} product{products.length !== 1 ? 's' : ''} monitored</p>
+            <h1 className="text-2xl font-bold text-slate-900">Products</h1>
+            <p className="text-sm text-slate-500 mt-0.5">{products.length} product{products.length !== 1 ? 's' : ''} monitored</p>
           </div>
           <div className="hidden sm:flex items-center gap-2">
             {products.length > 0 && (
               <button
                 onClick={() => exportToCSV(filtered)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl glass border border-white/60 text-slate-600 text-sm font-medium hover:bg-white/50 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -392,7 +392,7 @@ export default function ProductsPage() {
               </button>
             )}
             <Link href="/products/add"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+              className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-brand text-white text-sm font-semibold hover:opacity-90 transition-opacity shadow-gradient">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
@@ -404,28 +404,28 @@ export default function ProductsPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {[
-            { label: 'Products',    value: products.length,  color: 'text-blue-600',    bg: 'bg-blue-50'   },
-            { label: 'Competitors', value: totalMatches,     color: 'text-violet-600',  bg: 'bg-violet-50' },
-            { label: 'Cheapest',    value: cheapestCount,    color: 'text-emerald-600', bg: 'bg-emerald-50'},
-            { label: 'Expensive',   value: expensiveCount,   color: 'text-red-500',     bg: 'bg-red-50'    },
+            { label: 'Products',    value: products.length, cls: 'stat-blue'    },
+            { label: 'Competitors', value: totalMatches,    cls: 'stat-violet'  },
+            { label: 'Cheapest',    value: cheapestCount,   cls: 'stat-emerald' },
+            { label: 'Expensive',   value: expensiveCount,  cls: 'stat-rose'    },
           ].map(s => (
-            <div key={s.label} className={`${s.bg} rounded-2xl px-4 py-3`}>
-              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-gray-500 font-medium mt-0.5">{s.label}</p>
+            <div key={s.label} className={`${s.cls} rounded-2xl px-4 py-3 shadow-gradient`}>
+              <p className="text-2xl font-bold text-white">{s.value}</p>
+              <p className="text-xs text-white/80 font-medium mt-0.5">{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* Search */}
         <div className="relative mb-4">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </span>
           <input type="text" placeholder="Search by name or SKU…" value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:border-blue-400 transition-shadow placeholder-gray-400" />
+            className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400" />
         </div>
 
         {/* Filter tabs */}
@@ -435,9 +435,9 @@ export default function ProductsPage() {
             const active = activeTab === tab.key;
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${active ? 'bg-gray-900 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}>
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${active ? 'gradient-brand text-white shadow-gradient shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/40'}`}>
                 {tab.label}
-                <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-white/50 text-slate-500'}`}>
                   {count}
                 </span>
               </button>
@@ -448,17 +448,17 @@ export default function ProductsPage() {
         {/* Bulk select row */}
         {filtered.length > 0 && (
           <div className="flex items-center gap-3 mb-4">
-            <button onClick={toggleAll} className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors font-medium">
+            <button onClick={toggleAll} className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors font-medium">
               <input type="checkbox" readOnly
                 checked={selected.size > 0 && selected.size === filtered.length}
                 ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                className="w-4 h-4 rounded border-slate-300 text-blue-600" />
               {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
             </button>
             {selected.size > 0 && (
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Export CSV</button>
-                <Link href="/repricing" className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Reprice</Link>
+                <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="px-3 py-1.5 text-xs font-medium text-slate-600 glass border border-white/60 rounded-lg hover:bg-white/50 transition-colors">Export CSV</button>
+                <Link href="/repricing" className="px-3 py-1.5 text-xs font-semibold text-white gradient-brand rounded-lg hover:opacity-90 transition-opacity">Reprice</Link>
               </div>
             )}
           </div>
@@ -466,24 +466,24 @@ export default function ProductsPage() {
 
         {/* Cards grid */}
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center shadow-sm">
-            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="glass-card rounded-2xl shadow-glass p-12 text-center">
+            <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-gray-900">
+            <h3 className="text-base font-semibold text-slate-900">
               {search ? 'No results' : activeTab !== 'all' ? 'None in this filter' : 'No products yet'}
             </h3>
-            <p className="text-sm text-gray-400 mt-1 mb-5">
+            <p className="text-sm text-slate-400 mt-1 mb-5">
               {search ? `No products match "${search}"`
                 : activeTab !== 'all' ? 'Try a different filter.'
                 : 'Add your first product to start tracking competitor prices.'}
             </p>
             {activeTab === 'all' && !search && (
               <Link href="/products/add"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
+                className="inline-flex items-center gap-2 px-5 py-2.5 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 shadow-gradient">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
@@ -505,11 +505,11 @@ export default function ProductsPage() {
 
         {/* Floating bulk-action bar */}
         {selected.size > 0 && (
-          <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:w-auto bg-gray-900 text-white rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl z-40">
+          <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:w-auto bg-slate-900/90 backdrop-blur-xl text-white rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl z-40">
             <span className="text-sm font-medium flex-1">{selected.size} item{selected.size !== 1 ? 's' : ''} selected</span>
-            <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="text-xs text-gray-300 hover:text-white transition-colors font-medium">Export CSV</button>
+            <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="text-xs text-slate-300 hover:text-white transition-colors font-medium">Export CSV</button>
             <Link href="/repricing" className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors">Reprice</Link>
-            <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-white transition-colors ml-1">
+            <button onClick={() => setSelected(new Set())} className="text-slate-400 hover:text-white transition-colors ml-1">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
