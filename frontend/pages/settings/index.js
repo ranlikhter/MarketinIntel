@@ -756,132 +756,113 @@ function NotificationsTab({ user }) {
 
 function ApiAccessTab({ user }) {
   const { addToast } = useToast();
-  const tier = user?.subscription_tier ?? 'free';
-  const hasAccess = tier !== 'free';
-
-  const [apiKey, setApiKey] = useState(null);
-  const [showKey, setShowKey] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [keys, setKeys]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newKey, setNewKey]   = useState(null); // shows full_key once after creation
+  const [creating, setCreating] = useState(false);
+  const [keyName, setKeyName]   = useState('');
 
   useEffect(() => {
-    const stored = localStorage.getItem('marketintel_api_key');
-    if (stored) setApiKey(stored);
+    fetch('http://localhost:8000/api/auth/api-keys', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+    })
+      .then((r) => r.ok ? r.json() : [])
+      .then(setKeys)
+      .catch(() => setKeys([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  const generateKey = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      const key = 'mi_live_' + Array.from(crypto.getRandomValues(new Uint8Array(24)))
-        .map(b => b.toString(16).padStart(2, '0')).join('');
-      localStorage.setItem('marketintel_api_key', key);
-      setApiKey(key);
-      setShowKey(true);
-      setGenerating(false);
-      addToast('API key generated', 'success');
-    }, 600);
-  };
-
-  const copyKey = () => {
-    if (apiKey) {
-      navigator.clipboard.writeText(apiKey);
-      addToast('API key copied to clipboard', 'success');
+  async function createKey(e) {
+    e.preventDefault();
+    if (!keyName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('http://localhost:8000/api/auth/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+        body: JSON.stringify({ name: keyName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed');
+      setKeys((prev) => [data, ...prev]);
+      setNewKey(data.full_key);
+      setKeyName('');
+      addToast('API key created — save it now!', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to create key', 'error');
+    } finally {
+      setCreating(false);
     }
-  };
-
-  const revokeKey = () => {
-    localStorage.removeItem('marketintel_api_key');
-    setApiKey(null);
-    setShowKey(false);
-    addToast('API key revoked', 'success');
-  };
-
-  if (!hasAccess) {
-    return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-          </svg>
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">API Access — Business Plan</h3>
-        <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
-          Programmatic access to your MarketIntel data requires a Business or Enterprise plan.
-          Automate repricing, sync data to your stack, or build custom dashboards.
-        </p>
-        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
-          View Upgrade Options
-        </Link>
-      </div>
-    );
   }
 
-  const maskedKey = apiKey ? apiKey.slice(0, 10) + '•'.repeat(20) + apiKey.slice(-4) : '';
+  async function revokeKey(id, name) {
+    if (!confirm(`Revoke "${name}"?`)) return;
+    try {
+      await fetch(`http://localhost:8000/api/auth/api-keys/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+      });
+      setKeys((prev) => prev.filter((k) => k.id !== id));
+      addToast('Key revoked', 'success');
+    } catch {
+      addToast('Failed to revoke key', 'error');
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <Section title="API Key" description="Use this key to authenticate requests to the MarketIntel API.">
-        {apiKey ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 font-mono text-sm bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-gray-700 overflow-auto">
-                {showKey ? apiKey : maskedKey}
-              </div>
-              <button
-                onClick={() => setShowKey(s => !s)}
-                className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                {showKey ? 'Hide' : 'Show'}
-              </button>
-              <button
-                onClick={copyKey}
-                className="px-3 py-2.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Copy
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={revokeKey}
-                className="text-sm text-red-600 hover:text-red-700 font-medium"
-              >
-                Revoke Key
-              </button>
-              <span className="text-gray-300">·</span>
-              <button
-                onClick={generateKey}
-                disabled={generating}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Regenerate
-              </button>
-            </div>
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Keep your API key secret. If compromised, revoke it immediately and generate a new one.
-            </p>
+      {/* New-key reveal banner */}
+      {newKey && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <p className="text-sm font-semibold text-emerald-800 mb-2">Save your API key — shown only once</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate">{newKey}</code>
+            <button onClick={() => { navigator.clipboard.writeText(newKey); addToast('Copied!', 'success'); }}
+              className="shrink-0 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">Copy</button>
+            <button onClick={() => setNewKey(null)} className="text-emerald-400 hover:text-emerald-600 text-xl leading-none">&times;</button>
           </div>
+        </div>
+      )}
+
+      <Section title="API Keys" description="Keys authenticate external scripts and apps against the MarketIntel API.">
+        {/* Create form */}
+        <form onSubmit={createKey} className="flex gap-2 mb-5">
+          <Input value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="Key name, e.g. Zapier automation" className="flex-1" />
+          <SaveButton loading={creating}>Create Key</SaveButton>
+        </form>
+
+        {/* Key list */}
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+        ) : keys.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No API keys yet.</p>
         ) : (
-          <div className="text-center py-6">
-            <p className="text-gray-500 text-sm mb-4">No active API key. Generate one to get started.</p>
-            <button
-              onClick={generateKey}
-              disabled={generating}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {generating && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-              Generate API Key
-            </button>
+          <div className="divide-y divide-gray-100">
+            {keys.map((k) => (
+              <div key={k.id} className="flex items-center justify-between py-3 first:pt-0">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{k.name}</p>
+                  <p className="text-xs text-gray-400 font-mono">{k.key_prefix}••••••••••••</p>
+                  <p className="text-xs text-gray-400">Created {new Date(k.created_at).toLocaleDateString()}</p>
+                </div>
+                <button onClick={() => revokeKey(k.id, k.name)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                  Revoke
+                </button>
+              </div>
+            ))}
           </div>
         )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <Link href="/settings/api-keys" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            Full API key management →
+          </Link>
+        </div>
       </Section>
 
       <Section title="Quick Reference" description="Authentication and base URL for API requests.">
         <div className="space-y-4">
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Base URL</p>
-            <code className="block bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3">
-              http://localhost:8000
-            </code>
-          </div>
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Authentication Header</p>
             <code className="block bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3">
@@ -906,8 +887,23 @@ function TeamTab({ user }) {
   const tier = user?.subscription_tier ?? 'free';
   const hasAccess = tier === 'business' || tier === 'enterprise';
 
+  const [workspaces, setWorkspaces]   = useState([]);
+  const [loadingWs, setLoadingWs]     = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviting, setInviting] = useState(false);
+  const [inviteRole, setInviteRole]   = useState('editor');
+  const [inviting, setInviting]       = useState(false);
+  const [activeWsId, setActiveWsId]   = useState(null);
+
+  useEffect(() => {
+    if (!hasAccess) { setLoadingWs(false); return; }
+    apiFetch('/api/workspaces')
+      .then((data) => {
+        setWorkspaces(data);
+        if (data.length > 0) setActiveWsId(data[0].id);
+      })
+      .catch(() => setWorkspaces([]))
+      .finally(() => setLoadingWs(false));
+  }, [hasAccess]);
 
   if (!hasAccess) {
     return (
@@ -942,96 +938,137 @@ function TeamTab({ user }) {
     );
   }
 
-  const handleInvite = (e) => {
+  const ws = workspaces.find((w) => w.id === activeWsId);
+
+  async function handleInvite(e) {
     e.preventDefault();
+    if (!activeWsId) { addToast('No workspace selected', 'error'); return; }
     setInviting(true);
-    setTimeout(() => {
-      addToast(`Invitation sent to ${inviteEmail}`, 'success');
+    try {
+      await apiFetch(`/api/workspaces/${activeWsId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const updated = await apiFetch(`/api/workspaces/${activeWsId}`);
+      setWorkspaces((prev) => prev.map((w) => (w.id === activeWsId ? updated : w)));
       setInviteEmail('');
+      addToast(`Invitation sent to ${inviteEmail}`, 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to invite member', 'error');
+    } finally {
       setInviting(false);
-    }, 600);
-  };
+    }
+  }
+
+  async function handleRemoveMember(uid) {
+    if (!confirm('Remove this member from the workspace?')) return;
+    try {
+      await apiFetch(`/api/workspaces/${activeWsId}/members/${uid}`, { method: 'DELETE' });
+      setWorkspaces((prev) =>
+        prev.map((w) =>
+          w.id === activeWsId
+            ? { ...w, members: (w.members || []).filter((m) => m.user_id !== uid) }
+            : w
+        )
+      );
+      addToast('Member removed', 'success');
+    } catch (err) {
+      addToast(err.message || 'Failed to remove member', 'error');
+    }
+  }
 
   return (
     <div className="space-y-6">
+      {/* Workspace switcher (if user belongs to multiple) */}
+      {workspaces.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {workspaces.map((w) => (
+            <button key={w.id} onClick={() => setActiveWsId(w.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeWsId === w.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}>
+              {w.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Invite form */}
       <Section title="Invite Team Member" description="Send an invitation to collaborate on your workspace.">
-        <form onSubmit={handleInvite} className="flex gap-3">
-          <Input
-            type="email"
-            value={inviteEmail}
-            onChange={e => setInviteEmail(e.target.value)}
-            placeholder="colleague@example.com"
-            required
-            className="flex-1"
-          />
-          <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none">
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
-            <option value="admin">Admin</option>
-          </select>
-          <SaveButton loading={inviting}>Invite</SaveButton>
-        </form>
-      </Section>
-
-      <Section title="Current Members" description="People with access to your workspace.">
-        <div className="divide-y divide-gray-100">
-          {/* Owner row — always shown */}
-          <div className="flex items-center justify-between py-3 first:pt-0">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
-                {(user?.full_name?.[0] || user?.email?.[0] || '?').toUpperCase()}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{user?.full_name || user?.email}</p>
-                <p className="text-xs text-gray-500">{user?.email}</p>
-              </div>
-            </div>
-            <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Owner</span>
+        {loadingWs ? (
+          <p className="text-sm text-gray-400">Loading workspace…</p>
+        ) : workspaces.length === 0 ? (
+          <div className="text-center py-4">
+            <p className="text-sm text-gray-500 mb-3">No workspace yet. Create one from the full team page.</p>
+            <Link href="/settings/team" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              Go to Team Management →
+            </Link>
           </div>
-        </div>
-        <p className="text-sm text-gray-400 mt-4 text-center">No other members yet. Invite someone above.</p>
+        ) : (
+          <form onSubmit={handleInvite} className="flex gap-3">
+            <Input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              required
+              className="flex-1"
+            />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+            >
+              <option value="editor">Editor</option>
+              <option value="viewer">Viewer</option>
+              <option value="admin">Admin</option>
+            </select>
+            <SaveButton loading={inviting}>Invite</SaveButton>
+          </form>
+        )}
       </Section>
 
-      <Section title="Role Permissions" description="What each role can do in your workspace.">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-100">
-                <th className="pb-3 pr-6">Permission</th>
-                <th className="pb-3 pr-6 text-center">Viewer</th>
-                <th className="pb-3 pr-6 text-center">Editor</th>
-                <th className="pb-3 text-center">Admin</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {[
-                ['View products & prices', true, true, true],
-                ['Create & edit products', false, true, true],
-                ['Manage alerts', false, true, true],
-                ['Add competitors', false, true, true],
-                ['Run scrapers', false, true, true],
-                ['Invite team members', false, false, true],
-                ['Manage billing', false, false, true],
-              ].map(([label, viewer, editor, admin]) => (
-                <tr key={label} className="text-gray-600">
-                  <td className="py-2.5 pr-6">{label}</td>
-                  {[viewer, editor, admin].map((has, i) => (
-                    <td key={i} className="py-2.5 pr-6 text-center">
-                      {has ? (
-                        <svg className="w-4 h-4 text-green-500 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <span className="text-gray-200">—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
+      {/* Member list for active workspace */}
+      {ws && (
+        <Section title={`Members — ${ws.name}`} description="People with access to this workspace.">
+          <div className="divide-y divide-gray-100">
+            {(ws.members || []).length === 0 ? (
+              <p className="text-sm text-gray-400 py-3 text-center">No members yet.</p>
+            ) : (ws.members || []).map((m) => (
+              <div key={m.user_id} className="flex items-center justify-between py-3 first:pt-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                    {(m.full_name?.[0] || m.email?.[0] || '?').toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{m.full_name || m.email}</p>
+                    <p className="text-xs text-gray-500">{m.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {m.user_id === ws.owner_id ? (
+                    <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Owner</span>
+                  ) : (
+                    <>
+                      <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full capitalize">{m.role}</span>
+                      <button onClick={() => handleRemoveMember(m.user_id)}
+                        className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-100 px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <div className="text-center pt-2">
+        <Link href="/settings/team" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+          Full team management →
+        </Link>
+      </div>
     </div>
   );
 }

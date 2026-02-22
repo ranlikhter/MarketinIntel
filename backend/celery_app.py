@@ -24,7 +24,8 @@ celery_app = Celery(
     include=[
         'tasks.scraping_tasks',
         'tasks.analytics_tasks',
-        'tasks.notification_tasks'
+        'tasks.notification_tasks',
+        'tasks.inventory_tasks',
     ]
 )
 
@@ -83,6 +84,13 @@ celery_app.conf.update(
             'schedule': crontab(minute=0, hour=8),  # 8 AM daily
             'options': {'queue': 'notifications'}
         },
+
+        # Sync inventory from connected Shopify / WooCommerce stores every 4 hours
+        'sync-store-inventory-4h': {
+            'task': 'tasks.inventory_tasks.sync_all_store_inventory',
+            'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours
+            'options': {'queue': 'integrations'}
+        },
     }
 )
 
@@ -91,6 +99,7 @@ celery_app.conf.task_routes = {
     'tasks.scraping_tasks.*': {'queue': 'scraping'},
     'tasks.analytics_tasks.*': {'queue': 'analytics'},
     'tasks.notification_tasks.*': {'queue': 'notifications'},
+    'tasks.inventory_tasks.*': {'queue': 'integrations'},
 }
 
 if __name__ == '__main__':
