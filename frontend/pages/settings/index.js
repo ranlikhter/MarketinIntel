@@ -28,7 +28,7 @@ async function apiFetch(path, options = {}) {
 
 function Section({ title, description, children }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="px-6 py-5 border-b border-gray-100">
         <h3 className="text-base font-semibold text-gray-900">{title}</h3>
         {description && <p className="mt-0.5 text-sm text-gray-500">{description}</p>}
@@ -54,7 +54,7 @@ function Input({ className = '', ...props }) {
   return (
     <input
       className={`block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400
-        focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none transition-shadow ${className}`}
+        focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-shadow ${className}`}
       {...props}
     />
   );
@@ -65,9 +65,9 @@ function SaveButton({ loading, children = 'Save Changes' }) {
     <button
       type="submit"
       disabled={loading}
-      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium
-        hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none
-        focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium
+        hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none
+        focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
     >
       {loading && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -203,7 +203,7 @@ function ProfileTab({ user, updateUser }) {
       <Section title="Profile Information" description="Update your display name visible across the platform.">
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-primary-100">
+          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-blue-100">
             {(user?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)) ||
              user?.email?.[0]?.toUpperCase() || '?'}
           </div>
@@ -561,8 +561,8 @@ function NotificationsTab({ user }) {
       aria-checked={value}
       onClick={() => !disabled && onChange(!value)}
       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors
-        focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2
-        ${value ? 'bg-primary-600' : 'bg-gray-200'}
+        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+        ${value ? 'bg-blue-600' : 'bg-gray-200'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
       <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${value ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -589,14 +589,14 @@ function NotificationsTab({ user }) {
                 { value: 'weekly',  label: 'Weekly Digest', desc: 'Monday summary' },
               ].map(opt => (
                 <label key={opt.value} className={`flex-1 flex items-center gap-3 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors
-                  ${prefs.digestFrequency === opt.value ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  ${prefs.digestFrequency === opt.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
                     name="digestFrequency"
                     value={opt.value}
                     checked={prefs.digestFrequency === opt.value}
                     onChange={() => set('digestFrequency', opt.value)}
-                    className="text-primary-600"
+                    className="text-blue-600"
                   />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{opt.label}</p>
@@ -668,7 +668,7 @@ function NotificationsTab({ user }) {
                   <select
                     value={prefs.quietStart}
                     onChange={e => set('quietStart', Number(e.target.value))}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
@@ -681,7 +681,7 @@ function NotificationsTab({ user }) {
                   <select
                     value={prefs.quietEnd}
                     onChange={e => set('quietEnd', Number(e.target.value))}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none"
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
@@ -746,7 +746,7 @@ function ApiAccessTab({ user }) {
 
   if (!hasAccess) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
@@ -757,7 +757,7 @@ function ApiAccessTab({ user }) {
           Programmatic access to your MarketIntel data requires a Business or Enterprise plan.
           Automate repricing, sync data to your stack, or build custom dashboards.
         </p>
-        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors">
+        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
           View Upgrade Options
         </Link>
       </div>
@@ -799,7 +799,7 @@ function ApiAccessTab({ user }) {
               <button
                 onClick={generateKey}
                 disabled={generating}
-                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Regenerate
               </button>
@@ -814,7 +814,7 @@ function ApiAccessTab({ user }) {
             <button
               onClick={generateKey}
               disabled={generating}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {generating && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
               Generate API Key
@@ -860,7 +860,7 @@ function TeamTab({ user }) {
 
   if (!hasAccess) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -873,18 +873,18 @@ function TeamTab({ user }) {
         </p>
         <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto mb-6 text-left">
           {[
-            { icon: '👤', label: 'Pro', seats: '1 seat' },
-            { icon: '👥', label: 'Business', seats: '5 seats' },
-            { icon: '🏢', label: 'Enterprise', seats: 'Unlimited' },
+            { initial: 'P', label: 'Pro', seats: '1 seat', bg: 'bg-blue-100 text-blue-600' },
+            { initial: 'B', label: 'Business', seats: '5 seats', bg: 'bg-violet-100 text-violet-600' },
+            { initial: 'E', label: 'Enterprise', seats: 'Unlimited', bg: 'bg-amber-100 text-amber-600' },
           ].map(p => (
-            <div key={p.label} className="bg-gray-50 rounded-lg p-3 text-center">
-              <div className="text-2xl mb-1">{p.icon}</div>
+            <div key={p.label} className="bg-gray-50 rounded-xl p-3 text-center">
+              <div className={`w-8 h-8 rounded-full ${p.bg} flex items-center justify-center text-sm font-bold mx-auto mb-2`}>{p.initial}</div>
               <p className="text-xs font-semibold text-gray-700">{p.label}</p>
               <p className="text-xs text-gray-500">{p.seats}</p>
             </div>
           ))}
         </div>
-        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors">
+        <Link href="/pricing" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
           Upgrade to Business
         </Link>
       </div>
@@ -913,7 +913,7 @@ function TeamTab({ user }) {
             required
             className="flex-1"
           />
-          <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 focus:outline-none">
+          <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none">
             <option value="editor">Editor</option>
             <option value="viewer">Viewer</option>
             <option value="admin">Admin</option>
@@ -927,7 +927,7 @@ function TeamTab({ user }) {
           {/* Owner row — always shown */}
           <div className="flex items-center justify-between py-3 first:pt-0">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center text-white text-sm font-semibold">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
                 {(user?.full_name?.[0] || user?.email?.[0] || '?').toUpperCase()}
               </div>
               <div>
@@ -1057,7 +1057,7 @@ export default function SettingsPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <svg className="animate-spin w-8 h-8 text-primary-500" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
@@ -1075,11 +1075,11 @@ export default function SettingsPage() {
 
   return (
     <Layout>
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="p-4 lg:p-6 space-y-5">
         {/* Page header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage your account, billing, and preferences.</p>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Settings</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Manage your account, billing, and preferences.</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -1092,10 +1092,10 @@ export default function SettingsPage() {
                   onClick={() => switchTab(tab.key)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-left
                     ${activeTab === tab.key
-                      ? 'bg-primary-50 text-primary-700 border border-primary-200'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
                 >
-                  <span className={activeTab === tab.key ? 'text-primary-600' : 'text-gray-400'}>
+                  <span className={activeTab === tab.key ? 'text-blue-600' : 'text-gray-400'}>
                     {tab.icon}
                   </span>
                   {tab.label}
@@ -1113,7 +1113,7 @@ export default function SettingsPage() {
                   onClick={() => switchTab(tab.key)}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0
                     ${activeTab === tab.key
-                      ? 'bg-primary-600 text-white'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
                 >
                   {tab.icon}

@@ -287,6 +287,31 @@ export default function ProductsPage() {
     return products.filter(p => p.in_stock_count === 0 && p.competitor_count > 0).length;
   };
 
+  const exportToCSV = (list) => {
+    const rows = list.map(p => [
+      p.title,
+      p.brand || '',
+      p.sku || '',
+      p.my_price != null ? p.my_price.toFixed(2) : '',
+      p.lowest_price != null ? p.lowest_price.toFixed(2) : '',
+      p.competitor_count || 0,
+      p.price_position || '',
+      p.in_stock_count > 0 ? 'Yes' : p.competitor_count > 0 ? 'No' : '',
+    ]);
+    const csv = [
+      ['Title', 'Brand', 'SKU', 'My Price', 'Lowest Market Price', 'Competitors', 'Price Position', 'In Stock'],
+      ...rows,
+    ].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ── Loading skeleton ──────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -339,13 +364,26 @@ export default function ProductsPage() {
             <h1 className="text-2xl font-bold text-gray-900">Products</h1>
             <p className="text-sm text-gray-500 mt-0.5">{products.length} product{products.length !== 1 ? 's' : ''} monitored</p>
           </div>
-          <Link href="/products/add"
-            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Product
-          </Link>
+          <div className="hidden sm:flex items-center gap-2">
+            {products.length > 0 && (
+              <button
+                onClick={() => exportToCSV(filtered)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export CSV
+              </button>
+            )}
+            <Link href="/products/add"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Product
+            </Link>
+          </div>
         </div>
 
         {/* Stats */}
@@ -404,7 +442,7 @@ export default function ProductsPage() {
             </button>
             {selected.size > 0 && (
               <div className="flex items-center gap-2 ml-auto">
-                <button className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Export</button>
+                <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">Export CSV</button>
                 <Link href="/repricing" className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">Reprice</Link>
               </div>
             )}
@@ -454,7 +492,7 @@ export default function ProductsPage() {
         {selected.size > 0 && (
           <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:w-auto bg-gray-900 text-white rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl z-40">
             <span className="text-sm font-medium flex-1">{selected.size} item{selected.size !== 1 ? 's' : ''} selected</span>
-            <button className="text-xs text-gray-300 hover:text-white transition-colors font-medium">Export</button>
+            <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="text-xs text-gray-300 hover:text-white transition-colors font-medium">Export CSV</button>
             <Link href="/repricing" className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors">Reprice</Link>
             <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-white transition-colors ml-1">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

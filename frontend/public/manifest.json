@@ -1,0 +1,41 @@
+{
+  "name": "MarketIntel",
+  "short_name": "MarketIntel",
+  "description": "Real-time competitive price intelligence and monitoring",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f9fafb",
+  "theme_color": "#2563eb",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Products",
+      "url": "/products",
+      "description": "View monitored products"
+    },
+    {
+      "name": "Add Product",
+      "url": "/products/add",
+      "description": "Add a new product to monitor"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/dashboard",
+      "description": "View price analytics dashboard"
+    }
+  ]
+}
