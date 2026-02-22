@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { useToast } from './Toast';
 import { LoadingSpinner } from './LoadingStates';
 import api from '../lib/api';
 
 export default function ImportWizard({ onComplete }) {
   const { addToast } = useToast();
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [importing, setImporting] = useState(false);
   const [importType, setImportType] = useState(null);
@@ -260,7 +262,7 @@ export default function ImportWizard({ onComplete }) {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Import Complete!</h2>
           <p className="text-gray-600 mb-8">Your products have been successfully imported</p>
           <button
-            onClick={() => window.location.href = '/products'}
+            onClick={() => router.push('/products')}
             className="inline-flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors"
           >
             View Products

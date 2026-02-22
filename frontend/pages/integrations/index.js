@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Link from 'next/link';
 import Layout from '../../components/Layout';
 import ImportWizard from '../../components/ImportWizard';
 import Modal from '../../components/Modal';
@@ -60,7 +61,8 @@ const STEPS = [
 ];
 
 export default function IntegrationsPage() {
-  const [showWizard, setShowWizard] = useState(false);
+  const [showWizard, setShowWizard]   = useState(false);
+  const [importResult, setImportResult] = useState(null); // { products_imported, products_skipped }
 
   return (
     <Layout>
@@ -73,12 +75,39 @@ export default function IntegrationsPage() {
             <p className="text-sm text-gray-500 mt-0.5">Import products from your e-commerce platform or XML feed</p>
           </div>
           <button
-            onClick={() => setShowWizard(true)}
+            onClick={() => { setShowWizard(true); setImportResult(null); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
           >
             {Ico.plus} Start Import
           </button>
         </div>
+
+        {/* Import result banner */}
+        {importResult && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">
+                  Import complete — {importResult.products_imported} product{importResult.products_imported !== 1 ? 's' : ''} added
+                </p>
+                {importResult.products_skipped > 0 && (
+                  <p className="text-xs text-emerald-600">{importResult.products_skipped} duplicate{importResult.products_skipped !== 1 ? 's' : ''} skipped</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/products" className="text-xs font-medium text-emerald-700 hover:underline">
+                View products →
+              </Link>
+              <button onClick={() => setImportResult(null)} className="text-emerald-400 hover:text-emerald-600 p-1">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Integration Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -151,7 +180,12 @@ export default function IntegrationsPage() {
 
       {/* Import Wizard Modal */}
       <Modal isOpen={showWizard} onClose={() => setShowWizard(false)} title="Import Products" size="xl">
-        <ImportWizard onComplete={() => setShowWizard(false)} />
+        <ImportWizard
+          onComplete={(result) => {
+            setShowWizard(false);
+            if (result?.products_imported > 0) setImportResult(result);
+          }}
+        />
       </Modal>
     </Layout>
   );
