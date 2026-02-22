@@ -102,6 +102,12 @@ export default function ProductDetailPage() {
   const [priceInput, setPriceInput] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
   const [storeConn, setStoreConn] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(false);
+  const [productInput, setProductInput] = useState({ title: '', brand: '', sku: '', image_url: '' });
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [showSitePicker, setShowSitePicker] = useState(false);
+  const [scrapeTarget, setScrapeTarget] = useState('amazon.com');
+  const [customSite, setCustomSite] = useState('');
 
   useEffect(() => {
     try {
@@ -141,6 +147,26 @@ export default function ProductDetailPage() {
     }
   };
 
+  const startEditProduct = () => {
+    setProductInput({ title: product.title || '', brand: product.brand || '', sku: product.sku || '', image_url: product.image_url || '' });
+    setEditingProduct(true);
+  };
+
+  const handleSaveProduct = async () => {
+    if (!productInput.title.trim()) { addToast('Title is required', 'error'); return; }
+    setSavingProduct(true);
+    try {
+      await api.updateProduct(product.id, { title: productInput.title.trim(), brand: productInput.brand.trim(), sku: productInput.sku.trim(), image_url: productInput.image_url.trim() });
+      setProduct(p => ({ ...p, ...productInput }));
+      setEditingProduct(false);
+      addToast('Product updated', 'success');
+    } catch {
+      addToast('Failed to update product', 'error');
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
   useEffect(() => { if (id) loadData(); }, [id]);
 
   const loadData = async () => {
@@ -152,11 +178,20 @@ export default function ProductDetailPage() {
     finally { setLoading(false); }
   };
 
-  const handleScrape = async () => {
+  const PRESET_SITES = [
+    { label: 'Amazon', value: 'amazon.com' },
+    { label: 'eBay', value: 'ebay.com' },
+    { label: 'Walmart', value: 'walmart.com' },
+    { label: 'Target', value: 'target.com' },
+  ];
+
+  const handleScrape = async (site) => {
+    const target = site || scrapeTarget;
     setScraping(true);
-    addToast('Searching Amazon…', 'info');
+    setShowSitePicker(false);
+    addToast(`Searching ${target}…`, 'info');
     try {
-      await api.scrapeProduct(id, 'amazon.com', 5);
+      await api.scrapeProduct(id, target, 5);
       addToast('Scrape complete!', 'success');
       loadData();
     } catch { addToast('Scrape failed. Try again.', 'error'); }
@@ -201,93 +236,230 @@ export default function ProductDetailPage() {
 
         {/* Product header card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-start gap-5">
-            {/* Image */}
-            <div className="w-20 h-20 shrink-0 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
-              {product.image_url ? (
-                <img src={product.image_url} alt={product.title} className="w-full h-full object-contain" onError={e => e.target.style.display = 'none'} />
-              ) : (
-                <div className="text-gray-200">{Ico.image}</div>
-              )}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 leading-tight">{product.title}</h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
-                {product.brand && <span>{product.brand}</span>}
-                {product.sku && <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">SKU: {product.sku}</span>}
-                <span className="text-xs">{new Date(product.created_at).toLocaleDateString()}</span>
+          {editingProduct ? (
+            /* ── Edit mode ── */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-900">Edit Product Info</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingProduct(false)} className="px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg text-sm font-medium transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProduct} disabled={savingProduct || !productInput.title.trim()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {savingProduct ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</> : 'Save Changes'}
+                  </button>
+                </div>
               </div>
-              {/* My Price — inline editable */}
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-gray-500">My Price:</span>
-                {editingPrice ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm text-gray-400">$</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Product Title <span className="text-red-400">*</span></label>
+                  <input
+                    type="text" value={productInput.title}
+                    onChange={e => setProductInput(p => ({ ...p, title: e.target.value }))}
+                    className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    placeholder="Product title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Brand</label>
+                  <input
+                    type="text" value={productInput.brand}
+                    onChange={e => setProductInput(p => ({ ...p, brand: e.target.value }))}
+                    className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    placeholder="Brand name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">SKU</label>
+                  <input
+                    type="text" value={productInput.sku}
+                    onChange={e => setProductInput(p => ({ ...p, sku: e.target.value }))}
+                    className="w-full text-sm font-mono rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    placeholder="SKU-001"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Image URL</label>
+                  <div className="flex gap-2">
                     <input
-                      autoFocus
-                      type="number" step="0.01" min="0"
-                      value={priceInput}
-                      onChange={e => setPriceInput(e.target.value)}
-                      onBlur={handleSavePrice}
-                      onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
-                      className="w-24 text-sm font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent focus:outline-none"
+                      type="url" value={productInput.image_url}
+                      onChange={e => setProductInput(p => ({ ...p, image_url: e.target.value }))}
+                      className="flex-1 text-sm rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                      placeholder="https://example.com/image.jpg"
                     />
-                    {savingPrice && <span className="text-xs text-gray-400 animate-pulse">saving…</span>}
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setPriceInput(product.my_price ?? ''); setEditingPrice(true); }}
-                    className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-                    title="Click to edit your price"
-                  >
-                    {product.my_price != null ? `$${product.my_price.toFixed(2)}` : (
-                      <span className="text-gray-400 font-normal text-xs">Set price</span>
+                    {productInput.image_url && (
+                      <div className="w-10 h-10 shrink-0 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
+                        <img src={productInput.image_url} alt="preview" className="w-full h-full object-contain" onError={e => e.target.style.display = 'none'} />
+                      </div>
                     )}
-                  </button>
-                )}
-                {storeConn && product.my_price != null && !editingPrice && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        if (storeConn.type === 'woocommerce') {
-                          await api.pushPriceToWooCommerce(storeConn.credentials.store_url, storeConn.credentials.consumer_key, storeConn.credentials.consumer_secret, product.sku || '', product.title, product.my_price);
-                        } else {
-                          await api.pushPriceToShopify(storeConn.credentials.shop_url, storeConn.credentials.access_token, product.sku || '', product.title, product.my_price);
-                        }
-                        addToast(`Price pushed to ${storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
-                      } catch (e) {
-                        addToast(`Sync failed: ${e.message}`, 'error');
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                    Push to {storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}
-                  </button>
-                )}
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* Actions */}
-            <div className="shrink-0 flex flex-col sm:flex-row gap-2">
-              <button
-                onClick={handleScrape} disabled={scraping}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {scraping ? (
-                  <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scraping…</>
+          ) : (
+            /* ── View mode ── */
+            <div className="flex items-start gap-5">
+              {/* Image */}
+              <div className="w-20 h-20 shrink-0 rounded-xl bg-gray-50 border border-gray-100 overflow-hidden flex items-center justify-center">
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.title} className="w-full h-full object-contain" onError={e => e.target.style.display = 'none'} />
                 ) : (
-                  <>{Ico.search} Scrape Amazon</>
+                  <div className="text-gray-200">{Ico.image}</div>
                 )}
-              </button>
-              <button onClick={loadData} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
-                {Ico.refresh}
-                <span className="hidden sm:inline">Refresh</span>
-              </button>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 leading-tight">{product.title}</h1>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-gray-500">
+                  {product.brand && <span>{product.brand}</span>}
+                  {product.sku && <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">SKU: {product.sku}</span>}
+                  <span className="text-xs">{new Date(product.created_at).toLocaleDateString()}</span>
+                </div>
+                {/* My Price — inline editable */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-gray-500">My Price:</span>
+                  {editingPrice ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm text-gray-400">$</span>
+                      <input
+                        autoFocus
+                        type="number" step="0.01" min="0"
+                        value={priceInput}
+                        onChange={e => setPriceInput(e.target.value)}
+                        onBlur={handleSavePrice}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
+                        className="w-24 text-sm font-semibold text-gray-900 border-b-2 border-blue-500 bg-transparent focus:outline-none"
+                      />
+                      {savingPrice && <span className="text-xs text-gray-400 animate-pulse">saving…</span>}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setPriceInput(product.my_price ?? ''); setEditingPrice(true); }}
+                      className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors"
+                      title="Click to edit your price"
+                    >
+                      {product.my_price != null ? `$${product.my_price.toFixed(2)}` : (
+                        <span className="text-gray-400 font-normal text-xs">Set price</span>
+                      )}
+                    </button>
+                  )}
+                  {storeConn && product.my_price != null && !editingPrice && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (storeConn.type === 'woocommerce') {
+                            await api.pushPriceToWooCommerce(storeConn.credentials.store_url, storeConn.credentials.consumer_key, storeConn.credentials.consumer_secret, product.sku || '', product.title, product.my_price);
+                          } else {
+                            await api.pushPriceToShopify(storeConn.credentials.shop_url, storeConn.credentials.access_token, product.sku || '', product.title, product.my_price);
+                          }
+                          addToast(`Price pushed to ${storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+                        } catch (e) {
+                          addToast(`Sync failed: ${e.message}`, 'error');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      Push to {storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="shrink-0 flex flex-col sm:flex-row gap-2">
+                {/* Scrape button with site picker */}
+                <div className="relative">
+                  <div className="flex rounded-xl overflow-hidden border border-blue-600">
+                    <button
+                      onClick={() => handleScrape()} disabled={scraping}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {scraping ? (
+                        <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scraping…</>
+                      ) : (
+                        <>{Ico.search} {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={scraping}
+                      onClick={() => setShowSitePicker(p => !p)}
+                      className="px-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white border-l border-blue-500 transition-colors disabled:opacity-50"
+                      title="Choose site to scrape"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </div>
+
+                  {/* Site picker dropdown */}
+                  {showSitePicker && (
+                    <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-lg z-20 p-2">
+                      <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Quick pick</p>
+                      {PRESET_SITES.map(site => (
+                        <button
+                          key={site.value}
+                          onClick={() => { setScrapeTarget(site.value); setCustomSite(''); setShowSitePicker(false); handleScrape(site.value); }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${scrapeTarget === site.value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                        >
+                          {site.label}
+                          <span className="text-gray-400 font-normal ml-1 text-xs">{site.value}</span>
+                        </button>
+                      ))}
+                      <div className="mt-2 pt-2 border-t border-gray-100">
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide px-2 mb-1">Custom domain</p>
+                        <div className="flex gap-1 px-1">
+                          <input
+                            type="text"
+                            value={customSite}
+                            onChange={e => setCustomSite(e.target.value)}
+                            placeholder="example.com"
+                            className="flex-1 text-sm rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:border-blue-400"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && customSite.trim()) {
+                                setScrapeTarget(customSite.trim());
+                                setShowSitePicker(false);
+                                handleScrape(customSite.trim());
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={!customSite.trim()}
+                            onClick={() => { setScrapeTarget(customSite.trim()); setShowSitePicker(false); handleScrape(customSite.trim()); }}
+                            className="px-2 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors disabled:opacity-40"
+                          >
+                            Go
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={startEditProduct} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
+                </button>
+                <Link
+                  href={`/products/${id}/report?print=1`}
+                  target="_blank"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span className="hidden sm:inline">PDF</span>
+                </Link>
+                <button onClick={loadData} className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
+                  {Ico.refresh}
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Stats row */}
@@ -325,12 +497,12 @@ export default function ProductDetailPage() {
                 {Ico.search}
               </div>
               <p className="text-sm font-medium text-gray-900">No matches yet</p>
-              <p className="text-sm text-gray-500 mt-1 mb-4">Click "Scrape Amazon" to find competitor products</p>
+              <p className="text-sm text-gray-500 mt-1 mb-4">Use the Scrape button above to find competitor products</p>
               <button
-                onClick={handleScrape} disabled={scraping}
+                onClick={() => handleScrape()} disabled={scraping}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
               >
-                {Ico.search} Scrape Amazon
+                {Ico.search} Scrape {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}
               </button>
             </div>
           ) : (

@@ -360,26 +360,50 @@ class SmartAlertService:
 
         subject = f"🚨 {data['alert_name']}: {data['product_title']}"
 
-        body = f"""
-        Alert Triggered: {data['alert_name']}
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
 
-        Product: {data['product_title']}
-        SKU: {data['product_sku'] or 'N/A'}
-        Brand: {data['product_brand'] or 'N/A'}
-
-        Competitors: {data['competitor_count']}
-        Threshold: {data['threshold_pct']}%
-
-        Triggered at: {data['triggered_at']}
-
-        View details: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                     color: #1f2937; max-width: 560px; margin: 0 auto; padding: 24px;">
+          <div style="background: #2563eb; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">🚨 {data['alert_name']}</h1>
+          </div>
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+            <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600;">{data['product_title']}</p>
+            <p style="margin: 0 0 4px; color: #6b7280; font-size: 14px;">SKU: {data['product_sku'] or 'N/A'} &nbsp;·&nbsp; Brand: {data['product_brand'] or 'N/A'}</p>
+            <p style="margin: 8px 0 0; color: #6b7280; font-size: 14px;">Competitors tracked: {data['competitor_count']}</p>
+          </div>
+          <p style="text-align: center; margin: 20px 0;">
+            <a href="{product_url}" style="background: #2563eb; color: white; padding: 12px 24px;
+               border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+              View Product Details →
+            </a>
+          </p>
+          <p style="text-align: center; font-size: 12px; color: #9ca3af;">
+            &copy; MarketIntel &mdash; E-commerce Competitive Intelligence
+          </p>
+        </body>
+        </html>
         """
+
+        text_content = (
+            f"Alert: {data['alert_name']}\n\n"
+            f"Product: {data['product_title']}\n"
+            f"SKU: {data['product_sku'] or 'N/A'}\n"
+            f"Brand: {data['product_brand'] or 'N/A'}\n"
+            f"Competitors: {data['competitor_count']}\n\n"
+            f"View details: {product_url}"
+        )
 
         try:
             email_service.send_email(
                 to_email=alert.email,
                 subject=subject,
-                body=body
+                html_content=html_content,
+                text_content=text_content
             )
         except Exception as e:
             print(f"Failed to send email for alert {alert.id}: {e}")

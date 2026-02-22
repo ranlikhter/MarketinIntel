@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import our API routes
-from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery
+from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications
 
 # Create the FastAPI application
 app = FastAPI(
@@ -54,6 +54,7 @@ app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 app.include_router(scheduler.router, prefix="/api", tags=["Scheduler & Background Tasks"])
 app.include_router(alerts.router, prefix="/api", tags=["Price Alerts & Notifications"])
 app.include_router(ai_matching.router, prefix="/api", tags=["AI Product Matching"])
+app.include_router(notifications.router, prefix="/api", tags=["Notification Preferences"])
 
 
 @app.get("/")

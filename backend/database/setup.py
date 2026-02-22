@@ -26,6 +26,7 @@ def run_migrations():
     """
     migrations = [
         "ALTER TABLE products_monitored ADD COLUMN my_price REAL",
+        "ALTER TABLE users ADD COLUMN notification_prefs TEXT",
     ]
     with engine.connect() as conn:
         for sql in migrations:

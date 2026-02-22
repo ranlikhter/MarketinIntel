@@ -277,6 +277,9 @@ class User(Base):
     # Trial
     trial_ends_at = Column(DateTime, nullable=True)
 
+    # Notification preferences (JSON blob)
+    notification_prefs = Column(JSON, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
