@@ -152,25 +152,25 @@ export default function Pricing() {
 
   return (
     <Layout>
-      <div className="bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="py-12 px-4 sm:px-6 lg:px-8" style={{ background: 'var(--bg-surface)' }}>
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
+            <h1 className="text-4xl font-extrabold text-white sm:text-5xl sm:tracking-tight lg:text-6xl">
               Simple, transparent pricing
             </h1>
-            <p className="mt-5 text-xl text-gray-600">
-              Choose the plan that's right for your business
+            <p className="mt-5 text-xl text-white/60">
+              Choose the plan that&apos;s right for your business
             </p>
 
             {/* Billing Period Toggle */}
             <div className="mt-8 flex items-center justify-center space-x-4">
-              <span className={`text-base font-medium ${billingPeriod === 'monthly' ? 'text-gray-900' : 'text-gray-500'}`}>
+              <span className={`text-base font-medium ${billingPeriod === 'monthly' ? 'text-white' : 'text-white/40'}`}>
                 Monthly
               </span>
               <button
                 onClick={() => setBillingPeriod(billingPeriod === 'monthly' ? 'yearly' : 'monthly')}
-                className="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="relative inline-flex h-6 w-11 items-center rounded-full bg-amber-500 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
               >
                 <span
                   className={`${
@@ -178,9 +178,9 @@ export default function Pricing() {
                   } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
                 />
               </button>
-              <span className={`text-base font-medium ${billingPeriod === 'yearly' ? 'text-gray-900' : 'text-gray-500'}`}>
+              <span className={`text-base font-medium ${billingPeriod === 'yearly' ? 'text-white' : 'text-white/40'}`}>
                 Yearly
-                <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                <span className="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>
                   Save 17%
                 </span>
               </span>
@@ -192,35 +192,36 @@ export default function Pricing() {
             {plans.map((plan) => (
               <div
                 key={plan.name}
-                className={`relative bg-white rounded-2xl shadow-xl ${
-                  plan.popular ? 'ring-2 ring-blue-600' : ''
-                } transition-transform hover:scale-105`}
+                className={`relative rounded-2xl shadow-xl transition-transform hover:scale-105 ${
+                  plan.popular ? 'ring-2 ring-amber-400' : ''
+                }`}
+                style={{ background: 'var(--bg-elevated)', border: plan.popular ? undefined : '1px solid var(--border)' }}
               >
                 {plan.popular && (
                   <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2">
-                    <span className="inline-flex items-center rounded-full bg-blue-600 px-4 py-1 text-xs font-semibold text-white shadow-lg">
+                    <span className="inline-flex items-center rounded-full gradient-brand px-4 py-1 text-xs font-semibold text-white shadow-lg">
                       MOST POPULAR
                     </span>
                   </div>
                 )}
 
                 <div className="p-8">
-                  <h3 className="text-2xl font-bold text-gray-900">{plan.name}</h3>
-                  <p className="mt-2 text-sm text-gray-600">{plan.description}</p>
+                  <h3 className="text-2xl font-bold text-white">{plan.name}</h3>
+                  <p className="mt-2 text-sm text-white/50">{plan.description}</p>
 
                   <div className="mt-6">
                     <div className="flex items-baseline">
-                      <span className="text-5xl font-extrabold text-gray-900">
+                      <span className="text-5xl font-extrabold text-white">
                         ${plan.price[billingPeriod] === 0 ? '0' : plan.price[billingPeriod]}
                       </span>
                       {plan.price[billingPeriod] > 0 && (
-                        <span className="ml-2 text-base font-medium text-gray-600">
+                        <span className="ml-2 text-base font-medium text-white/50">
                           /{billingPeriod === 'yearly' ? 'year' : 'month'}
                         </span>
                       )}
                     </div>
                     {billingPeriod === 'yearly' && plan.price.yearly > 0 && (
-                      <p className="mt-1 text-sm text-gray-500">
+                      <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
                         ${(plan.price.yearly / 12).toFixed(2)}/month billed annually
                       </p>
                     )}
@@ -231,9 +232,10 @@ export default function Pricing() {
                     disabled={loading === plan.name}
                     className={`mt-8 w-full py-3 px-6 rounded-lg font-semibold transition duration-150 ${
                       plan.popular
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 shadow-lg'
-                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                        ? 'gradient-brand text-white hover:opacity-90 shadow-lg'
+                        : 'text-white hover:bg-white/5'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    style={!plan.popular ? { border: '1px solid var(--border)' } : {}}
                   >
                     {loading === plan.name ? 'Loading...' : plan.cta}
                   </button>
@@ -242,7 +244,7 @@ export default function Pricing() {
                     {plan.features.map((feature, index) => (
                       <li key={index} className="flex items-start">
                         <svg
-                          className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0"
+                          className="h-5 w-5 text-green-400 mr-3 mt-0.5 flex-shrink-0"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
@@ -252,7 +254,7 @@ export default function Pricing() {
                             clipRule="evenodd"
                           />
                         </svg>
-                        <span className="text-sm text-gray-700">{feature}</span>
+                        <span className="text-sm text-white/70">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -263,40 +265,40 @@ export default function Pricing() {
 
           {/* FAQ Section */}
           <div className="mt-20">
-            <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">
+            <h2 className="text-3xl font-bold text-center text-white mb-8">
               Frequently Asked Questions
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   Can I change plans later?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-white/50">
                   Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   Is there a free trial?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-white/50">
                   Yes, all paid plans come with a 14-day free trial. No credit card required.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   What payment methods do you accept?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-white/50">
                   We accept all major credit cards, debit cards, and ACH transfers for Enterprise plans.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-white mb-2">
                   Can I cancel anytime?
                 </h3>
-                <p className="text-gray-600">
-                  Yes, you can cancel your subscription at any time. You'll have access until the end of your billing period.
+                <p className="text-white/50">
+                  Yes, you can cancel your subscription at any time. You&apos;ll have access until the end of your billing period.
                 </p>
               </div>
             </div>

@@ -66,8 +66,8 @@ const Ico = {
 };
 
 // ─── Shared input style ───────────────────────────────────────────────────────
-const INPUT = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
-const SELECT = `${INPUT} bg-white`;
+const INPUT = 'glass-input w-full px-3 py-2.5 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent';
+const SELECT = `${INPUT}`;
 
 // ─── Step indicator ───────────────────────────────────────────────────────────
 function StepDots({ current, total }) {
@@ -75,9 +75,9 @@ function StepDots({ current, total }) {
     <div className="flex items-center gap-2 justify-center">
       {Array.from({ length: total }).map((_, i) => (
         <span key={i} className={`rounded-full transition-all duration-300 ${
-          i < current  ? 'w-2 h-2 bg-blue-600' :
-          i === current ? 'w-5 h-2 bg-blue-600' :
-                          'w-2 h-2 bg-gray-200'
+          i < current  ? 'w-2 h-2 bg-amber-400' :
+          i === current ? 'w-5 h-2 bg-amber-400' :
+                          'w-2 h-2 bg-white/10'
         }`} />
       ))}
     </div>
@@ -87,7 +87,7 @@ function StepDots({ current, total }) {
 // ─── Mode tab ─────────────────────────────────────────────────────────────────
 function ModeTabs({ mode, onChange }) {
   return (
-    <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-full mb-5">
+    <div className="flex gap-1 p-1 rounded-xl w-full mb-5" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
       {[
         { value: 'manual', label: 'Add manually', icon: Ico.pen },
         { value: 'import', label: 'Import from store', icon: Ico.import },
@@ -98,9 +98,10 @@ function ModeTabs({ mode, onChange }) {
           onClick={() => onChange(t.value)}
           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-semibold transition-all ${
             mode === t.value
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'text-white shadow-sm'
+              : 'text-white/40 hover:text-white/60'
           }`}
+          style={mode === t.value ? { background: 'var(--bg-elevated)' } : {}}
         >
           <span className="opacity-70">{t.icon}</span>
           {t.label}
@@ -112,19 +113,19 @@ function ModeTabs({ mode, onChange }) {
 
 // ─── Import source cards ──────────────────────────────────────────────────────
 const IMPORT_SOURCES = [
-  { value: 'xml',         label: 'XML Feed',     desc: 'Upload an XML product catalog',         icon: Ico.upload, iconBg: 'bg-orange-50 text-orange-600' },
-  { value: 'woocommerce', label: 'WooCommerce',  desc: 'Connect via REST API',                  icon: Ico.store,  iconBg: 'bg-violet-50 text-violet-600' },
-  { value: 'shopify',     label: 'Shopify',      desc: 'Connect via Admin API',                 icon: Ico.cart,   iconBg: 'bg-emerald-50 text-emerald-600' },
+  { value: 'xml',         label: 'XML Feed',     desc: 'Upload an XML product catalog',         icon: Ico.upload, iconBg: 'text-orange-400', iconBgStyle: { background: 'rgba(234,88,12,0.15)' } },
+  { value: 'woocommerce', label: 'WooCommerce',  desc: 'Connect via REST API',                  icon: Ico.store,  iconBg: 'text-violet-400', iconBgStyle: { background: 'rgba(124,58,237,0.15)' } },
+  { value: 'shopify',     label: 'Shopify',      desc: 'Connect via Admin API',                 icon: Ico.cart,   iconBg: 'text-emerald-400', iconBgStyle: { background: 'rgba(16,185,129,0.15)' } },
 ];
 
 // ─── Step 0: Welcome ──────────────────────────────────────────────────────────
 function StepWelcome({ onNext }) {
   return (
     <div className="text-center space-y-6 py-4">
-      <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto text-blue-600">{Ico.wave}</div>
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-amber-400" style={{ background: 'rgba(245,158,11,0.15)' }}>{Ico.wave}</div>
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Welcome to MarketIntel</h2>
-        <p className="text-gray-500 mt-2 text-sm max-w-sm mx-auto">
+        <h2 className="text-2xl font-bold text-white">Welcome to MarketIntel</h2>
+        <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
           Let's get you set up in 3 quick steps. We'll add products, a competitor to monitor, and your first price alert.
         </p>
       </div>
@@ -134,14 +135,14 @@ function StepWelcome({ onNext }) {
           { icon: Ico.globe,  text: 'Monitor any website' },
           { icon: Ico.bell,   text: 'Get price alerts' },
         ].map((f, i) => (
-          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-xs text-gray-600 font-medium">
-            <span className="text-blue-500 scale-75">{f.icon}</span>{f.text}
+          <span key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-white/70 font-medium" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)' }}>
+            <span className="text-amber-400 scale-75">{f.icon}</span>{f.text}
           </span>
         ))}
       </div>
       <button
         onClick={onNext}
-        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-colors"
+        className="inline-flex items-center gap-2 px-6 py-3 text-white rounded-xl font-medium text-sm transition-colors gradient-brand hover:opacity-90"
       >
         Get started {Ico.arrow}
       </button>
@@ -208,22 +209,23 @@ function ImportFlow({ onDone, onBack }) {
   if (subStep === 'source') {
     return (
       <div className="space-y-4">
-        <p className="text-xs text-gray-500">Choose where to pull your product catalogue from:</p>
+        <p className="text-xs text-white/40">Choose where to pull your product catalogue from:</p>
         <div className="grid grid-cols-3 gap-3">
           {IMPORT_SOURCES.map(s => (
             <button
               key={s.value}
               type="button"
               onClick={() => { setSource(s.value); setSubStep('configure'); setError(''); }}
-              className="flex flex-col items-center gap-2 p-4 bg-white border border-gray-200 hover:border-blue-400 hover:bg-blue-50 rounded-xl text-center transition-all"
+              className="flex flex-col items-center gap-2 p-4 rounded-xl text-center transition-all hover:bg-white/5"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.iconBg}`}>{s.icon}</div>
-              <p className="text-xs font-semibold text-gray-900">{s.label}</p>
-              <p className="text-[10px] text-gray-400 leading-tight">{s.desc}</p>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.iconBg}`} style={s.iconBgStyle}>{s.icon}</div>
+              <p className="text-xs font-semibold text-white">{s.label}</p>
+              <p className="text-[10px] text-white/40 leading-tight">{s.desc}</p>
             </button>
           ))}
         </div>
-        <button type="button" onClick={onBack} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+        <button type="button" onClick={onBack} className="text-xs text-white/40 hover:text-white/60 flex items-center gap-1">
           {Ico.back} Switch to manual entry
         </button>
       </div>
@@ -235,35 +237,35 @@ function ImportFlow({ onDone, onBack }) {
     const src = IMPORT_SOURCES.find(s => s.value === source);
     return (
       <div className="space-y-4">
-        <button type="button" onClick={() => setSubStep('source')} className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
+        <button type="button" onClick={() => setSubStep('source')} className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-white/60">
           {Ico.back} Back
         </button>
 
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${src.iconBg}`}>{src.icon}</div>
+          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${src.iconBg}`} style={src.iconBgStyle}>{src.icon}</div>
           <div>
-            <p className="text-sm font-bold text-gray-900">Connect {src.label}</p>
-            <p className="text-xs text-gray-400">{src.desc}</p>
+            <p className="text-sm font-bold text-white">Connect {src.label}</p>
+            <p className="text-xs text-white/40">{src.desc}</p>
           </div>
         </div>
 
-        {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
 
         {/* XML form */}
         {source === 'xml' && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">XML file</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">XML file</label>
               <input
                 type="file"
                 accept=".xml"
                 onChange={e => setXmlFile(e.target.files[0])}
-                className="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                className="block w-full text-xs text-white/40 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-amber-500/20 file:text-amber-400 hover:file:bg-amber-500/30 cursor-pointer"
               />
-              {xmlFile && <p className="mt-1 text-xs text-gray-500">Selected: {xmlFile.name}</p>}
+              {xmlFile && <p className="mt-1 text-xs text-white/40">Selected: {xmlFile.name}</p>}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Format</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Format</label>
               <select value={xmlFormat} onChange={e => setXmlFormat(e.target.value)} className={SELECT}>
                 {XML_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>
@@ -275,24 +277,24 @@ function ImportFlow({ onDone, onBack }) {
         {source === 'woocommerce' && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Store URL <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Store URL <span className="text-red-400">*</span></label>
               <input value={woo.storeUrl} onChange={e => setWoo(w => ({ ...w, storeUrl: e.target.value }))} placeholder="https://yourstore.com" className={INPUT} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Consumer Key <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Consumer Key <span className="text-red-400">*</span></label>
                 <input value={woo.consumerKey} onChange={e => setWoo(w => ({ ...w, consumerKey: e.target.value }))} placeholder="ck_xxxxx" className={INPUT} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Consumer Secret <span className="text-red-400">*</span></label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Consumer Secret <span className="text-red-400">*</span></label>
                 <input type="password" value={woo.consumerSecret} onChange={e => setWoo(w => ({ ...w, consumerSecret: e.target.value }))} placeholder="cs_xxxxx" className={INPUT} />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Max products to import</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Max products to import</label>
               <input type="number" min="1" max="1000" value={woo.importLimit} onChange={e => setWoo(w => ({ ...w, importLimit: parseInt(e.target.value) || 100 }))} className={INPUT} />
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-white/40">
               Find your API keys in WooCommerce → Settings → Advanced → REST API.
             </p>
           </div>
@@ -302,18 +304,18 @@ function ImportFlow({ onDone, onBack }) {
         {source === 'shopify' && (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Shop URL <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Shop URL <span className="text-red-400">*</span></label>
               <input value={shopify.shopUrl} onChange={e => setShopify(s => ({ ...s, shopUrl: e.target.value }))} placeholder="your-store.myshopify.com" className={INPUT} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Admin API Access Token <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Admin API Access Token <span className="text-red-400">*</span></label>
               <input type="password" value={shopify.accessToken} onChange={e => setShopify(s => ({ ...s, accessToken: e.target.value }))} placeholder="shpat_xxxxx" className={INPUT} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">Max products to import</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Max products to import</label>
               <input type="number" min="1" max="1000" value={shopify.importLimit} onChange={e => setShopify(s => ({ ...s, importLimit: parseInt(e.target.value) || 100 }))} className={INPUT} />
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-white/40">
               Create a private app in Shopify Admin → Settings → Apps → Develop apps.
             </p>
           </div>
@@ -323,7 +325,7 @@ function ImportFlow({ onDone, onBack }) {
           type="button"
           onClick={runImport}
           disabled={importing}
-          className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full py-2.5 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 gradient-brand hover:opacity-90"
         >
           {importing ? <>{Ico.spin} Importing…</> : 'Import Products'}
         </button>
@@ -335,18 +337,18 @@ function ImportFlow({ onDone, onBack }) {
   if (subStep === 'done') {
     return (
       <div className="text-center space-y-4 py-2">
-        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto text-emerald-500">{Ico.checkLg}</div>
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto text-emerald-400" style={{ background: 'rgba(16,185,129,0.15)' }}>{Ico.checkLg}</div>
         <div>
-          <p className="text-base font-bold text-gray-900">Import complete!</p>
-          <p className="text-sm text-gray-500 mt-1">
-            <strong className="text-gray-900">{result?.products_imported ?? 0}</strong> products imported
-            {result?.products_skipped > 0 && <span className="text-gray-400"> · {result.products_skipped} skipped (duplicates)</span>}
+          <p className="text-base font-bold text-white">Import complete!</p>
+          <p className="text-sm text-white/70 mt-1">
+            <strong className="text-white">{result?.products_imported ?? 0}</strong> products imported
+            {result?.products_skipped > 0 && <span className="text-white/40"> · {result.products_skipped} skipped (duplicates)</span>}
           </p>
         </div>
         <button
           type="button"
           onClick={() => onDone({ importedCount: result?.products_imported ?? 0 })}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium transition-colors gradient-brand hover:opacity-90"
         >
           Continue {Ico.arrow}
         </button>
@@ -384,10 +386,10 @@ function StepProduct({ onNext, onSkip }) {
   return (
     <div className="space-y-1">
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shrink-0">{Ico.box}</div>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 shrink-0" style={{ background: 'rgba(245,158,11,0.15)' }}>{Ico.box}</div>
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Add your products</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Add a single product or import your entire catalogue.</p>
+          <h2 className="text-lg font-bold text-white">Add your products</h2>
+          <p className="text-sm text-white/70 mt-0.5">Add a single product or import your entire catalogue.</p>
         </div>
       </div>
 
@@ -396,10 +398,10 @@ function StepProduct({ onNext, onSkip }) {
       {/* ── Manual mode ── */}
       {mode === 'manual' && (
         <>
-          {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-3">{error}</p>}
+          {error && <p className="text-xs text-red-400 rounded-xl px-3 py-2 mb-3" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
           <form onSubmit={handleManualSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              <label className="block text-xs font-medium text-white/70 mb-1.5">
                 Product name <span className="text-red-400">*</span>
               </label>
               <input
@@ -412,26 +414,26 @@ function StepProduct({ onNext, onSkip }) {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">SKU / ASIN</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">SKU / ASIN</label>
                 <input value={form.sku} onChange={e => set('sku', e.target.value)} placeholder="Optional" className={INPUT} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Your price ($)</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Your price ($)</label>
                 <input type="number" step="0.01" min="0" value={form.my_price} onChange={e => set('my_price', e.target.value)} placeholder="e.g. 299.99" className={INPUT} />
               </div>
             </div>
             <div className="flex gap-3 pt-1">
-              <button type="button" onClick={onSkip} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+              <button type="button" onClick={onSkip} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:bg-white/5 hover:text-white/60 transition-colors" style={{ border: '1px solid var(--border)' }}>
                 Skip for now
               </button>
-              <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+              <button type="submit" disabled={saving} className="flex-1 py-2.5 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 gradient-brand hover:opacity-90">
                 {saving ? <>{Ico.spin} Saving…</> : <>Add product {Ico.arrow}</>}
               </button>
             </div>
           </form>
-          <p className="text-xs text-center text-gray-400 mt-2">
+          <p className="text-xs text-center text-white/40 mt-2">
             Want more options?{' '}
-            <Link href="/products/add" className="text-blue-600 hover:underline">Open full product form</Link>
+            <Link href="/products/add" className="text-amber-400 hover:underline">Open full product form</Link>
           </p>
         </>
       )}
@@ -443,8 +445,8 @@ function StepProduct({ onNext, onSkip }) {
             onDone={({ importedCount }) => onNext({ product: null, importedCount })}
             onBack={() => setMode('manual')}
           />
-          <div className="flex gap-3 pt-3 border-t border-gray-50 mt-4">
-            <button type="button" onClick={onSkip} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+          <div className="flex gap-3 pt-3 mt-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <button type="button" onClick={onSkip} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:bg-white/5 hover:text-white/60 transition-colors" style={{ border: '1px solid var(--border)' }}>
               Skip for now
             </button>
           </div>
@@ -490,48 +492,48 @@ function StepCompetitor({ product, importedCount, onNext, onSkip }) {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center text-violet-600 shrink-0">{Ico.globe}</div>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-violet-400 shrink-0" style={{ background: 'rgba(124,58,237,0.15)' }}>{Ico.globe}</div>
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Add a competitor</h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h2 className="text-lg font-bold text-white">Add a competitor</h2>
+          <p className="text-sm text-white/70 mt-0.5">
             Add any website to monitor — Amazon, Shopify stores, or any e-commerce site.
             {productLabel && <> Prices will be matched against <strong>{productLabel}</strong>.</>}
           </p>
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
+      {error && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Name <span className="text-red-400">*</span></label>
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Name <span className="text-red-400">*</span></label>
             <input autoFocus value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Amazon UK" className={INPUT} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Type</label>
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Type</label>
             <select value={form.type} onChange={e => set('type', e.target.value)} className={SELECT}>
               {COMPETITOR_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1.5">Website URL <span className="text-red-400">*</span></label>
+          <label className="block text-xs font-medium text-white/70 mb-1.5">Website URL <span className="text-red-400">*</span></label>
           <input value={form.url} onChange={e => set('url', e.target.value)} placeholder="e.g. amazon.co.uk" className={INPUT} />
         </div>
         <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onSkip} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+          <button type="button" onClick={onSkip} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:bg-white/5 hover:text-white/60 transition-colors" style={{ border: '1px solid var(--border)' }}>
             Skip for now
           </button>
-          <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+          <button type="submit" disabled={saving} className="flex-1 py-2.5 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 gradient-brand hover:opacity-90">
             {saving ? <>{Ico.spin} Saving…</> : <>Add competitor {Ico.arrow}</>}
           </button>
         </div>
       </form>
 
-      <p className="text-xs text-center text-gray-400">
+      <p className="text-xs text-center text-white/40">
         Add more competitors later on the{' '}
-        <Link href="/competitors" className="text-blue-600 hover:underline">Competitors page</Link>
+        <Link href="/competitors" className="text-amber-400 hover:underline">Competitors page</Link>
       </p>
     </div>
   );
@@ -570,24 +572,24 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shrink-0">{Ico.bell}</div>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-amber-400 shrink-0" style={{ background: 'rgba(245,158,11,0.15)' }}>{Ico.bell}</div>
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Set a price alert</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Get notified when conditions change for {productLabel}.</p>
+          <h2 className="text-lg font-bold text-white">Set a price alert</h2>
+          <p className="text-sm text-white/70 mt-0.5">Get notified when conditions change for {productLabel}.</p>
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>}
+      {error && <p className="text-xs text-red-400 rounded-xl px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {ALERT_TYPES.map(t => (
             <button key={t.value} type="button" onClick={() => setAlertType(t.value)}
-              className={`px-3 py-2.5 rounded-xl text-xs font-medium border text-left transition-all ${
-                alertType === t.value
-                  ? 'bg-blue-50 border-blue-300 text-blue-700'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-              }`}
+              className="px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all"
+              style={alertType === t.value
+                ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }
+                : { background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.5)' }
+              }
             >
               {alertType === t.value && <span className="mr-1">✓</span>}
               {t.label}
@@ -597,16 +599,16 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
 
         {showThreshold && (
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">Threshold % (optional)</label>
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Threshold % (optional)</label>
             <input type="number" step="0.1" min="0" value={threshold} onChange={e => setThreshold(e.target.value)} placeholder="e.g. 5 → alert when price drops by 5%" className={INPUT} />
           </div>
         )}
 
         <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onSkip} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors">
+          <button type="button" onClick={onSkip} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:bg-white/5 hover:text-white/60 transition-colors" style={{ border: '1px solid var(--border)' }}>
             Skip for now
           </button>
-          <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+          <button type="submit" disabled={saving} className="flex-1 py-2.5 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 gradient-brand hover:opacity-90">
             {saving ? <>{Ico.spin} Saving…</> : <>Create alert {Ico.arrow}</>}
           </button>
         </div>
@@ -619,17 +621,17 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
 function StepDone({ product, importedCount, competitor, onDismiss }) {
   return (
     <div className="text-center space-y-6 py-4">
-      <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto text-emerald-600">{Ico.rocket}</div>
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-emerald-400" style={{ background: 'rgba(16,185,129,0.15)' }}>{Ico.rocket}</div>
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">You're all set!</h2>
-        <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">
+        <h2 className="text-2xl font-bold text-white">You're all set!</h2>
+        <p className="text-sm text-white/70 mt-2 max-w-xs mx-auto">
           {!product && importedCount === 0
             ? "Explore MarketIntel and add products when you're ready."
             : "Start scraping to see competitor prices in real time."}
         </p>
       </div>
 
-      <div className="bg-gray-50 rounded-2xl p-4 space-y-2 text-left max-w-xs mx-auto">
+      <div className="rounded-2xl p-4 space-y-2 text-left max-w-xs mx-auto" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
         {importedCount > 0 ? (
           <SummaryRow done label={`${importedCount} product${importedCount !== 1 ? 's' : ''} imported`} />
         ) : (
@@ -644,16 +646,16 @@ function StepDone({ product, importedCount, competitor, onDismiss }) {
           <Link
             href={importedCount > 0 ? '/products' : `/products/${product.id}`}
             onClick={onDismiss}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium transition-colors gradient-brand hover:opacity-90"
           >
             {importedCount > 0 ? 'View all products' : 'View product'} {Ico.arrow}
           </Link>
         ) : (
-          <Link href="/products/add" onClick={onDismiss} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+          <Link href="/products/add" onClick={onDismiss} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium transition-colors gradient-brand hover:opacity-90">
             Add a product {Ico.arrow}
           </Link>
         )}
-        <button onClick={onDismiss} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-colors">
+        <button onClick={onDismiss} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-white/70 rounded-xl text-sm font-medium transition-colors hover:bg-white/5" style={{ border: '1px solid var(--border)' }}>
           Explore dashboard
         </button>
       </div>
@@ -664,10 +666,10 @@ function StepDone({ product, importedCount, competitor, onDismiss }) {
 function SummaryRow({ done, label }) {
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-white text-xs ${done ? 'bg-emerald-500' : 'bg-gray-200'}`}>
+      <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-white text-xs ${done ? 'bg-emerald-500' : 'bg-white/10'}`}>
         {done && Ico.check}
       </span>
-      <span className={`text-sm ${done ? 'text-gray-900' : 'text-gray-400'}`}>{label}</span>
+      <span className={`text-sm ${done ? 'text-white' : 'text-white/40'}`}>{label}</span>
     </div>
   );
 }
@@ -699,16 +701,16 @@ export default function OnboardingWizard({ onDismiss }) {
   const TOTAL = 5; // steps 0‒4
 
   return (
-    <div className="bg-white rounded-2xl border border-blue-100 shadow-sm overflow-hidden">
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       {/* Header */}
-      <div className="px-5 pt-5 pb-4 border-b border-gray-50 flex items-center justify-between">
+      <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          <span className="text-xs font-semibold text-white/40 uppercase tracking-wide">
             Setup Guide · Step {Math.min(step + 1, TOTAL)} of {TOTAL - 1}
           </span>
         </div>
-        <button onClick={handleDismiss} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Dismiss">
+        <button onClick={handleDismiss} className="p-1.5 rounded-lg text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors" title="Dismiss">
           {Ico.x}
         </button>
       </div>

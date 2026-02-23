@@ -17,20 +17,24 @@ const Ico = {
 };
 
 function StatCard({ label, value, sub, color, icon, href }) {
-  const bg = {
-    blue:    'bg-blue-50 text-blue-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    violet:  'bg-violet-50 text-violet-600',
-    amber:   'bg-amber-50 text-amber-600',
-  }[color];
+  const styles = {
+    blue:    { bg: 'rgba(37,99,235,0.12)',    border: 'rgba(37,99,235,0.2)',    text: '#60a5fa' },
+    emerald: { bg: 'rgba(5,150,105,0.12)',    border: 'rgba(5,150,105,0.2)',    text: '#34d399' },
+    violet:  { bg: 'rgba(124,58,237,0.12)',   border: 'rgba(124,58,237,0.2)',   text: '#a78bfa' },
+    amber:   { bg: 'rgba(245,158,11,0.12)',   border: 'rgba(245,158,11,0.2)',   text: '#fbbf24' },
+  }[color] || { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', text: '#9ca3af' };
 
   const inner = (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 ${href ? 'hover:shadow-md hover:border-gray-200 transition-all' : ''}`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>{icon}</div>
+    <div className={`rounded-2xl p-5 flex items-center gap-4 transition-all ${href ? 'hover:scale-[1.02]' : ''}`}
+      style={{ background: styles.bg, border: `1px solid ${styles.border}` }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: `${styles.bg}`, color: styles.text, border: `1px solid ${styles.border}` }}>
+        {icon}
+      </div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
-        <p className="text-xs text-gray-500 mt-1">{label}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        <p className="text-2xl font-bold text-white leading-none">{value}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+        {sub && <p className="text-xs mt-0.5" style={{ color: 'var(--text-dim)' }}>{sub}</p>}
       </div>
     </div>
   );
@@ -39,19 +43,19 @@ function StatCard({ label, value, sub, color, icon, href }) {
 }
 
 const FEATURES = [
-  { icon: Ico.bolt,   iconBg: 'bg-blue-50 text-blue-600',    title: 'Real-time Scraping',      desc: 'On-demand Playwright scraping with anti-bot detection for Amazon and any custom site.' },
-  { icon: Ico.globe,  iconBg: 'bg-violet-50 text-violet-600', title: 'Any Website',             desc: 'Add any competitor with custom CSS selectors. Works with every e-commerce platform.' },
-  { icon: Ico.chart,  iconBg: 'bg-emerald-50 text-emerald-600', title: 'Price Analytics',       desc: 'Charts, trends, linear regression forecasting, and full historical price data.' },
-  { icon: Ico.bell,   iconBg: 'bg-amber-50 text-amber-600',   title: 'Smart Alerts',           desc: '10 trigger types — price drops, price wars, out-of-stock, new competitors and more.' },
-  { icon: Ico.clock,  iconBg: 'bg-red-50 text-red-500',       title: 'Automated Monitoring',   desc: 'Set schedules and let Celery handle scraping automatically around the clock.' },
-  { icon: Ico.shield, iconBg: 'bg-gray-100 text-gray-500',    title: 'Repricing Rules',        desc: 'Five strategies — match lowest, undercut, margin-based, dynamic, and MAP protected.' },
+  { icon: Ico.bolt,   color: { bg: 'rgba(37,99,235,0.15)',  border: 'rgba(37,99,235,0.2)',  text: '#60a5fa'  }, title: 'Real-time Scraping',    desc: 'On-demand Playwright scraping with anti-bot detection for Amazon and any custom site.' },
+  { icon: Ico.globe,  color: { bg: 'rgba(124,58,237,0.15)', border: 'rgba(124,58,237,0.2)', text: '#a78bfa'  }, title: 'Any Website',            desc: 'Add any competitor with custom CSS selectors. Works with every e-commerce platform.' },
+  { icon: Ico.chart,  color: { bg: 'rgba(5,150,105,0.15)',  border: 'rgba(5,150,105,0.2)',  text: '#34d399'  }, title: 'Price Analytics',        desc: 'Charts, trends, linear regression forecasting, and full historical price data.' },
+  { icon: Ico.bell,   color: { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.2)', text: '#fbbf24'  }, title: 'Smart Alerts',           desc: '10 trigger types — price drops, price wars, out-of-stock, new competitors and more.' },
+  { icon: Ico.clock,  color: { bg: 'rgba(249,115,22,0.15)', border: 'rgba(249,115,22,0.2)', text: '#fb923c'  }, title: 'Automated Monitoring',   desc: 'Set schedules and let Celery handle scraping automatically around the clock.' },
+  { icon: Ico.shield, color: { bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.1)', text: '#94a3b8' }, title: 'Repricing Rules',        desc: 'Five strategies — match lowest, undercut, margin-based, dynamic, and MAP protected.' },
 ];
 
 const QUICK_LINKS = [
-  { href: '/products/add',  label: 'Add Product',         color: 'bg-blue-600 hover:bg-blue-700',    icon: Ico.plus },
-  { href: '/integrations',  label: 'Import Products',     color: 'bg-violet-600 hover:bg-violet-700', icon: Ico.box },
-  { href: '/competitors',   label: 'Manage Competitors',  color: 'bg-emerald-600 hover:bg-emerald-700', icon: Ico.globe },
-  { href: '/alerts',        label: 'Set Up Alerts',       color: 'bg-amber-500 hover:bg-amber-600',   icon: Ico.bell },
+  { href: '/products/add',  label: 'Add Product',        icon: Ico.plus,  style: 'bg-amber-500 hover:bg-amber-400' },
+  { href: '/integrations',  label: 'Import Products',    icon: Ico.box,   style: 'bg-blue-600 hover:bg-blue-500' },
+  { href: '/competitors',   label: 'Manage Competitors', icon: Ico.globe, style: 'bg-violet-600 hover:bg-violet-500' },
+  { href: '/alerts',        label: 'Set Up Alerts',      icon: Ico.bell,  style: 'bg-emerald-600 hover:bg-emerald-500' },
 ];
 
 export default function Home() {
@@ -62,7 +66,6 @@ export default function Home() {
 
   useEffect(() => {
     loadData();
-    // Delay wizard check until after client hydration
     setShowWizard(shouldShowOnboarding());
   }, []);
 
@@ -88,29 +91,36 @@ export default function Home() {
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
 
-        {/* ── Onboarding wizard (new users) ─────────────────────────── */}
+        {/* Onboarding wizard */}
         {isNew && showWizard && (
           <OnboardingWizard
             onDismiss={() => {
               setShowWizard(false);
-              loadData(); // refresh stats in case they created something
+              loadData();
             }}
           />
         )}
 
-        {/* ── Hero banner (only shown when no wizard / has products) ── */}
+        {/* Hero banner */}
         {(!isNew || !showWizard) && (
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-6 lg:p-8 text-white relative overflow-hidden">
-            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 70% 50%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          <div className="rounded-2xl p-6 lg:p-8 relative overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(249,115,22,0.08) 50%, rgba(14,14,26,0) 100%)',
+              border: '1px solid rgba(245,158,11,0.2)',
+            }}>
+            <div className="absolute inset-0 opacity-5" style={{ backgroundImage: 'radial-gradient(circle at 70% 50%, #f59e0b 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+            {/* Amber glow orb */}
+            <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full opacity-10" style={{ background: 'radial-gradient(circle, #f59e0b, transparent 70%)' }} />
             <div className="relative">
-              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium mb-3">
+              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium mb-3 text-amber-400"
+                style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 Real-time competitive intelligence
               </div>
-              <h1 className="text-2xl lg:text-3xl font-bold mb-2">
+              <h1 className="text-2xl lg:text-3xl font-bold mb-2 text-white">
                 {isNew ? 'Welcome to MarketIntel' : 'Good to see you back'}
               </h1>
-              <p className="text-blue-100 text-sm max-w-xl">
+              <p className="text-sm max-w-xl" style={{ color: 'var(--text-muted)' }}>
                 {isNew
                   ? 'Start by adding a product to monitor, then add competitor websites to track.'
                   : `You're monitoring ${stats.products} product${stats.products !== 1 ? 's' : ''} across ${stats.competitors} competitor${stats.competitors !== 1 ? 's' : ''}.`
@@ -118,10 +128,11 @@ export default function Home() {
               </p>
               {isNew && (
                 <div className="flex flex-wrap gap-3 mt-4">
-                  <Link href="/products/add" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-blue-700 rounded-xl text-sm font-semibold hover:bg-blue-50 transition-colors">
+                  <Link href="/products/add" className="inline-flex items-center gap-2 px-4 py-2 gradient-brand text-white rounded-xl text-sm font-semibold shadow-gradient hover:opacity-90 transition-opacity">
                     {Ico.plus} Add first product
                   </Link>
-                  <Link href="/integrations" className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-medium transition-colors">
+                  <Link href="/integrations" className="inline-flex items-center gap-2 px-4 py-2 text-white/70 hover:text-white rounded-xl text-sm font-medium transition-colors"
+                    style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
                     Import from XML / WooCommerce
                   </Link>
                 </div>
@@ -130,95 +141,88 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Stats row ──────────────────────────────────────────────── */}
+        {/* Stats row */}
         {!loading && (
           <div className="grid grid-cols-3 gap-4">
-            <StatCard
-              label="Products"
-              value={stats.products}
-              color="blue"
-              icon={Ico.box}
-              href="/products"
-            />
-            <StatCard
-              label="Competitors"
-              value={stats.competitors}
-              color="violet"
-              icon={Ico.globe}
-              href="/competitors"
-            />
-            <StatCard
-              label="Price Matches"
-              value={stats.matches}
-              color="emerald"
-              icon={Ico.chart}
-              href="/dashboard"
-            />
+            <StatCard label="Products"     value={stats.products}   color="blue"    icon={Ico.box}   href="/products" />
+            <StatCard label="Competitors"  value={stats.competitors} color="violet"  icon={Ico.globe} href="/competitors" />
+            <StatCard label="Price Matches" value={stats.matches}   color="emerald"  icon={Ico.chart} href="/dashboard" />
           </div>
         )}
 
         {loading && (
           <div className="grid grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
+            ))}
           </div>
         )}
 
-        {/* ── Quick links ─────────────────────────────────────────────── */}
+        {/* Quick links */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {QUICK_LINKS.map((l, i) => (
-            <Link key={i} href={l.href} className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white transition-colors ${l.color}`}>
+            <Link key={i} href={l.href} className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-[1.02] ${l.style}`}>
               {l.icon} {l.label}
             </Link>
           ))}
         </div>
 
-        {/* ── Recent products ─────────────────────────────────────────── */}
+        {/* Recent products */}
         {recent.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">Recent Products</h2>
-              <Link href="/products" className="text-xs text-blue-600 hover:underline font-medium flex items-center gap-1">
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-sm font-semibold text-white">Recent Products</h2>
+              <Link href="/products" className="text-xs text-amber-400 hover:text-amber-300 font-medium flex items-center gap-1 transition-colors">
                 View all {Ico.arrow}
               </Link>
             </div>
-            <div className="divide-y divide-gray-50">
+            <div>
               {recent.map((p) => (
-                <Link key={p.id} href={`/products/${p.id}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors group">
+                <Link key={p.id} href={`/products/${p.id}`}
+                  className="flex items-center justify-between px-5 py-3 group transition-colors"
+                  style={{ borderBottom: '1px solid var(--border)' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-600 transition-colors">{p.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-sm font-medium text-white truncate group-hover:text-amber-400 transition-colors">{p.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {p.brand && <span className="mr-2">{p.brand}</span>}
                       {p.competitor_count || 0} match{(p.competitor_count || 0) !== 1 ? 'es' : ''}
                     </p>
                   </div>
-                  <span className="text-gray-300 group-hover:text-blue-400 transition-colors ml-3">{Ico.arrow}</span>
+                  <span className="text-white/20 group-hover:text-amber-400 transition-colors ml-3">{Ico.arrow}</span>
                 </Link>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── Feature grid ─────────────────────────────────────────────── */}
+        {/* Feature grid */}
         <div>
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">Platform Features</h2>
+          <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-muted)' }}>Platform Features</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map((f, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${f.iconBg}`}>{f.icon}</div>
+              <div key={i} className="rounded-2xl p-5 flex items-start gap-4 transition-all hover:scale-[1.01]"
+                style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: f.color.bg, color: f.color.text, border: `1px solid ${f.color.border}` }}>
+                  {f.icon}
+                </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{f.title}</p>
-                  <p className="text-xs text-gray-500 mt-1 leading-relaxed">{f.desc}</p>
+                  <p className="text-sm font-semibold text-white">{f.title}</p>
+                  <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{f.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* ── Reopen wizard button (for returning new users) ──────────── */}
+        {/* Reopen wizard */}
         {isNew && !showWizard && (
           <button
             onClick={() => setShowWizard(true)}
-            className="w-full py-3 border border-dashed border-blue-200 rounded-2xl text-sm text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-colors font-medium"
+            className="w-full py-3 rounded-2xl text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors font-medium"
+            style={{ border: '1px dashed rgba(245,158,11,0.3)' }}
           >
             Reopen setup guide
           </button>

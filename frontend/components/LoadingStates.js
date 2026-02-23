@@ -7,21 +7,21 @@ export function LoadingSpinner({ size = 'md', color = 'primary' }) {
   };
 
   const colorClasses = {
-    primary: 'border-primary-600',
-    white: 'border-white',
-    gray: 'border-gray-600'
+    primary: 'border-amber-500',
+    white:   'border-white',
+    gray:    'border-white/30'
   };
 
   return (
-    <div className={`animate-spin rounded-full border-b-2 ${sizeClasses[size]} ${colorClasses[color]}`} />
+    <div className={`animate-spin rounded-full border-2 border-t-transparent ${sizeClasses[size]} ${colorClasses[color]}`} />
   );
 }
 
 export function LoadingScreen({ message = 'Loading...' }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex flex-col items-center justify-center min-h-screen" style={{ background: 'var(--bg-base)' }}>
       <LoadingSpinner size="xl" />
-      <p className="mt-4 text-lg text-gray-600">{message}</p>
+      <p className="mt-4 text-base" style={{ color: 'var(--text-muted)' }}>{message}</p>
     </div>
   );
 }
@@ -36,25 +36,25 @@ export function SkeletonLine({ width = 'full' }) {
   };
 
   return (
-    <div className={`h-4 bg-gray-200 rounded animate-pulse ${widthClasses[width]}`} />
+    <div className={`h-4 rounded animate-pulse ${widthClasses[width]}`} style={{ background: 'var(--bg-elevated)' }} />
   );
 }
 
 export function SkeletonCard() {
   return (
-    <div className="bg-white rounded-lg shadow p-6 space-y-4 animate-pulse">
+    <div className="rounded-2xl p-6 space-y-4 animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between">
-        <div className="h-6 bg-gray-200 rounded w-1/3" />
-        <div className="h-5 bg-gray-200 rounded w-16" />
+        <div className="h-6 rounded w-1/3" style={{ background: 'var(--bg-elevated)' }} />
+        <div className="h-5 rounded w-16" style={{ background: 'var(--bg-elevated)' }} />
       </div>
-      <div className="h-32 bg-gray-200 rounded" />
+      <div className="h-32 rounded" style={{ background: 'var(--bg-elevated)' }} />
       <div className="space-y-2">
-        <div className="h-4 bg-gray-200 rounded w-full" />
-        <div className="h-4 bg-gray-200 rounded w-3/4" />
+        <div className="h-4 rounded w-full" style={{ background: 'var(--bg-elevated)' }} />
+        <div className="h-4 rounded w-3/4" style={{ background: 'var(--bg-elevated)' }} />
       </div>
-      <div className="flex justify-between items-center pt-4 border-t">
-        <div className="h-8 bg-gray-200 rounded w-20" />
-        <div className="h-8 bg-gray-200 rounded w-24" />
+      <div className="flex justify-between items-center pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="h-8 rounded w-20" style={{ background: 'var(--bg-elevated)' }} />
+        <div className="h-8 rounded w-24" style={{ background: 'var(--bg-elevated)' }} />
       </div>
     </div>
   );
@@ -62,22 +62,20 @@ export function SkeletonCard() {
 
 export function SkeletonTable({ rows = 5 }) {
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
         <div className="flex gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-4 bg-gray-200 rounded flex-1 animate-pulse" />
+            <div key={i} className="h-4 rounded flex-1 animate-pulse" style={{ background: 'var(--bg-surface)' }} />
           ))}
         </div>
       </div>
-      {/* Rows */}
-      <div className="divide-y divide-gray-200">
+      <div>
         {[...Array(rows)].map((_, i) => (
-          <div key={i} className="px-6 py-4">
+          <div key={i} className="px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <div className="flex gap-4">
               {[...Array(4)].map((_, j) => (
-                <div key={j} className="h-4 bg-gray-200 rounded flex-1 animate-pulse" />
+                <div key={j} className="h-4 rounded flex-1 animate-pulse" style={{ background: 'var(--bg-elevated)' }} />
               ))}
             </div>
           </div>
@@ -91,13 +89,13 @@ export function SkeletonStats() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[...Array(3)].map((_, i) => (
-        <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
+        <div key={i} className="rounded-2xl p-6 animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-4">
-            <div className="h-12 w-12 bg-gray-200 rounded-lg" />
-            <div className="h-6 w-16 bg-gray-200 rounded" />
+            <div className="h-12 w-12 rounded-xl" style={{ background: 'var(--bg-elevated)' }} />
+            <div className="h-6 w-16 rounded" style={{ background: 'var(--bg-elevated)' }} />
           </div>
-          <div className="h-8 bg-gray-200 rounded w-20 mb-2" />
-          <div className="h-4 bg-gray-200 rounded w-32" />
+          <div className="h-8 rounded w-20 mb-2" style={{ background: 'var(--bg-elevated)' }} />
+          <div className="h-4 rounded w-32" style={{ background: 'var(--bg-elevated)' }} />
         </div>
       ))}
     </div>
@@ -106,9 +104,9 @@ export function SkeletonStats() {
 
 export function SkeletonChart() {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="h-6 bg-gray-200 rounded w-1/4 mb-6 animate-pulse" />
-      <div className="h-64 bg-gray-200 rounded animate-pulse" />
+    <div className="rounded-2xl p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="h-6 rounded w-1/4 mb-6 animate-pulse" style={{ background: 'var(--bg-elevated)' }} />
+      <div className="h-64 rounded animate-pulse" style={{ background: 'var(--bg-elevated)' }} />
     </div>
   );
 }

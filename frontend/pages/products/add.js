@@ -34,14 +34,14 @@ export default function AddProductPage() {
     }
   };
 
-  const inputCls = 'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-shadow';
+  const inputCls = 'glass-input w-full px-3.5 py-2.5 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition-shadow';
 
   return (
     <Layout>
       <div className="p-4 lg:p-6 max-w-2xl mx-auto">
 
         {/* Back link */}
-        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5 transition-colors">
+        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm hover:text-white/70 mb-5 transition-colors" style={{ color: 'var(--text-muted)' }}>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
@@ -49,26 +49,26 @@ export default function AddProductPage() {
         </Link>
 
         {/* Main card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h1 className="text-lg font-bold text-gray-900">Add New Product</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Add a product to start tracking competitor prices</p>
+        <div className="rounded-2xl shadow-sm" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h1 className="text-lg font-bold text-white">Add New Product</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Add a product to start tracking competitor prices</p>
           </div>
 
           <div className="p-5">
             {error && (
-              <div className="mb-5 bg-red-50 border border-red-100 rounded-xl p-3.5 flex items-start gap-3">
-                <svg className="w-4 h-4 text-red-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div className="mb-5 bg-red-500/10 border border-red-500/20 rounded-xl p-3.5 flex items-start gap-3">
+                <svg className="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm text-red-700">{error}</p>
+                <p className="text-sm text-red-400">{error}</p>
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label className="block text-sm font-medium text-white/70 mb-1.5">
                   Product Title <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -81,13 +81,13 @@ export default function AddProductPage() {
                   placeholder="e.g. Sony WH-1000XM5 Wireless Headphones"
                   className={inputCls}
                 />
-                <p className="text-xs text-gray-400 mt-1">The product name used to search for competitor listings</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>The product name used to search for competitor listings</p>
               </div>
 
               {/* Brand + SKU */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Brand</label>
+                  <label className="block text-sm font-medium text-white/70 mb-1.5">Brand</label>
                   <input
                     type="text"
                     name="brand"
@@ -98,7 +98,7 @@ export default function AddProductPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">SKU / Code</label>
+                  <label className="block text-sm font-medium text-white/70 mb-1.5">SKU / Code</label>
                   <input
                     type="text"
                     name="sku"
@@ -112,7 +112,7 @@ export default function AddProductPage() {
 
               {/* Image URL */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Image URL</label>
+                <label className="block text-sm font-medium text-white/70 mb-1.5">Image URL</label>
                 <input
                   type="url"
                   name="image_url"
@@ -121,17 +121,17 @@ export default function AddProductPage() {
                   placeholder="https://example.com/product-image.jpg"
                   className={inputCls}
                 />
-                <p className="text-xs text-gray-400 mt-1">Optional — used for the product card thumbnail</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Optional — used for the product card thumbnail</p>
               </div>
 
               {/* Pricing section */}
               <div className="pt-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Pricing & Margin</p>
+                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Pricing & Margin</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">My Selling Price</label>
+                    <label className="block text-sm font-medium text-white/70 mb-1.5">My Selling Price</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
                       <input
                         type="number"
                         name="my_price"
@@ -145,12 +145,12 @@ export default function AddProductPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <label className="block text-sm font-medium text-white/70 mb-1.5">
                       Cost / COGS{' '}
-                      <span className="text-xs text-violet-600 font-normal">(enables margin view)</span>
+                      <span className="text-xs font-normal" style={{ color: 'var(--text-muted)' }}>(enables margin view)</span>
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
                       <input
                         type="number"
                         name="cost_price"
@@ -162,20 +162,20 @@ export default function AddProductPage() {
                         className={`${inputCls} pl-7`}
                       />
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">Landed cost — used to calculate margin vs competitors</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Landed cost — used to calculate margin vs competitors</p>
                   </div>
                 </div>
               </div>
 
               {/* Product identifiers */}
               <div className="pt-1">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>
                   Product Identifiers{' '}
-                  <span className="text-xs text-blue-600 font-normal normal-case">(improves match accuracy)</span>
+                  <span className="text-xs text-amber-400 font-normal normal-case">(improves match accuracy)</span>
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">MPN</label>
+                    <label className="block text-sm font-medium text-white/70 mb-1.5">MPN</label>
                     <input
                       type="text"
                       name="mpn"
@@ -184,10 +184,10 @@ export default function AddProductPage() {
                       placeholder="e.g. WH1000XM5/B"
                       className={inputCls}
                     />
-                    <p className="text-xs text-gray-400 mt-1">Manufacturer Part Number</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Manufacturer Part Number</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">UPC / EAN</label>
+                    <label className="block text-sm font-medium text-white/70 mb-1.5">UPC / EAN</label>
                     <input
                       type="text"
                       name="upc_ean"
@@ -196,23 +196,24 @@ export default function AddProductPage() {
                       placeholder="e.g. 027242920958"
                       className={inputCls}
                     />
-                    <p className="text-xs text-gray-400 mt-1">Barcode — exact match guarantee</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Barcode — exact match guarantee</p>
                   </div>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-50 mt-2">
+              <div className="flex items-center justify-between pt-2 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
                 <Link
                   href="/products"
-                  className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                  className="px-4 py-2.5 text-sm font-medium hover:text-white/70 transition-colors"
+                  style={{ color: 'var(--text-muted)' }}
                 >
                   Cancel
                 </Link>
                 <button
                   type="submit"
                   disabled={loading || !formData.title.trim()}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 gradient-brand text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
                   {loading ? (
                     <>
@@ -237,8 +238,8 @@ export default function AddProductPage() {
         </div>
 
         {/* What happens next */}
-        <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-blue-900 mb-3">What happens next?</h3>
+        <div className="mt-4 rounded-2xl p-5" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
+          <h3 className="text-sm font-semibold text-amber-400 mb-3">What happens next?</h3>
           <ul className="space-y-2.5">
             {[
               'Product is added to your monitoring catalogue',
@@ -246,9 +247,9 @@ export default function AddProductPage() {
               'Price changes are tracked automatically on a schedule',
               'Set up alerts for price drops, out-of-stock events, and more',
             ].map((step, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-sm text-blue-800">
-                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
-                  <span className="text-[10px] font-bold text-blue-600">{i + 1}</span>
+              <li key={i} className="flex items-start gap-2.5 text-sm text-white/70">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: 'rgba(245,158,11,0.15)' }}>
+                  <span className="text-[10px] font-bold text-amber-400">{i + 1}</span>
                 </div>
                 {step}
               </li>
@@ -257,9 +258,9 @@ export default function AddProductPage() {
         </div>
 
         {/* Import alternative */}
-        <p className="text-center text-xs text-gray-400 mt-4">
+        <p className="text-center text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
           Have many products?{' '}
-          <Link href="/integrations" className="text-blue-600 hover:underline font-medium">
+          <Link href="/integrations" className="text-amber-400 hover:text-amber-300 font-medium">
             Import from XML, WooCommerce, or Shopify →
           </Link>
         </p>

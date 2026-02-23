@@ -54,42 +54,42 @@ const Ico = {
 const POS = {
   at_risk: {
     label: 'At Risk',
-    badge: 'bg-red-100 text-red-700 border border-red-200',
+    badge: 'bg-red-900/40 text-red-400 border border-red-800/50',
     bar: 'bg-red-500',
-    ring: 'ring-red-200',
+    ring: 'ring-red-900/40',
     dot: 'bg-red-500',
     desc: "You're most expensive — likely losing sales",
   },
   opportunity: {
     label: 'Opportunity',
-    badge: 'bg-amber-100 text-amber-700 border border-amber-200',
+    badge: 'bg-amber-900/40 text-amber-400 border border-amber-800/50',
     bar: 'bg-amber-400',
-    ring: 'ring-amber-200',
+    ring: 'ring-amber-900/40',
     dot: 'bg-amber-400',
     desc: 'Competitor out of stock — consider raising price',
   },
   watching: {
     label: 'Watching',
-    badge: 'bg-blue-100 text-blue-700 border border-blue-200',
+    badge: 'bg-blue-900/40 text-blue-400 border border-blue-800/50',
     bar: 'bg-blue-400',
-    ring: 'ring-blue-200',
+    ring: 'ring-blue-900/40',
     dot: 'bg-blue-400',
     desc: "You're mid-range — monitor closely",
   },
   winning: {
     label: 'Winning',
-    badge: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+    badge: 'bg-emerald-900/40 text-emerald-400 border border-emerald-800/50',
     bar: 'bg-emerald-500',
-    ring: 'ring-emerald-200',
+    ring: 'ring-emerald-900/40',
     dot: 'bg-emerald-500',
     desc: "You're price-competitive",
   },
   no_data: {
     label: 'No Data',
-    badge: 'bg-gray-100 text-gray-500 border border-gray-200',
-    bar: 'bg-gray-300',
-    ring: 'ring-gray-200',
-    dot: 'bg-gray-300',
+    badge: 'bg-white/10 text-white/40 border border-white/10',
+    bar: 'bg-white/20',
+    ring: 'ring-white/10',
+    dot: 'bg-white/30',
     desc: 'No competitor data yet — run a scrape',
   },
 };
@@ -172,7 +172,8 @@ function ProductCard({ product, matches }) {
 
   return (
     <div
-      className={`glass-card rounded-2xl overflow-hidden ring-1 ${pos.ring} hover:shadow-glass-lg transition-shadow`}
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className={`rounded-2xl overflow-hidden ring-1 ${pos.ring} hover:shadow-glass-lg transition-shadow`}
     >
       {/* Colour bar */}
       <div className={`h-1 w-full ${pos.bar}`} />
@@ -183,12 +184,12 @@ function ProductCard({ product, matches }) {
           <div className="flex-1 min-w-0">
             <Link
               href={`/products/${product.id}`}
-              className="text-sm font-semibold text-slate-900 hover:text-blue-600 line-clamp-2 transition-colors"
+              className="text-sm font-semibold text-white hover:text-amber-400 line-clamp-2 transition-colors"
             >
               {product.title}
             </Link>
             {product.brand && (
-              <p className="text-xs text-slate-400 mt-0.5">{product.brand}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{product.brand}</p>
             )}
           </div>
           <span
@@ -199,26 +200,26 @@ function ProductCard({ product, matches }) {
         </div>
 
         {/* Price comparison */}
-        <div className="bg-white/40 rounded-xl p-3 mb-3 space-y-1.5">
+        <div className="rounded-xl p-3 mb-3 space-y-1.5" style={{ background: 'var(--bg-elevated)' }}>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500">My price</span>
-            <span className="font-semibold text-slate-900">
+            <span style={{ color: 'var(--text-muted)' }}>My price</span>
+            <span className="font-semibold text-white">
               {myPrice != null ? `$${myPrice.toFixed(2)}` : '—'}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
-            <span className="text-slate-500">Lowest competitor</span>
-            <span className="font-semibold text-slate-900">
+            <span style={{ color: 'var(--text-muted)' }}>Lowest competitor</span>
+            <span className="font-semibold text-white">
               {lowestCompetitor != null ? `$${lowestCompetitor.toFixed(2)}` : '—'}
             </span>
           </div>
 
           {gap != null && (
-            <div className="flex items-center justify-between text-xs border-t border-white/40 pt-1.5 mt-1.5">
-              <span className="text-slate-500">Gap</span>
+            <div className="flex items-center justify-between text-xs pt-1.5 mt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Gap</span>
               <span
                 className={`font-bold ${
-                  gap > 0 ? 'text-red-600' : 'text-emerald-600'
+                  gap > 0 ? 'text-red-400' : 'text-emerald-400'
                 }`}
               >
                 {gap > 0 ? '+' : ''}${gap.toFixed(2)} ({gapPct > 0 ? '+' : ''}
@@ -230,13 +231,13 @@ function ProductCard({ product, matches }) {
 
         {/* Margin section (only when cost_price is set) */}
         {costPrice != null && (
-          <div className="bg-violet-100/40 rounded-xl p-3 mb-3 space-y-1.5">
-            <p className="text-xs font-semibold text-violet-700 mb-1">Margin Intelligence</p>
+          <div className="rounded-xl p-3 mb-3 space-y-1.5" style={{ background: 'rgba(139,92,246,0.1)' }}>
+            <p className="text-xs font-semibold text-violet-400 mb-1">Margin Intelligence</p>
             {myMargin != null && (
               <div className="flex items-center justify-between text-xs">
-                <span className="text-violet-600">At my price</span>
+                <span className="text-violet-400/70">At my price</span>
                 <span
-                  className={`font-bold ${myMargin >= 20 ? 'text-emerald-600' : myMargin >= 0 ? 'text-amber-600' : 'text-red-600'}`}
+                  className={`font-bold ${myMargin >= 20 ? 'text-emerald-400' : myMargin >= 0 ? 'text-amber-400' : 'text-red-400'}`}
                 >
                   {myMargin.toFixed(1)}%
                 </span>
@@ -244,9 +245,9 @@ function ProductCard({ product, matches }) {
             )}
             {matchMargin != null && lowestCompetitor != null && (
               <div className="flex items-center justify-between text-xs">
-                <span className="text-violet-600">If I match ${lowestCompetitor.toFixed(2)}</span>
+                <span className="text-violet-400/70">If I match ${lowestCompetitor.toFixed(2)}</span>
                 <span
-                  className={`font-bold ${matchMargin >= 20 ? 'text-emerald-600' : matchMargin >= 0 ? 'text-amber-600' : 'text-red-600'}`}
+                  className={`font-bold ${matchMargin >= 20 ? 'text-emerald-400' : matchMargin >= 0 ? 'text-amber-400' : 'text-red-400'}`}
                 >
                   {matchMargin.toFixed(1)}%
                 </span>
@@ -256,10 +257,10 @@ function ProductCard({ product, matches }) {
         )}
 
         {/* Stats row */}
-        <div className="flex items-center gap-3 text-xs text-slate-400 mb-3">
+        <div className="flex items-center gap-3 text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
           <span>{matches?.length ?? 0} competitors</span>
           {oosCount > 0 && (
-            <span className="text-amber-600 font-medium">{oosCount} out of stock</span>
+            <span className="text-amber-400 font-medium">{oosCount} out of stock</span>
           )}
           {avgCompetitor && (
             <span>avg ${avgCompetitor.toFixed(2)}</span>
@@ -276,7 +277,8 @@ function ProductCard({ product, matches }) {
           </Link>
           <button
             onClick={() => downloadCSV(product)}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg glass border border-white/60 hover:bg-white/40 text-slate-500 hover:text-slate-700 transition-colors"
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-white/5 transition-colors"
             title="Download CSV"
           >
             {Ico.download}
@@ -293,17 +295,18 @@ function SummaryCard({ label, count, total, color, dotColor, onClick, active }) 
   return (
     <button
       onClick={onClick}
-      className={`text-left glass-card rounded-2xl shadow-glass p-5 flex items-center gap-4 w-full transition-all hover:shadow-glass-lg ${
-        active ? 'ring-2 ring-blue-300/60' : ''
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className={`text-left rounded-2xl p-5 flex items-center gap-4 w-full transition-all hover:bg-white/5 ${
+        active ? 'ring-2 ring-amber-400/40' : ''
       }`}
     >
       <div className={`w-3 h-3 rounded-full shrink-0 ${dotColor}`} />
       <div className="flex-1 min-w-0">
-        <p className="text-2xl font-bold text-slate-900 leading-none">{count}</p>
-        <p className="text-xs text-slate-500 mt-1">{label}</p>
+        <p className="text-2xl font-bold text-white leading-none">{count}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
       </div>
       <div className="text-right">
-        <p className="text-sm font-semibold text-slate-400">{pct}%</p>
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>{pct}%</p>
       </div>
     </button>
   );
@@ -403,15 +406,16 @@ export default function CommandCenter() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Command Center</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-2xl font-bold text-white">Command Center</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Your market position at a glance — every product, every competitor
             </p>
           </div>
           <button
             onClick={loadAll}
             disabled={loading}
-            className="inline-flex items-center gap-2 px-4 py-2 glass border border-white/60 rounded-xl text-sm font-medium text-slate-600 hover:bg-white/40 transition-colors shadow-glass disabled:opacity-50"
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors disabled:opacity-50"
           >
             <span className={loading ? 'animate-spin' : ''}>{Ico.refresh}</span>
             Refresh
@@ -421,7 +425,7 @@ export default function CommandCenter() {
         {/* Summary tiles */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           {[
-            { key: 'all',         label: 'All Products',  dotColor: 'bg-gray-400',    count: total },
+            { key: 'all',         label: 'All Products',  dotColor: 'bg-white/40',    count: total },
             { key: 'at_risk',     label: 'At Risk',       dotColor: 'bg-red-500',     count: counts.at_risk },
             { key: 'opportunity', label: 'Opportunity',   dotColor: 'bg-amber-400',   count: counts.opportunity },
             { key: 'watching',    label: 'Watching',      dotColor: 'bg-blue-400',    count: counts.watching },
@@ -442,7 +446,7 @@ export default function CommandCenter() {
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row gap-3 mb-5">
           <div className="relative flex-1">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
               {Ico.search}
             </div>
             <input
@@ -450,17 +454,18 @@ export default function CommandCenter() {
               placeholder="Search products…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-shadow"
+              className="w-full pl-9 pr-4 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-shadow"
             />
           </div>
           <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
               {Ico.sort}
             </div>
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
-              className="pl-9 pr-8 py-2.5 glass border border-white/60 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50 transition-shadow appearance-none"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'white' }}
+              className="pl-9 pr-8 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 transition-shadow appearance-none"
             >
               <option value="risk_first">Sort: Biggest Risk First</option>
               <option value="price_gap">Sort: Largest Price Gap</option>
@@ -473,8 +478,8 @@ export default function CommandCenter() {
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="glass-card rounded-2xl h-64 animate-pulse">
-                <div className="h-1 w-full bg-white/40 rounded-t-2xl" />
+              <div key={i} className="rounded-2xl h-64 animate-pulse" style={{ background: 'var(--bg-surface)' }}>
+                <div className="h-1 w-full rounded-t-2xl" style={{ background: 'var(--bg-elevated)' }} />
               </div>
             ))}
           </div>
@@ -482,7 +487,7 @@ export default function CommandCenter() {
 
         {/* Product grid */}
         {!loading && visible.length === 0 && (
-          <div className="text-center py-16 text-slate-400">
+          <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>
             <p className="text-lg font-medium">No products match your filter</p>
             <p className="text-sm mt-1">Try changing the filter or search term</p>
           </div>
@@ -490,7 +495,7 @@ export default function CommandCenter() {
 
         {!loading && visible.length > 0 && (
           <>
-            <p className="text-xs text-slate-400 mb-3">
+            <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
               Showing {visible.length} of {total} products
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -503,15 +508,15 @@ export default function CommandCenter() {
 
         {/* Legend */}
         {!loading && (
-          <div className="mt-8 glass-card rounded-2xl shadow-glass p-5">
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">Position Legend</h2>
+          <div className="mt-8 rounded-2xl p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white/70 mb-3">Position Legend</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {Object.entries(POS).filter(([k]) => k !== 'no_data').map(([key, p]) => (
                 <div key={key} className="flex items-start gap-2.5">
                   <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${p.dot}`} />
                   <div>
-                    <p className="text-xs font-semibold text-slate-700">{p.label}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{p.desc}</p>
+                    <p className="text-xs font-semibold text-white/70">{p.label}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{p.desc}</p>
                   </div>
                 </div>
               ))}

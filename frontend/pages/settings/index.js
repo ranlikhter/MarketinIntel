@@ -28,10 +28,10 @@ async function apiFetch(path, options = {}) {
 
 function Section({ title, description, children }) {
   return (
-    <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-      <div className="px-6 py-5 border-b border-white/40">
-        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-        {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
+    <div className="rounded-2xl shadow-glass overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="px-6 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
+        <h3 className="text-base font-semibold text-white">{title}</h3>
+        {description && <p className="mt-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>{description}</p>}
       </div>
       <div className="px-6 py-5">{children}</div>
     </div>
@@ -42,8 +42,8 @@ function Field({ label, hint, children }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-8 py-3 first:pt-0 last:pb-0">
       <div className="sm:w-48 shrink-0">
-        <label className="block text-sm font-medium text-slate-700">{label}</label>
-        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
+        <label className="block text-sm font-medium text-white/70">{label}</label>
+        {hint && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{hint}</p>}
       </div>
       <div className="flex-1">{children}</div>
     </div>
@@ -53,8 +53,8 @@ function Field({ label, hint, children }) {
 function Input({ className = '', ...props }) {
   return (
     <input
-      className={`block w-full rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-900 placeholder-slate-400
-        focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none transition-shadow ${className}`}
+      className={`glass-input block w-full rounded-lg px-3 py-2 text-sm text-white placeholder-white/30
+        focus:outline-none transition-shadow ${className}`}
       {...props}
     />
   );
@@ -67,7 +67,7 @@ function SaveButton({ loading, children = 'Save Changes' }) {
       disabled={loading}
       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg gradient-brand text-white text-sm font-medium
         hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-gradient focus:outline-none
-        focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+        focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
     >
       {loading && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -83,9 +83,9 @@ function SaveButton({ loading, children = 'Save Changes' }) {
 function UsageMeter({ label, used, limit, color = 'blue' }) {
   const pct = limit >= 9999 ? 0 : Math.min(100, Math.round((used / limit) * 100));
   const colorMap = {
-    blue:   { bar: 'bg-blue-500',   bg: 'bg-blue-50',   text: 'text-blue-700'   },
-    green:  { bar: 'bg-green-500',  bg: 'bg-green-50',  text: 'text-green-700'  },
-    purple: { bar: 'bg-purple-500', bg: 'bg-purple-50', text: 'text-purple-700' },
+    blue:   { bar: 'bg-blue-500'   },
+    green:  { bar: 'bg-green-500'  },
+    purple: { bar: 'bg-purple-500' },
   };
   const c = colorMap[color] ?? colorMap.blue;
   const barColor = pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : c.bar;
@@ -93,13 +93,13 @@ function UsageMeter({ label, used, limit, color = 'blue' }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium text-slate-700">{label}</span>
-        <span className="text-slate-500">
+        <span className="font-medium text-white/70">{label}</span>
+        <span style={{ color: 'var(--text-muted)' }}>
           {limit >= 9999 ? `${used} / Unlimited` : `${used} / ${limit}`}
         </span>
       </div>
       {limit < 9999 && (
-        <div className="h-2 bg-white/40 rounded-full overflow-hidden">
+        <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
           <div
             className={`h-full rounded-full transition-all duration-500 ${barColor}`}
             style={{ width: `${pct}%` }}
@@ -107,7 +107,7 @@ function UsageMeter({ label, used, limit, color = 'blue' }) {
         </div>
       )}
       {limit < 9999 && pct >= 90 && (
-        <p className="text-xs text-red-600 font-medium">
+        <p className="text-xs text-red-400 font-medium">
           {pct === 100 ? 'Limit reached — upgrade to add more' : `${100 - pct}% remaining`}
         </p>
       )}
@@ -118,10 +118,10 @@ function UsageMeter({ label, used, limit, color = 'blue' }) {
 // ─── TIER CONFIG ──────────────────────────────────────────────────────────────
 
 const TIERS = {
-  free:       { label: 'Free',       gradient: 'from-gray-500 to-gray-600',     badge: 'bg-gray-100 text-gray-700'    },
-  pro:        { label: 'Pro',        gradient: 'from-blue-500 to-blue-700',     badge: 'bg-blue-100 text-blue-700'    },
-  business:   { label: 'Business',   gradient: 'from-purple-500 to-purple-700', badge: 'bg-purple-100 text-purple-700'},
-  enterprise: { label: 'Enterprise', gradient: 'from-amber-500 to-amber-600',   badge: 'bg-amber-100 text-amber-700'  },
+  free:       { label: 'Free',       gradient: 'from-gray-500 to-gray-600',     badge: 'bg-gray-700 text-gray-300'    },
+  pro:        { label: 'Pro',        gradient: 'from-blue-500 to-blue-700',     badge: 'bg-blue-900/60 text-blue-300'    },
+  business:   { label: 'Business',   gradient: 'from-purple-500 to-purple-700', badge: 'bg-purple-900/60 text-purple-300'},
+  enterprise: { label: 'Enterprise', gradient: 'from-amber-500 to-amber-600',   badge: 'bg-amber-900/60 text-amber-300'  },
 };
 
 // ─── TAB COMPONENTS ───────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ function ProfileTab({ user, updateUser }) {
     <button
       type="button"
       onClick={() => setShowPw(p => ({ ...p, [key]: !p[key] }))}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
       tabIndex={-1}
     >
       {showPw[key] ? (
@@ -203,42 +203,46 @@ function ProfileTab({ user, updateUser }) {
       <Section title="Profile Information" description="Update your display name visible across the platform.">
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-blue-100">
+          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-blue-900/60">
             {(user?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)) ||
              user?.email?.[0]?.toUpperCase() || '?'}
           </div>
           <div>
-            <p className="font-semibold text-slate-900">{user?.full_name || 'No name set'}</p>
-            <p className="text-sm text-slate-500">{user?.email}</p>
+            <p className="font-semibold text-white">{user?.full_name || 'No name set'}</p>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
             <div className="flex items-center gap-1.5 mt-1">
               {user?.is_verified ? (
-                <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-medium">
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>
                   <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                   Verified
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
+                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
                   Email not verified
                 </span>
               )}
-              <span className="text-xs text-slate-400">Member since {memberSince}</span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Member since {memberSince}</span>
             </div>
           </div>
         </div>
 
-        <form onSubmit={handleSaveName} className="divide-y divide-white/40">
-          <Field label="Full Name" hint="Shown in your account menu">
-            <Input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Jane Smith"
-            />
-          </Field>
-          <Field label="Email Address" hint="Cannot be changed">
-            <Input value={user?.email ?? ''} readOnly disabled className="bg-white/40 text-slate-500 cursor-not-allowed" />
-          </Field>
+        <form onSubmit={handleSaveName} className="divide-y" style={{ '--tw-divide-opacity': 1 }}>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Full Name" hint="Shown in your account menu">
+              <Input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Jane Smith"
+              />
+            </Field>
+          </div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Email Address" hint="Cannot be changed">
+              <Input value={user?.email ?? ''} readOnly disabled className="opacity-50 cursor-not-allowed" />
+            </Field>
+          </div>
           <div className="pt-4">
             <SaveButton loading={savingName} />
           </div>
@@ -247,67 +251,73 @@ function ProfileTab({ user, updateUser }) {
 
       {/* Change password */}
       <Section title="Change Password" description="Use a strong, unique password.">
-        <form onSubmit={handleChangePw} className="divide-y divide-white/40">
-          <Field label="Current Password">
-            <div className="relative">
-              <Input
-                type={showPw.current ? 'text' : 'password'}
-                value={pw.current}
-                onChange={e => setPw(p => ({ ...p, current: e.target.value }))}
-                placeholder="Enter current password"
-                required
-              />
-              {eyeBtn('current')}
-            </div>
-          </Field>
-          <Field label="New Password" hint="At least 8 characters">
-            <div className="relative">
-              <Input
-                type={showPw.next ? 'text' : 'password'}
-                value={pw.next}
-                onChange={e => setPw(p => ({ ...p, next: e.target.value }))}
-                placeholder="Enter new password"
-                required
-              />
-              {eyeBtn('next')}
-            </div>
-            {pw.next.length > 0 && (
-              <div className="mt-2 flex gap-1">
-                {[8, 12, 16].map((len, i) => (
-                  <div key={i} className={`h-1 flex-1 rounded-full ${pw.next.length >= len ? 'bg-green-500' : 'bg-white/40'}`} />
-                ))}
-                <span className="text-xs text-slate-400 ml-2">
-                  {pw.next.length < 8 ? 'Too short' : pw.next.length < 12 ? 'OK' : pw.next.length < 16 ? 'Good' : 'Strong'}
-                </span>
+        <form onSubmit={handleChangePw} className="divide-y">
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Current Password">
+              <div className="relative">
+                <Input
+                  type={showPw.current ? 'text' : 'password'}
+                  value={pw.current}
+                  onChange={e => setPw(p => ({ ...p, current: e.target.value }))}
+                  placeholder="Enter current password"
+                  required
+                />
+                {eyeBtn('current')}
               </div>
-            )}
-          </Field>
-          <Field label="Confirm Password">
-            <div className="relative">
-              <Input
-                type={showPw.confirm ? 'text' : 'password'}
-                value={pw.confirm}
-                onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))}
-                placeholder="Repeat new password"
-                required
-              />
-              {eyeBtn('confirm')}
-            </div>
-            {pw.confirm && pw.next && pw.confirm !== pw.next && (
-              <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
-            )}
-            {pw.confirm && pw.next && pw.confirm === pw.next && (
-              <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                Passwords match
-              </p>
-            )}
-          </Field>
+            </Field>
+          </div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="New Password" hint="At least 8 characters">
+              <div className="relative">
+                <Input
+                  type={showPw.next ? 'text' : 'password'}
+                  value={pw.next}
+                  onChange={e => setPw(p => ({ ...p, next: e.target.value }))}
+                  placeholder="Enter new password"
+                  required
+                />
+                {eyeBtn('next')}
+              </div>
+              {pw.next.length > 0 && (
+                <div className="mt-2 flex gap-1">
+                  {[8, 12, 16].map((len, i) => (
+                    <div key={i} className={`h-1 flex-1 rounded-full ${pw.next.length >= len ? 'bg-green-500' : 'bg-white/10'}`} />
+                  ))}
+                  <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+                    {pw.next.length < 8 ? 'Too short' : pw.next.length < 12 ? 'OK' : pw.next.length < 16 ? 'Good' : 'Strong'}
+                  </span>
+                </div>
+              )}
+            </Field>
+          </div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Confirm Password">
+              <div className="relative">
+                <Input
+                  type={showPw.confirm ? 'text' : 'password'}
+                  value={pw.confirm}
+                  onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))}
+                  placeholder="Repeat new password"
+                  required
+                />
+                {eyeBtn('confirm')}
+              </div>
+              {pw.confirm && pw.next && pw.confirm !== pw.next && (
+                <p className="text-xs text-red-400 mt-1">Passwords do not match</p>
+              )}
+              {pw.confirm && pw.next && pw.confirm === pw.next && (
+                <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Passwords match
+                </p>
+              )}
+            </Field>
+          </div>
           {pwError && (
             <div className="pt-3">
-              <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{pwError}</p>
+              <p className="text-sm text-red-400 rounded-lg px-3 py-2" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>{pwError}</p>
             </div>
           )}
           <div className="pt-4">
@@ -365,7 +375,6 @@ function BillingTab({ user }) {
       price: '$49',
       priceId: 'price_pro_monthly',
       gradient: 'from-blue-500 to-blue-700',
-      badge: 'bg-blue-100 text-blue-700',
       features: ['50 products', '100 competitor matches', '10 alerts', 'Priority scraping', 'Advanced analytics'],
     },
     {
@@ -374,7 +383,6 @@ function BillingTab({ user }) {
       price: '$149',
       priceId: 'price_business_monthly',
       gradient: 'from-purple-500 to-purple-700',
-      badge: 'bg-purple-100 text-purple-700',
       features: ['200 products', '500 competitor matches', '50 alerts', 'Team workspace', 'API access', 'White-label reports'],
     },
     {
@@ -383,7 +391,6 @@ function BillingTab({ user }) {
       price: '$499',
       priceId: 'price_enterprise_monthly',
       gradient: 'from-amber-500 to-amber-600',
-      badge: 'bg-amber-100 text-amber-700',
       features: ['Unlimited products', 'Unlimited matches', 'Unlimited alerts', 'Dedicated support', 'Custom integrations'],
     },
   ];
@@ -455,7 +462,7 @@ function BillingTab({ user }) {
           {tier === 'free' && (
             <Link
               href="/pricing"
-              className="px-4 py-2 bg-white text-blue-700 hover:bg-white/90 rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium text-white transition-colors"
             >
               Upgrade Plan
             </Link>
@@ -480,15 +487,15 @@ function BillingTab({ user }) {
               (tier === 'free') ||
               (tier === 'pro' && p.key !== 'pro')
             ).map(plan => (
-              <div key={plan.key} className="glass-card rounded-xl overflow-hidden">
+              <div key={plan.key} className="rounded-xl overflow-hidden" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                 <div className={`bg-gradient-to-br ${plan.gradient} px-4 py-4 text-white`}>
                   <p className="font-bold text-lg">{plan.name}</p>
                   <p className="text-white/80 text-sm">{plan.price}<span className="text-xs">/mo</span></p>
                 </div>
                 <div className="px-4 py-4 space-y-2">
                   {plan.features.map(f => (
-                    <div key={f} className="flex items-center gap-2 text-sm text-slate-600">
-                      <svg className="w-4 h-4 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <div key={f} className="flex items-center gap-2 text-sm text-white/70">
+                      <svg className="w-4 h-4 text-green-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                       {f}
@@ -593,8 +600,8 @@ function NotificationsTab({ user }) {
       aria-checked={value}
       onClick={() => !disabled && onChange(!value)}
       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
-        ${value ? 'bg-blue-600' : 'bg-gray-200'}
+        focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
+        ${value ? 'bg-amber-500' : 'bg-white/20'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
       <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow-md transform transition-transform ${value ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -604,135 +611,149 @@ function NotificationsTab({ user }) {
   return (
     <form onSubmit={handleSave} className="space-y-6">
       <Section title="Default Notification Settings" description="These defaults apply when you create new alert rules.">
-        <div className="divide-y divide-white/40">
-          <Field label="Notification Email" hint="Where alerts will be sent by default">
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                value={prefs.defaultEmail}
-                onChange={e => set('defaultEmail', e.target.value)}
-                placeholder="you@example.com"
-                className="flex-1"
-              />
-              <button
-                type="button"
-                onClick={handleTestEmail}
-                disabled={testingSend || !prefs.defaultEmail}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg glass border border-white/60 text-sm text-slate-600 hover:bg-white/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Send a test email to verify delivery"
-              >
-                {testingSend ? (
-                  <span className="w-3.5 h-3.5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                )}
-                Test
-              </button>
-            </div>
-          </Field>
-          <Field label="Delivery Frequency" hint="How often to bundle alert notifications">
-            <div className="flex flex-col sm:flex-row gap-3 mt-1">
-              {[
-                { value: 'instant', label: 'Instant', desc: 'As they happen' },
-                { value: 'daily',   label: 'Daily Digest', desc: '8 AM summary' },
-                { value: 'weekly',  label: 'Weekly Digest', desc: 'Monday summary' },
-              ].map(opt => (
-                <label key={opt.value} className={`flex-1 flex items-center gap-3 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors
-                  ${prefs.digestFrequency === opt.value ? 'border-blue-400 bg-blue-50/60' : 'border-white/60 hover:border-white/80'}`}>
-                  <input
-                    type="radio"
-                    name="digestFrequency"
-                    value={opt.value}
-                    checked={prefs.digestFrequency === opt.value}
-                    onChange={() => set('digestFrequency', opt.value)}
-                    className="text-blue-600"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">{opt.label}</p>
-                    <p className="text-xs text-slate-500">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </Field>
+        <div className="divide-y" style={{ '--tw-divide-color': 'var(--border)' }}>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Notification Email" hint="Where alerts will be sent by default">
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  value={prefs.defaultEmail}
+                  onChange={e => set('defaultEmail', e.target.value)}
+                  placeholder="you@example.com"
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestEmail}
+                  disabled={testingSend || !prefs.defaultEmail}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-white/60 hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ border: '1px solid var(--border)' }}
+                  title="Send a test email to verify delivery"
+                >
+                  {testingSend ? (
+                    <span className="w-3.5 h-3.5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                  Test
+                </button>
+              </div>
+            </Field>
+          </div>
+          <div>
+            <Field label="Delivery Frequency" hint="How often to bundle alert notifications">
+              <div className="flex flex-col sm:flex-row gap-3 mt-1">
+                {[
+                  { value: 'instant', label: 'Instant', desc: 'As they happen' },
+                  { value: 'daily',   label: 'Daily Digest', desc: '8 AM summary' },
+                  { value: 'weekly',  label: 'Weekly Digest', desc: 'Monday summary' },
+                ].map(opt => (
+                  <label key={opt.value} className={`flex-1 flex items-center gap-3 rounded-lg border-2 px-4 py-3 cursor-pointer transition-colors
+                    ${prefs.digestFrequency === opt.value ? 'border-amber-400 bg-amber-400/10' : 'hover:border-white/20'}`}
+                    style={{ borderColor: prefs.digestFrequency === opt.value ? undefined : 'var(--border)' }}>
+                    <input
+                      type="radio"
+                      name="digestFrequency"
+                      value={opt.value}
+                      checked={prefs.digestFrequency === opt.value}
+                      onChange={() => set('digestFrequency', opt.value)}
+                      className="text-amber-400"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-white">{opt.label}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{opt.desc}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </div>
         </div>
       </Section>
 
       <Section title="Notification Channels" description="Enable extra channels for alert delivery.">
-        <div className="divide-y divide-white/40">
-          <Field label="Email">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Send email notifications</span>
-              <Toggle value={prefs.enableEmail} onChange={v => set('enableEmail', v)} />
-            </div>
-          </Field>
-          <Field label="Slack">
-            <div className="space-y-2">
+        <div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Email">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Send Slack notifications</span>
-                <Toggle value={prefs.enableSlack} onChange={v => set('enableSlack', v)} />
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send email notifications</span>
+                <Toggle value={prefs.enableEmail} onChange={v => set('enableEmail', v)} />
               </div>
-              {prefs.enableSlack && (
-                <Input
-                  type="url"
-                  value={prefs.slackWebhook}
-                  onChange={e => set('slackWebhook', e.target.value)}
-                  placeholder="https://hooks.slack.com/services/..."
-                />
-              )}
-            </div>
-          </Field>
-          <Field label="Discord">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">Send Discord notifications</span>
-                <Toggle value={prefs.enableDiscord} onChange={v => set('enableDiscord', v)} />
+            </Field>
+          </div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Slack">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send Slack notifications</span>
+                  <Toggle value={prefs.enableSlack} onChange={v => set('enableSlack', v)} />
+                </div>
+                {prefs.enableSlack && (
+                  <Input
+                    type="url"
+                    value={prefs.slackWebhook}
+                    onChange={e => set('slackWebhook', e.target.value)}
+                    placeholder="https://hooks.slack.com/services/..."
+                  />
+                )}
               </div>
-              {prefs.enableDiscord && (
-                <Input
-                  type="url"
-                  value={prefs.discordWebhook}
-                  onChange={e => set('discordWebhook', e.target.value)}
-                  placeholder="https://discord.com/api/webhooks/..."
-                />
-              )}
-            </div>
-          </Field>
+            </Field>
+          </div>
+          <div>
+            <Field label="Discord">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send Discord notifications</span>
+                  <Toggle value={prefs.enableDiscord} onChange={v => set('enableDiscord', v)} />
+                </div>
+                {prefs.enableDiscord && (
+                  <Input
+                    type="url"
+                    value={prefs.discordWebhook}
+                    onChange={e => set('discordWebhook', e.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                  />
+                )}
+              </div>
+            </Field>
+          </div>
         </div>
       </Section>
 
       <Section title="Quiet Hours" description="Suppress notifications during off hours.">
-        <div className="divide-y divide-white/40">
-          <Field label="Enable Quiet Hours">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">Pause all alerts during set hours</span>
-              <Toggle value={prefs.quietHours} onChange={v => set('quietHours', v)} />
-            </div>
-          </Field>
+        <div>
+          <div style={{ borderBottom: prefs.quietHours ? '1px solid var(--border)' : undefined }}>
+            <Field label="Enable Quiet Hours">
+              <div className="flex items-center justify-between">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Pause all alerts during set hours</span>
+                <Toggle value={prefs.quietHours} onChange={v => set('quietHours', v)} />
+              </div>
+            </Field>
+          </div>
           {prefs.quietHours && (
             <Field label="Hours" hint="Your local time">
               <div className="flex items-center gap-3 mt-1">
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">From</label>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>From</label>
                   <select
                     value={prefs.quietStart}
                     onChange={e => set('quietStart', Number(e.target.value))}
-                    className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
+                    className="glass-input rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
                     ))}
                   </select>
                 </div>
-                <span className="text-slate-400 mt-5">to</span>
+                <span className="mt-5" style={{ color: 'var(--text-muted)' }}>to</span>
                 <div>
-                  <label className="block text-xs text-slate-500 mb-1">Until</label>
+                  <label className="block text-xs mb-1" style={{ color: 'var(--text-muted)' }}>Until</label>
                   <select
                     value={prefs.quietEnd}
                     onChange={e => set('quietEnd', Number(e.target.value))}
-                    className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
+                    className="glass-input rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
                   >
                     {Array.from({ length: 24 }, (_, i) => (
                       <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
@@ -813,13 +834,13 @@ function ApiAccessTab({ user }) {
     <div className="space-y-6">
       {/* New-key reveal banner */}
       {newKey && (
-        <div className="rounded-xl border border-emerald-200/60 bg-emerald-100/40 backdrop-blur-sm p-4">
-          <p className="text-sm font-semibold text-emerald-800 mb-2">Save your API key — shown only once</p>
+        <div className="rounded-xl p-4" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          <p className="text-sm font-semibold text-emerald-400 mb-2">Save your API key — shown only once</p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white/60 border border-emerald-200/60 rounded-lg px-3 py-2 text-sm font-mono text-slate-800 truncate">{newKey}</code>
+            <code className="flex-1 rounded-lg px-3 py-2 text-sm font-mono text-white/80 truncate" style={{ background: 'var(--bg-elevated)', border: '1px solid rgba(16,185,129,0.2)' }}>{newKey}</code>
             <button onClick={() => { navigator.clipboard.writeText(newKey); addToast('Copied!', 'success'); }}
               className="shrink-0 px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">Copy</button>
-            <button onClick={() => setNewKey(null)} className="text-emerald-400 hover:text-emerald-600 text-xl leading-none">&times;</button>
+            <button onClick={() => setNewKey(null)} className="text-emerald-400 hover:text-emerald-300 text-xl leading-none">&times;</button>
           </div>
         </div>
       )}
@@ -833,20 +854,21 @@ function ApiAccessTab({ user }) {
 
         {/* Key list */}
         {loading ? (
-          <p className="text-sm text-slate-400 text-center py-4">Loading…</p>
+          <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>Loading…</p>
         ) : keys.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-4">No API keys yet.</p>
+          <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>No API keys yet.</p>
         ) : (
-          <div className="divide-y divide-white/40">
+          <div>
             {keys.map((k) => (
-              <div key={k.id} className="flex items-center justify-between py-3 first:pt-0">
+              <div key={k.id} className="flex items-center justify-between py-3 first:pt-0" style={{ borderBottom: '1px solid var(--border)' }}>
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{k.name}</p>
-                  <p className="text-xs text-slate-400 font-mono">{k.key_prefix}••••••••••••</p>
-                  <p className="text-xs text-slate-400">Created {new Date(k.created_at).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium text-white">{k.name}</p>
+                  <p className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{k.key_prefix}••••••••••••</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Created {new Date(k.created_at).toLocaleDateString()}</p>
                 </div>
                 <button onClick={() => revokeKey(k.id, k.name)}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+                  className="text-xs text-red-400 hover:text-red-300 font-medium px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                  style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
                   Revoke
                 </button>
               </div>
@@ -854,8 +876,8 @@ function ApiAccessTab({ user }) {
           </div>
         )}
 
-        <div className="mt-4 pt-4 border-t border-white/40">
-          <Link href="/settings/api-keys" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+        <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <Link href="/settings/api-keys" className="text-sm text-amber-400 hover:text-amber-300 font-medium">
             Full API key management →
           </Link>
         </div>
@@ -864,13 +886,13 @@ function ApiAccessTab({ user }) {
       <Section title="Quick Reference" description="Authentication and base URL for API requests.">
         <div className="space-y-4">
           <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Authentication Header</p>
+            <p className="text-xs font-medium uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Authentication Header</p>
             <code className="block bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3">
               Authorization: Bearer YOUR_API_KEY
             </code>
           </div>
           <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Example Request</p>
+            <p className="text-xs font-medium uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Example Request</p>
             <pre className="bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3 overflow-x-auto">{`curl http://localhost:8000/products/ \\
   -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
           </div>
@@ -907,27 +929,27 @@ function TeamTab({ user }) {
 
   if (!hasAccess) {
     return (
-      <div className="glass-card rounded-2xl shadow-glass p-12 text-center">
-        <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="rounded-2xl shadow-glass p-12 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)' }}>
+          <svg className="w-8 h-8" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-2">Team Workspaces — Business Plan</h3>
-        <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">
+        <h3 className="text-lg font-semibold text-white mb-2">Team Workspaces — Business Plan</h3>
+        <p className="text-sm mb-6 max-w-md mx-auto" style={{ color: 'var(--text-muted)' }}>
           Collaborate with your team on competitive intelligence. Invite members, assign roles, and share
           saved views and alerts across your organization.
         </p>
         <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto mb-6 text-left">
           {[
-            { initial: 'P', label: 'Pro', seats: '1 seat', bg: 'bg-blue-100 text-blue-600' },
-            { initial: 'B', label: 'Business', seats: '5 seats', bg: 'bg-violet-100 text-violet-600' },
-            { initial: 'E', label: 'Enterprise', seats: 'Unlimited', bg: 'bg-amber-100 text-amber-600' },
+            { initial: 'P', label: 'Pro', seats: '1 seat', bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+            { initial: 'B', label: 'Business', seats: '5 seats', bg: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
+            { initial: 'E', label: 'Enterprise', seats: 'Unlimited', bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
           ].map(p => (
-            <div key={p.label} className="bg-white/40 rounded-xl p-3 text-center">
-              <div className={`w-8 h-8 rounded-full ${p.bg} flex items-center justify-center text-sm font-bold mx-auto mb-2`}>{p.initial}</div>
-              <p className="text-xs font-semibold text-slate-700">{p.label}</p>
-              <p className="text-xs text-slate-500">{p.seats}</p>
+            <div key={p.label} className="rounded-xl p-3 text-center" style={{ background: 'var(--bg-elevated)' }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mx-auto mb-2" style={{ background: p.bg, color: p.color }}>{p.initial}</div>
+              <p className="text-xs font-semibold text-white/70">{p.label}</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.seats}</p>
             </div>
           ))}
         </div>
@@ -985,8 +1007,9 @@ function TeamTab({ user }) {
           {workspaces.map((w) => (
             <button key={w.id} onClick={() => setActiveWsId(w.id)}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                activeWsId === w.id ? 'gradient-brand text-white shadow-gradient' : 'glass text-slate-700 hover:bg-white/40'
-              }`}>
+                activeWsId === w.id ? 'gradient-brand text-white shadow-gradient' : 'text-white/70 hover:bg-white/5'
+              }`}
+              style={activeWsId !== w.id ? { border: '1px solid var(--border)' } : {}}>
               {w.name}
             </button>
           ))}
@@ -996,11 +1019,11 @@ function TeamTab({ user }) {
       {/* Invite form */}
       <Section title="Invite Team Member" description="Send an invitation to collaborate on your workspace.">
         {loadingWs ? (
-          <p className="text-sm text-slate-400">Loading workspace…</p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading workspace…</p>
         ) : workspaces.length === 0 ? (
           <div className="text-center py-4">
-            <p className="text-sm text-slate-500 mb-3">No workspace yet. Create one from the full team page.</p>
-            <Link href="/settings/team" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+            <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>No workspace yet. Create one from the full team page.</p>
+            <Link href="/settings/team" className="text-sm text-amber-400 hover:text-amber-300 font-medium">
               Go to Team Management →
             </Link>
           </div>
@@ -1017,7 +1040,7 @@ function TeamTab({ user }) {
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
-              className="rounded-lg border border-white/60 bg-white/50 backdrop-blur-sm px-3 py-2 text-sm text-slate-800 focus:border-blue-400/60 focus:ring-2 focus:ring-blue-400/30 focus:outline-none"
+              className="glass-input rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
             >
               <option value="editor">Editor</option>
               <option value="viewer">Viewer</option>
@@ -1031,28 +1054,29 @@ function TeamTab({ user }) {
       {/* Member list for active workspace */}
       {ws && (
         <Section title={`Members — ${ws.name}`} description="People with access to this workspace.">
-          <div className="divide-y divide-white/40">
+          <div>
             {(ws.members || []).length === 0 ? (
-              <p className="text-sm text-slate-400 py-3 text-center">No members yet.</p>
+              <p className="text-sm py-3 text-center" style={{ color: 'var(--text-muted)' }}>No members yet.</p>
             ) : (ws.members || []).map((m) => (
-              <div key={m.user_id} className="flex items-center justify-between py-3 first:pt-0">
+              <div key={m.user_id} className="flex items-center justify-between py-3 first:pt-0" style={{ borderBottom: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
                     {(m.full_name?.[0] || m.email?.[0] || '?').toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-slate-900">{m.full_name || m.email}</p>
-                    <p className="text-xs text-slate-500">{m.email}</p>
+                    <p className="text-sm font-medium text-white">{m.full_name || m.email}</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{m.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {m.user_id === ws.owner_id ? (
-                    <span className="text-xs font-medium bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">Owner</span>
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>Owner</span>
                   ) : (
                     <>
-                      <span className="text-xs font-medium bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full capitalize">{m.role}</span>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full capitalize" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>{m.role}</span>
                       <button onClick={() => handleRemoveMember(m.user_id)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium border border-red-100 px-2.5 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                        className="text-xs text-red-400 hover:text-red-300 font-medium px-2.5 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
+                        style={{ border: '1px solid rgba(239,68,68,0.2)' }}>
                         Remove
                       </button>
                     </>
@@ -1065,7 +1089,7 @@ function TeamTab({ user }) {
       )}
 
       <div className="text-center pt-2">
-        <Link href="/settings/team" className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+        <Link href="/settings/team" className="text-sm text-amber-400 hover:text-amber-300 font-medium">
           Full team management →
         </Link>
       </div>
@@ -1145,7 +1169,7 @@ export default function SettingsPage() {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <svg className="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin w-8 h-8 border-amber-500" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
@@ -1166,8 +1190,8 @@ export default function SettingsPage() {
       <div className="p-4 lg:p-6 space-y-5">
         {/* Page header */}
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Settings</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage your account, billing, and preferences.</p>
+          <h1 className="text-xl font-bold text-white">Settings</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Manage your account, billing, and preferences.</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8">
@@ -1181,9 +1205,9 @@ export default function SettingsPage() {
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all text-left
                     ${activeTab === tab.key
                       ? 'gradient-brand text-white shadow-gradient'
-                      : 'text-slate-600 hover:bg-white/40 hover:text-slate-900'}`}
+                      : 'text-white/60 hover:bg-white/5 hover:text-white/90'}`}
                 >
-                  <span className={activeTab === tab.key ? 'text-white' : 'text-slate-400'}>
+                  <span className={activeTab === tab.key ? 'text-white' : 'text-white/30'}>
                     {tab.icon}
                   </span>
                   {tab.label}
@@ -1202,7 +1226,8 @@ export default function SettingsPage() {
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all shrink-0
                     ${activeTab === tab.key
                       ? 'gradient-brand text-white shadow-gradient'
-                      : 'glass text-slate-600 border border-white/60 hover:bg-white/40'}`}
+                      : 'text-white/60 hover:bg-white/5'}`}
+                  style={activeTab !== tab.key ? { border: '1px solid var(--border)' } : {}}
                 >
                   {tab.icon}
                   {tab.label}

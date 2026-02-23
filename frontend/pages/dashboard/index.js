@@ -15,23 +15,29 @@ const Ico = {
 };
 
 function StatCard({ label, value, sub, color, icon }) {
-  const grad = { blue: 'stat-blue', violet: 'stat-violet', emerald: 'stat-emerald', amber: 'stat-amber' }[color];
+  const styles = {
+    blue:    { bg: 'rgba(37,99,235,0.12)',  border: 'rgba(37,99,235,0.2)',   text: '#60a5fa' },
+    emerald: { bg: 'rgba(5,150,105,0.12)',  border: 'rgba(5,150,105,0.2)',   text: '#34d399' },
+    amber:   { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.2)',  text: '#fbbf24' },
+    violet:  { bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.2)',  text: '#a78bfa' },
+  }[color] || { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', text: '#9ca3af' };
   return (
-    <div className={`${grad} rounded-2xl shadow-gradient p-5 flex items-center gap-4`}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{icon}</div>
+    <div className="rounded-2xl p-5 flex items-center gap-4"
+      style={{ background: styles.bg, border: `1px solid ${styles.border}` }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(0,0,0,0.2)', color: styles.text }}>{icon}</div>
       <div className="min-w-0">
         <p className="text-2xl font-bold text-white leading-none">{value ?? '—'}</p>
-        <p className="text-xs text-white/80 mt-1 truncate">{label}</p>
-        {sub && <p className="text-xs text-white/60 truncate">{sub}</p>}
+        <p className="text-xs mt-1 truncate" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</p>
+        {sub && <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.3)' }}>{sub}</p>}
       </div>
     </div>
   );
 }
 
 function StockBadge({ status }) {
-  if (status === 'In Stock')    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">In Stock</span>;
-  if (status === 'Out of Stock') return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Out of Stock</span>;
-  return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">Low Stock</span>;
+  if (status === 'In Stock')    return <span className="px-2 py-0.5 rounded-full text-xs font-medium text-emerald-400" style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.2)' }}>In Stock</span>;
+  if (status === 'Out of Stock') return <span className="px-2 py-0.5 rounded-full text-xs font-medium text-white/40" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>Out of Stock</span>;
+  return <span className="px-2 py-0.5 rounded-full text-xs font-medium text-amber-400" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>Low Stock</span>;
 }
 
 export default function ComparisonDashboard() {
@@ -92,11 +98,11 @@ export default function ComparisonDashboard() {
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 glass-card rounded-2xl animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="h-80 glass-card rounded-2xl animate-pulse" />
-          <div className="lg:col-span-2 h-80 glass-card rounded-2xl animate-pulse" />
+          <div className="h-80 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
+          <div className="lg:col-span-2 h-80 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
         </div>
       </div>
     </Layout>
@@ -109,8 +115,8 @@ export default function ComparisonDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Price Comparison</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Select a product to compare competitor pricing</p>
+            <h1 className="text-xl font-bold text-white">Price Comparison</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Select a product to compare competitor pricing</p>
           </div>
           <button
             onClick={() => setShowCrawler(true)}
@@ -134,35 +140,36 @@ export default function ComparisonDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
           {/* Product list */}
-          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-            <div className="p-4 border-b border-white/40 space-y-3">
-              <p className="text-sm font-semibold text-slate-900">Your Products</p>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="p-4 space-y-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold text-white">Your Products</p>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{Ico.search}</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>{Ico.search}</span>
                 <input
                   value={search} onChange={e => setSearch(e.target.value)}
                   placeholder="Search…"
-                  className="w-full pl-9 pr-3 py-2 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                  className="w-full pl-9 pr-3 py-2 glass-input rounded-xl text-sm focus:outline-none"
                 />
               </div>
             </div>
 
             {filtered.length === 0 ? (
               <div className="p-8 text-center">
-                <p className="text-sm text-slate-500">No products</p>
-                <Link href="/products/add" className="text-sm text-blue-600 hover:underline mt-1 inline-block">Add a product</Link>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No products</p>
+                <Link href="/products/add" className="text-sm text-amber-400 hover:text-amber-300 mt-1 inline-block">Add a product</Link>
               </div>
             ) : (
-              <div className="overflow-y-auto max-h-[500px] divide-y divide-white/40">
+              <div className="overflow-y-auto max-h-[500px]">
                 {filtered.map(p => (
                   <button
                     key={p.id} onClick={() => handleSelect(p)}
-                    className={`w-full text-left px-4 py-3.5 transition-colors border-l-2 ${selectedProduct?.id === p.id ? 'bg-white/30 border-blue-400' : 'hover:bg-white/30 border-transparent'}`}
+                    className={`w-full text-left px-4 py-3.5 transition-colors border-l-2 ${selectedProduct?.id === p.id ? 'border-amber-500' : 'border-transparent hover:bg-white/5'}`}
+                    style={{ borderBottom: '1px solid var(--border)' }}
                   >
-                    <p className="text-sm font-medium text-slate-900 truncate">{p.title}</p>
+                    <p className="text-sm font-medium text-white truncate">{p.title}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <span className="text-xs text-slate-400">{p.competitor_count || 0} competitors</span>
-                      {p.lowest_price && <span className="text-xs font-medium text-emerald-600">${p.lowest_price.toFixed(2)}</span>}
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{p.competitor_count || 0} competitors</span>
+                      {p.lowest_price && <span className="text-xs font-medium text-amber-400">${p.lowest_price.toFixed(2)}</span>}
                     </div>
                   </button>
                 ))}
@@ -173,79 +180,79 @@ export default function ComparisonDashboard() {
           {/* Comparison panel */}
           <div className="lg:col-span-2 space-y-4">
             {!selectedProduct ? (
-              <div className="glass-card rounded-2xl shadow-glass p-16 text-center">
-                <div className="w-14 h-14 bg-white/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-7 h-7 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              <div className="rounded-2xl p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
+                  <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                 </div>
-                <p className="text-sm font-medium text-slate-900">Select a product</p>
-                <p className="text-xs text-slate-400 mt-1">Pick from the list to view comparison</p>
+                <p className="text-sm font-medium text-white">Select a product</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Pick from the list to view comparison</p>
               </div>
             ) : loadingDetail ? (
-              <div className="glass-card rounded-2xl shadow-glass p-16 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              <div className="rounded-2xl p-16 flex items-center justify-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
               </div>
             ) : (
               <>
                 {/* Product header */}
-                <div className="glass-card rounded-2xl shadow-glass p-5 flex items-start justify-between gap-3">
+                <div className="rounded-2xl p-5 flex items-start justify-between gap-3" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                   <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-slate-900 truncate">{selectedProduct.title}</h2>
-                    <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-slate-500">
+                    <h2 className="text-base font-semibold text-white truncate">{selectedProduct.title}</h2>
+                    <div className="flex flex-wrap items-center gap-3 mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                       {selectedProduct.brand && <span>{selectedProduct.brand}</span>}
                       {selectedProduct.sku && <span>SKU: {selectedProduct.sku}</span>}
-                      <span className="text-slate-400">{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>
+                      <span>{matches.length} match{matches.length !== 1 ? 'es' : ''}</span>
                     </div>
                   </div>
-                  <Link href={`/products/${selectedProduct.id}`} className="shrink-0 text-xs text-blue-600 hover:underline whitespace-nowrap">View detail →</Link>
+                  <Link href={`/products/${selectedProduct.id}`} className="shrink-0 text-xs text-amber-400 hover:text-amber-300 whitespace-nowrap">View detail →</Link>
                 </div>
 
                 {/* Charts */}
                 {matches.length > 0 && (
-                  <div className="glass-card rounded-2xl shadow-glass p-5">
-                    <p className="text-sm font-semibold text-slate-900 mb-4">Price Comparison</p>
+                  <div className="rounded-2xl p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                    <p className="text-sm font-semibold text-white mb-4">Price Comparison</p>
                     <CompetitorComparisonChart data={matches.map(m => ({ competitor_name: m.competitor_name, latest_price: m.latest_price }))} />
                   </div>
                 )}
                 {priceHistory.length > 0 && (
-                  <div className="glass-card rounded-2xl shadow-glass p-5">
-                    <p className="text-sm font-semibold text-slate-900 mb-4">Price History</p>
+                  <div className="rounded-2xl p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                    <p className="text-sm font-semibold text-white mb-4">Price History</p>
                     <PriceHistoryChart data={priceHistory} />
                   </div>
                 )}
 
                 {/* Matches table */}
-                <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-                  <div className="px-5 py-4 border-b border-white/40">
-                    <p className="text-sm font-semibold text-slate-900">Matches ({matches.length})</p>
+                <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                  <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <p className="text-sm font-semibold text-white">Matches ({matches.length})</p>
                   </div>
                   {matches.length === 0 ? (
                     <div className="p-8 text-center">
-                      <p className="text-sm text-slate-500 mb-1">No matches yet</p>
-                      <Link href={`/products/${selectedProduct.id}`} className="text-sm text-blue-600 hover:underline">Scrape competitors</Link>
+                      <p className="text-sm mb-1" style={{ color: 'var(--text-muted)' }}>No matches yet</p>
+                      <Link href={`/products/${selectedProduct.id}`} className="text-sm text-amber-400 hover:text-amber-300">Scrape competitors</Link>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="min-w-full">
-                        <thead className="bg-white/40 border-b border-white/40">
+                      <table className="min-w-full dark-table">
+                        <thead>
                           <tr>
                             {['Competitor', 'Price', 'Stock', 'Match %', 'Checked', ''].map(h => (
-                              <th key={h} className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">{h}</th>
+                              <th key={h} className="text-left">{h}</th>
                             ))}
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/40">
+                        <tbody>
                           {matches.map(m => (
-                            <tr key={m.id} className="hover:bg-white/30 transition-colors">
-                              <td className="px-4 py-3">
-                                <p className="text-sm font-medium text-slate-900">{m.competitor_name}</p>
-                                <p className="text-xs text-slate-400 truncate max-w-[160px]">{m.competitor_product_title}</p>
+                            <tr key={m.id}>
+                              <td>
+                                <p className="text-sm font-medium text-white">{m.competitor_name}</p>
+                                <p className="text-xs truncate max-w-[160px]" style={{ color: 'var(--text-muted)' }}>{m.competitor_product_title}</p>
                               </td>
-                              <td className="px-4 py-3 text-sm font-bold text-blue-600">${m.latest_price?.toFixed(2) ?? '—'}</td>
-                              <td className="px-4 py-3"><StockBadge status={m.stock_status} /></td>
-                              <td className="px-4 py-3 text-sm text-slate-600">{m.match_score ? `${(m.match_score * 100).toFixed(0)}%` : '—'}</td>
-                              <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{new Date(m.last_checked).toLocaleDateString()}</td>
-                              <td className="px-4 py-3">
-                                <a href={m.competitor_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                              <td className="text-sm font-bold text-amber-400">${m.latest_price?.toFixed(2) ?? '—'}</td>
+                              <td><StockBadge status={m.stock_status} /></td>
+                              <td className="text-sm text-white/60">{m.match_score ? `${(m.match_score * 100).toFixed(0)}%` : '—'}</td>
+                              <td className="text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{new Date(m.last_checked).toLocaleDateString()}</td>
+                              <td>
+                                <a href={m.competitor_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300">
                                   View {Ico.external}
                                 </a>
                               </td>
@@ -265,25 +272,29 @@ export default function ComparisonDashboard() {
       {/* Crawler modal */}
       {showCrawler && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowCrawler(false)} />
-          <div className="relative glass-card rounded-2xl shadow-glass-lg w-full max-w-md p-6">
-            <h3 className="text-base font-semibold text-slate-900 mb-4">Auto-Crawl Competitor Site</h3>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">Competitor URL</label>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCrawler(false)} />
+          <div className="relative rounded-2xl shadow-glass-lg w-full max-w-md p-6"
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+            <h3 className="text-base font-semibold text-white mb-4">Auto-Crawl Competitor Site</h3>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Competitor URL</label>
             <input
               type="url" value={crawlerUrl} onChange={e => setCrawlerUrl(e.target.value)}
               placeholder="https://competitor-store.com"
-              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 mb-4"
+              className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none mb-4"
             />
-            <div className="bg-blue-100/40 rounded-xl p-4 mb-5 text-xs text-blue-800 space-y-1.5">
+            <div className="rounded-xl p-4 mb-5 text-xs space-y-1.5 text-amber-300"
+              style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
               {['Discovers all category pages', 'Finds all product pages', 'Extracts title, price & image', 'Auto-imports to your account'].map(s => (
                 <div key={s} className="flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                  <svg className="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
                   {s}
                 </div>
               ))}
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setShowCrawler(false)} className="flex-1 py-2.5 glass border border-white/60 rounded-xl text-sm font-medium text-slate-700 hover:bg-white/40 transition-colors">Cancel</button>
+              <button onClick={() => setShowCrawler(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                style={{ border: '1px solid var(--border)' }}>Cancel</button>
               <button onClick={handleCrawl} disabled={crawling || !crawlerUrl} className="flex-1 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient disabled:opacity-50">
                 {crawling ? 'Crawling…' : 'Start Crawl'}
               </button>

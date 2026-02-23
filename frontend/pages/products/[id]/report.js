@@ -15,7 +15,7 @@ function PositionBadge({ position }) {
   if (!position) return null;
   const styles = {
     cheapest:    { bg: '#dcfce7', color: '#166534', label: 'Cheapest' },
-    competitive: { bg: '#dbeafe', color: '#1e40af', label: 'Competitive' },
+    competitive: { bg: '#fef3c7', color: '#92400e', label: 'Competitive' },
     expensive:   { bg: '#fef9c3', color: '#854d0e', label: 'Expensive' },
     most_expensive:{ bg: '#fee2e2', color: '#991b1b', label: 'Most Expensive' },
   };
@@ -97,20 +97,20 @@ export default function ProductReportPage() {
       </Head>
 
       {/* Print toolbar — hidden when printing */}
-      <div className="no-print" style={{ position: 'sticky', top: 0, zIndex: 10, background: '#f9fafb', borderBottom: '1px solid #e5e7eb', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="no-print" style={{ position: 'sticky', top: 0, zIndex: 10, background: '#0e0e1a', borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={() => window.print()}
-          style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
         >
           Print / Save as PDF
         </button>
         <button
           onClick={() => window.history.back()}
-          style={{ background: 'transparent', color: '#6b7280', border: '1px solid #d1d5db', padding: '8px 16px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}
+          style={{ background: 'transparent', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)', padding: '8px 16px', borderRadius: 8, fontSize: 14, cursor: 'pointer' }}
         >
           ← Back
         </button>
-        <span style={{ fontSize: 13, color: '#9ca3af', marginLeft: 'auto' }}>
+        <span style={{ fontSize: 13, color: '#6b7280', marginLeft: 'auto' }}>
           Tip: In the print dialog, choose "Save as PDF" to download
         </span>
       </div>
@@ -119,15 +119,15 @@ export default function ProductReportPage() {
       <div style={{ maxWidth: 800, margin: '0 auto', padding: '32px 24px' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, paddingBottom: 24, borderBottom: '2px solid #2563eb' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, paddingBottom: 24, borderBottom: '2px solid #f59e0b' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 32, height: 32, background: '#2563eb', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, background: 'linear-gradient(135deg, #f59e0b, #f97316)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="20" height="20" fill="none" stroke="#fff" viewBox="0 0 24 24" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-              <span style={{ fontWeight: 700, fontSize: 16, color: '#2563eb' }}>MarketIntel</span>
+              <span style={{ fontWeight: 700, fontSize: 16, color: '#d97706' }}>MarketIntel</span>
             </div>
             <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: '#1f2937', lineHeight: 1.3 }}>{product.title}</h1>
             <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#6b7280' }}>
@@ -168,13 +168,13 @@ export default function ProductReportPage() {
               {product.my_price != null && (() => {
                 const pctPos = Math.min(100, Math.max(0, ((product.my_price - lowestPrice) / (highestPrice - lowestPrice)) * 100));
                 return (
-                  <div style={{ position: 'absolute', top: -4, left: `${pctPos}%`, transform: 'translateX(-50%)', width: 20, height: 20, background: '#2563eb', borderRadius: '50%', border: '3px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} title={`My price: ${fmt(product.my_price)}`} />
+                  <div style={{ position: 'absolute', top: -4, left: `${pctPos}%`, transform: 'translateX(-50%)', width: 20, height: 20, background: '#f59e0b', borderRadius: '50%', border: '3px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} title={`My price: ${fmt(product.my_price)}`} />
                 );
               })()}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#6b7280' }}>
               <span>Low: {fmt(lowestPrice)}</span>
-              {product.my_price != null && <span style={{ color: '#2563eb', fontWeight: 600 }}>● My Price: {fmt(product.my_price)}</span>}
+              {product.my_price != null && <span style={{ color: '#d97706', fontWeight: 600 }}>● My Price: {fmt(product.my_price)}</span>}
               <span>High: {fmt(highestPrice)}</span>
             </div>
           </div>
@@ -236,9 +236,9 @@ export default function ProductReportPage() {
 
         {/* Market position summary */}
         {pricePosition && (
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 12, padding: 20, marginBottom: 32 }}>
-            <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#1e40af' }}>Market Position Summary</p>
-            <p style={{ margin: 0, fontSize: 13, color: '#1e40af', lineHeight: 1.6 }}>
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 12, padding: 20, marginBottom: 32 }}>
+            <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#92400e' }}>Market Position Summary</p>
+            <p style={{ margin: 0, fontSize: 13, color: '#92400e', lineHeight: 1.6 }}>
               {pricePosition === 'cheapest' && `Your price (${fmt(product.my_price)}) is the lowest in the market. You have a strong competitive advantage but may be leaving margin on the table.`}
               {pricePosition === 'competitive' && `Your price (${fmt(product.my_price)}) is below the market average (${fmt(avgPrice)}). You are well-positioned competitively.`}
               {pricePosition === 'expensive' && `Your price (${fmt(product.my_price)}) is above the market average (${fmt(avgPrice)}). Consider reviewing your pricing strategy.`}

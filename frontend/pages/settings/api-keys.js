@@ -28,15 +28,15 @@ function NewKeyBanner({ fullKey, onDismiss }) {
   }
 
   return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 mb-6">
+    <div className="rounded-xl p-4 mb-6" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-emerald-600">{Ico.key}</div>
+        <div className="mt-0.5 text-emerald-400">{Ico.key}</div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-emerald-800 mb-1">
+          <p className="text-sm font-semibold text-emerald-400 mb-1">
             Save your API key — it will only be shown once
           </p>
           <div className="flex items-center gap-2 mt-2">
-            <code className="flex-1 bg-white border border-emerald-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-800 truncate">
+            <code className="flex-1 rounded-lg px-3 py-2 text-sm font-mono text-white/80 truncate" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
               {fullKey}
             </code>
             <button
@@ -47,11 +47,11 @@ function NewKeyBanner({ fullKey, onDismiss }) {
               {copied ? 'Copied!' : 'Copy'}
             </button>
           </div>
-          <p className="text-xs text-emerald-700 mt-2">
-            Use this key in the <code className="bg-emerald-100 px-1 rounded">Authorization: Bearer</code> header when calling the MarketIntel API.
+          <p className="text-xs text-emerald-400/70 mt-2">
+            Use this key in the <code className="px-1 rounded" style={{ background: 'rgba(16,185,129,0.12)' }}>Authorization: Bearer</code> header when calling the MarketIntel API.
           </p>
         </div>
-        <button onClick={onDismiss} className="text-emerald-400 hover:text-emerald-600 text-lg leading-none">&times;</button>
+        <button onClick={onDismiss} className="text-emerald-400/50 hover:text-emerald-400 text-lg leading-none">&times;</button>
       </div>
     </div>
   );
@@ -79,29 +79,35 @@ function CreateKeyModal({ onClose, onCreate }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create API Key</h3>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl shadow-2xl w-full max-w-md p-6" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
+        <h3 className="text-lg font-semibold text-white mb-4">Create API Key</h3>
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Key Name</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Key Name</label>
             <input
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Zapier automation, Shopify app"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="glass-input appearance-none block w-full px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition"
             />
-            <p className="text-xs text-gray-500 mt-1">A label to help you remember what this key is for.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>A label to help you remember what this key is for.</p>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+              style={{ border: '1px solid var(--border-md)' }}>
               Cancel
             </button>
             <button type="submit" disabled={loading || !name.trim()}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
-              {loading ? 'Creating…' : 'Create Key'}
+              className="flex-1 px-4 py-2 gradient-brand text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors">
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-amber-500 rounded-full animate-spin" />
+                  Creating…
+                </span>
+              ) : 'Create Key'}
             </button>
           </div>
         </form>
@@ -150,18 +156,23 @@ function KeyRow({ apiKey, onRevoke, onRotate }) {
     : 'Never';
 
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+    <tr className="hover:bg-white/5 transition-colors" style={{ borderBottom: '1px solid var(--border)' }}>
       <td className="px-4 py-3">
-        <p className="text-sm font-medium text-gray-900">{apiKey.name}</p>
-        <p className="text-xs text-gray-400 font-mono mt-0.5">{apiKey.key_prefix}••••••••••••••••</p>
+        <p className="text-sm font-medium text-white">{apiKey.name}</p>
+        <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>{apiKey.key_prefix}••••••••••••••••</p>
       </td>
-      <td className="px-4 py-3 text-sm text-gray-600">{created}</td>
-      <td className="px-4 py-3 text-sm text-gray-600">{lastUsed}</td>
+      <td className="px-4 py-3 text-sm text-white/60">{created}</td>
+      <td className="px-4 py-3 text-sm text-white/60">{lastUsed}</td>
       <td className="px-4 py-3">
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-          apiKey.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
-        }`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${apiKey.is_active ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+          apiKey.is_active
+            ? 'text-emerald-400'
+            : 'text-white/40'
+        }`} style={{
+          background: apiKey.is_active ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)',
+          border: `1px solid ${apiKey.is_active ? 'rgba(16,185,129,0.25)' : 'rgba(255,255,255,0.08)'}`,
+        }}>
+          <span className={`w-1.5 h-1.5 rounded-full ${apiKey.is_active ? 'bg-emerald-400' : 'bg-white/30'}`} />
           {apiKey.is_active ? 'Active' : 'Revoked'}
         </span>
       </td>
@@ -169,12 +180,12 @@ function KeyRow({ apiKey, onRevoke, onRotate }) {
         <div className="flex items-center gap-2 justify-end">
           <button onClick={rotate} disabled={rotating}
             title="Rotate key"
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
+            className="p-1.5 text-white/30 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors disabled:opacity-50">
             {Ico.rotate}
           </button>
           <button onClick={revoke} disabled={revoking}
             title="Revoke key"
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+            className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50">
             {Ico.trash}
           </button>
         </div>
@@ -219,14 +230,14 @@ export default function ApiKeysPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">API Keys</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-white">API Keys</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
               Authenticate external apps and scripts against the MarketIntel API.
             </p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-sm"
           >
             {Ico.plus} New Key
           </button>
@@ -238,39 +249,42 @@ export default function ApiKeysPage() {
         )}
 
         {/* Security note */}
-        <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6">
-          <div className="text-blue-500 shrink-0 mt-0.5">{Ico.shield}</div>
-          <div className="text-sm text-blue-800">
-            <strong>Keep your API keys secret.</strong> Treat them like passwords — don't commit them to
+        <div className="flex items-start gap-3 rounded-xl p-4 mb-6" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
+          <div className="text-amber-400 shrink-0 mt-0.5">{Ico.shield}</div>
+          <div className="text-sm text-white/70">
+            <strong className="text-white/90">Keep your API keys secret.</strong> Treat them like passwords — don't commit them to
             version control or share them publicly. Rotate immediately if a key is compromised.
-            Pass keys in the <code className="bg-blue-100 px-1 rounded">Authorization: Bearer &lt;key&gt;</code> header.
+            Pass keys in the <code className="px-1 rounded text-amber-400/80" style={{ background: 'rgba(245,158,11,0.1)' }}>Authorization: Bearer &lt;key&gt;</code> header.
           </div>
         </div>
 
         {/* Keys table */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
           {loading ? (
-            <div className="p-12 text-center text-gray-400">Loading…</div>
+            <div className="p-12 text-center flex items-center justify-center gap-3" style={{ color: 'var(--text-muted)' }}>
+              <span className="w-5 h-5 border-2 border-white/10 border-t-amber-500 rounded-full animate-spin" />
+              Loading…
+            </div>
           ) : keys.length === 0 ? (
             <div className="p-12 text-center">
-              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-white/30" style={{ background: 'var(--bg-elevated)' }}>
                 {Ico.key}
               </div>
-              <p className="text-gray-500 font-medium">No API keys yet</p>
-              <p className="text-sm text-gray-400 mt-1">Create a key to connect external tools and automations.</p>
+              <p className="font-medium text-white/60">No API keys yet</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Create a key to connect external tools and automations.</p>
               <button onClick={() => setShowCreate(true)}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+                className="mt-4 px-4 py-2 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90">
                 Create your first key
               </button>
             </div>
           ) : (
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Used</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Name</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Created</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Last Used</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Status</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
@@ -284,8 +298,8 @@ export default function ApiKeysPage() {
         </div>
 
         {/* Usage example */}
-        <div className="mt-6 bg-gray-900 rounded-2xl p-5">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Example Usage</p>
+        <div className="mt-6 rounded-2xl p-5" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+          <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Example Usage</p>
           <pre className="text-sm text-green-400 font-mono overflow-x-auto whitespace-pre">{
 `curl https://api.marketintel.io/products/ \\
   -H "Authorization: Bearer mi_your_api_key_here"`

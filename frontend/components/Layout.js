@@ -7,10 +7,10 @@ import usePriceEvents from '../lib/usePriceEvents';
 
 // ─── TIER CONFIG ──────────────────────────────────────────────────────────────
 const TIER = {
-  free:       { pill: 'bg-white/30 text-white',         label: 'Free'       },
-  pro:        { pill: 'bg-blue-400/30 text-blue-100',   label: 'Pro'        },
-  business:   { pill: 'bg-purple-400/30 text-purple-100', label: 'Business' },
-  enterprise: { pill: 'bg-amber-400/30 text-amber-100', label: 'Enterprise' },
+  free:       { pill: 'bg-white/10 text-white/70',        label: 'Free'       },
+  pro:        { pill: 'bg-amber-500/20 text-amber-300',   label: 'Pro'        },
+  business:   { pill: 'bg-amber-500/30 text-amber-200',   label: 'Business'   },
+  enterprise: { pill: 'bg-orange-500/30 text-orange-200', label: 'Enterprise' },
 };
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ function Logo({ size = 'md' }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
         </svg>
       </div>
-      <span className={`font-bold ${size === 'sm' ? 'text-sm' : 'text-base'} text-slate-800`}>
+      <span className={`font-bold ${size === 'sm' ? 'text-sm' : 'text-base'} text-white`}>
         Market<span className="gradient-text">Intel</span>
       </span>
     </Link>
@@ -105,39 +105,40 @@ function SidebarUser({ user, logout }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-xl hover:bg-white/40 transition-colors focus:outline-none"
+        className="flex items-center gap-2.5 w-full px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors focus:outline-none"
       >
         <div className="w-8 h-8 rounded-xl gradient-brand flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-gradient">
           {initials}
         </div>
         <div className="flex-1 min-w-0 text-left">
-          <p className="text-sm font-semibold text-slate-800 truncate leading-tight">{user?.full_name || 'Account'}</p>
-          <span className="text-[10px] font-medium text-slate-500">{ts.label} plan</span>
+          <p className="text-sm font-semibold text-white truncate leading-tight">{user?.full_name || 'Account'}</p>
+          <span className="text-[10px] font-medium text-white/40">{ts.label} plan</span>
         </div>
-        <span className={`text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+        <span className={`text-white/30 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
           {Icon.chevronDown}
         </span>
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 glass-card rounded-2xl shadow-glass-lg overflow-hidden z-50 animate-fade-in">
-          <div className="px-4 py-3 border-b border-white/50">
-            <p className="text-xs font-semibold text-slate-700">{user?.full_name || 'Account'}</p>
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">{user?.email}</p>
+        <div className="absolute bottom-full left-0 right-0 mb-2 rounded-2xl shadow-glass-lg overflow-hidden z-50 animate-fade-in"
+          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-xs font-semibold text-white">{user?.full_name || 'Account'}</p>
+            <p className="text-[11px] text-white/40 truncate mt-0.5">{user?.email}</p>
           </div>
           <div className="py-1">
             <Link href="/settings" onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-white/50 transition-colors">
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors">
               {Icon.gear} Settings
             </Link>
             <Link href="/pricing" onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-white/50 transition-colors">
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors">
               {Icon.upgrade} Upgrade
             </Link>
           </div>
-          <div className="border-t border-white/50 py-1">
+          <div className="py-1" style={{ borderTop: '1px solid var(--border)' }}>
             <button onClick={() => { setOpen(false); logout(); }}
-              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50/60 transition-colors">
+              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
               {Icon.logout} Sign Out
             </button>
           </div>
@@ -167,33 +168,34 @@ function TopbarAvatar({ user, logout }) {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center text-white text-xs font-bold shadow-gradient hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-1"
+        className="w-9 h-9 rounded-xl gradient-brand flex items-center justify-center text-white text-xs font-bold shadow-gradient hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:ring-offset-1 focus:ring-offset-transparent"
       >
         {initials}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-60 glass-card rounded-2xl shadow-glass-lg z-50 overflow-hidden animate-fade-in">
-          <div className="px-4 py-3 border-b border-white/50">
-            <p className="font-semibold text-slate-800 text-sm">{user?.full_name || 'Account'}</p>
-            <p className="text-xs text-slate-400 truncate mt-0.5">{user?.email}</p>
-            <span className="inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/15 to-violet-500/15 text-violet-700">
+        <div className="absolute right-0 top-full mt-2 w-60 rounded-2xl shadow-glass-lg z-50 overflow-hidden animate-fade-in"
+          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+          <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="font-semibold text-white text-sm">{user?.full_name || 'Account'}</p>
+            <p className="text-xs text-white/40 truncate mt-0.5">{user?.email}</p>
+            <span className="inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
               {ts.label} Plan
             </span>
           </div>
           <div className="py-1">
             <Link href="/settings" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-white/50 transition-colors">
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors">
               {Icon.gear} Account Settings
             </Link>
             <Link href="/pricing" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-white/50 transition-colors">
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-colors">
               {Icon.upgrade} Upgrade Plan
             </Link>
           </div>
-          <div className="border-t border-white/50 py-1">
+          <div className="py-1" style={{ borderTop: '1px solid var(--border)' }}>
             <button onClick={() => { setOpen(false); logout(); }}
-              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-rose-500 hover:bg-rose-50/60 transition-colors">
+              className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
               {Icon.logout} Sign Out
             </button>
           </div>
@@ -210,7 +212,8 @@ function InstallButton() {
   return (
     <button
       onClick={install}
-      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl glass border border-blue-300/40 text-blue-600 text-xs font-semibold hover:bg-white/50 transition-colors"
+      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-amber-400 text-xs font-semibold hover:bg-amber-500/10 transition-colors"
+      style={{ border: '1px solid rgba(245,158,11,0.2)' }}
     >
       {Icon.download} Install App
     </button>
@@ -220,9 +223,9 @@ function InstallButton() {
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({ pathname, user, logout }) {
   return (
-    <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 glass-sidebar z-30">
+    <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-60 glass-sidebar z-30">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-white/50">
+      <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
         <Logo />
       </div>
 
@@ -234,10 +237,10 @@ function Sidebar({ pathname, user, logout }) {
             <Link key={item.href} href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                 active
-                  ? 'gradient-brand text-white shadow-gradient shadow-sm'
-                  : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+                  ? 'gradient-brand text-white shadow-gradient'
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}>
-              <span className={active ? 'text-white/90' : 'text-slate-400'}>
+              <span className={active ? 'text-white/90' : ''}>
                 {item.icon}
               </span>
               {item.label}
@@ -247,19 +250,19 @@ function Sidebar({ pathname, user, logout }) {
 
         {/* Settings group */}
         <div className="pt-3 pb-1">
-          <div className="h-px bg-slate-200/60 mx-2" />
+          <div className="h-px mx-2" style={{ background: 'var(--border)' }} />
         </div>
-        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Settings</p>
+        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-white/20 uppercase tracking-widest">Settings</p>
         {NAV_ITEMS.filter(i => i.group === 'Settings').map(item => {
           const active = item.match(pathname);
           return (
             <Link key={item.href} href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                 active
-                  ? 'gradient-brand text-white shadow-gradient shadow-sm'
-                  : 'text-slate-600 hover:bg-white/50 hover:text-slate-900'
+                  ? 'gradient-brand text-white shadow-gradient'
+                  : 'text-white/50 hover:text-white hover:bg-white/5'
               }`}>
-              <span className={active ? 'text-white/90' : 'text-slate-400'}>
+              <span className={active ? 'text-white/90' : ''}>
                 {item.icon}
               </span>
               {item.label}
@@ -278,10 +281,10 @@ function Sidebar({ pathname, user, logout }) {
       </div>
 
       {/* User */}
-      <div className="px-3 pb-4 border-t border-white/50 pt-3">
+      <div className="px-3 pb-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
         {user
           ? <SidebarUser user={user} logout={logout} />
-          : <Link href="/auth/login" className="text-sm text-slate-600 hover:text-slate-900 px-3 py-2 rounded-xl hover:bg-white/40 flex items-center transition-colors">Sign In</Link>
+          : <Link href="/auth/login" className="text-sm text-white/50 hover:text-white px-3 py-2 rounded-xl hover:bg-white/5 flex items-center transition-colors">Sign In</Link>
         }
       </div>
     </aside>
@@ -293,7 +296,7 @@ function Topbar({ user, logout }) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 lg:left-64 h-16 glass-topbar z-20 flex items-center px-4 sm:px-5 gap-3">
+    <header className="fixed top-0 left-0 right-0 lg:left-60 h-16 glass-topbar z-20 flex items-center px-4 sm:px-5 gap-3">
       {/* Mobile logo */}
       <div className="lg:hidden shrink-0">
         <Logo size="sm" />
@@ -302,11 +305,11 @@ function Topbar({ user, logout }) {
       {/* Desktop search */}
       <div className="hidden lg:flex flex-1 max-w-sm">
         <div className="relative w-full">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none">
             {Icon.search}
           </span>
           <input type="text" placeholder="Search products, competitors…"
-            className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none" />
+            className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl focus:outline-none" />
         </div>
       </div>
 
@@ -315,7 +318,7 @@ function Topbar({ user, logout }) {
       {/* Right */}
       <div className="flex items-center gap-2">
         <button onClick={() => setSearchOpen(s => !s)}
-          className="lg:hidden p-2.5 rounded-xl text-slate-500 hover:bg-white/50 transition-colors">
+          className="lg:hidden p-2.5 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-colors">
           {Icon.search}
         </button>
         {user
@@ -328,10 +331,10 @@ function Topbar({ user, logout }) {
       {searchOpen && (
         <div className="absolute top-full left-0 right-0 glass-topbar px-4 py-3 lg:hidden animate-fade-in">
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">{Icon.search}</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">{Icon.search}</span>
             <input autoFocus type="text" placeholder="Search…"
               onBlur={() => setSearchOpen(false)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl text-slate-700 placeholder-slate-400 focus:outline-none" />
+              className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl focus:outline-none" />
           </div>
         </div>
       )}
@@ -359,7 +362,7 @@ function BottomNav({ pathname }) {
           return (
             <Link key={item.href} href={item.href}
               className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+                active ? 'text-amber-400' : 'text-white/30 hover:text-white/60'
               }`}>
               {item.icon}
               <span className="text-[10px] font-semibold leading-none">{item.label}</span>
@@ -397,19 +400,19 @@ export default function Layout({ children }) {
   usePriceEvents({ onEvent: handlePriceEvent, enabled: !!user });
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed top-0 inset-x-0 z-[9999] bg-amber-500/95 backdrop-blur-sm text-white text-sm font-medium text-center py-2 px-4 flex items-center justify-center gap-2">
           {Icon.wifi_off}
-          You're offline — showing cached data
+          You&apos;re offline — showing cached data
         </div>
       )}
 
       <Sidebar pathname={pathname} user={user} logout={logout} />
       <Topbar  user={user} logout={logout} />
 
-      <main className="lg:pl-64 pt-16 pb-20 lg:pb-8 min-h-screen">
+      <main className="lg:pl-60 pt-16 pb-20 lg:pb-8 min-h-screen">
         {children}
       </main>
 
@@ -422,18 +425,19 @@ export default function Layout({ children }) {
             const isDown = a.change_pct != null ? a.change_pct < 0 : null;
             return (
               <div key={a.id}
-                className="pointer-events-auto glass-card rounded-2xl px-4 py-3 flex items-start gap-3 animate-fade-in">
+                className="pointer-events-auto rounded-2xl px-4 py-3 flex items-start gap-3 animate-fade-in"
+                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
                 <span className="text-base shrink-0 mt-0.5">
                   {isDown === true ? '📉' : isDown === false ? '📈' : '💰'}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-800 truncate">{a.competitor}</p>
-                  <p className="text-xs text-slate-500 truncate">{a.product_title}</p>
+                  <p className="text-xs font-bold text-white truncate">{a.competitor}</p>
+                  <p className="text-xs text-white/40 truncate">{a.product_title}</p>
                   {a.new_price != null && (
-                    <p className={`text-xs font-bold mt-0.5 ${isDown === true ? 'text-rose-600' : isDown === false ? 'text-emerald-600' : 'text-slate-700'}`}>
+                    <p className={`text-xs font-bold mt-0.5 ${isDown === true ? 'text-red-400' : isDown === false ? 'text-emerald-400' : 'text-white'}`}>
                       ${a.new_price.toFixed(2)}
                       {a.change_pct != null && (
-                        <span className="font-normal ml-1 text-slate-400">
+                        <span className="font-normal ml-1 text-white/30">
                           ({a.change_pct > 0 ? '+' : ''}{a.change_pct.toFixed(1)}%)
                         </span>
                       )}
@@ -441,7 +445,7 @@ export default function Layout({ children }) {
                   )}
                 </div>
                 <Link href={`/products/${a.product_id}`}
-                  className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                  className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
                   View
                 </Link>
               </div>

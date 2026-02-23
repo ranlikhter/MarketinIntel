@@ -13,9 +13,9 @@ const Ico = {
 };
 
 const ROLE_COLORS = {
-  admin:  'bg-purple-50 text-purple-700',
-  editor: 'bg-blue-50 text-blue-700',
-  viewer: 'bg-gray-100 text-gray-600',
+  admin:  { background: 'rgba(139,92,246,0.15)', color: '#a78bfa' },
+  editor: { background: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
+  viewer: { background: 'var(--bg-elevated)', color: 'var(--text-muted)' },
 };
 
 // ─── Invite Modal ─────────────────────────────────────────────────────────────
@@ -42,32 +42,33 @@ function InviteModal({ wsId, onClose, onInvited }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Invite Team Member</h3>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl shadow-2xl w-full max-w-md p-6" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+        <h3 className="text-lg font-semibold text-white mb-4">Invite Team Member</h3>
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Email Address</label>
             <input
               autoFocus type="email"
               value={email} onChange={(e) => setEmail(e.target.value)}
               placeholder="colleague@example.com"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="glass-input w-full rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">Must already have a MarketIntel account.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Must already have a MarketIntel account.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Role</label>
             <select value={role} onChange={(e) => setRole(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="glass-input w-full rounded-lg px-3 py-2 text-sm text-white focus:outline-none">
               <option value="viewer">Viewer — read only</option>
-              <option value="editor">Editor — can create & update</option>
+              <option value="editor">Editor — can create &amp; update</option>
               <option value="admin">Admin — full access + manage members</option>
             </select>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:bg-white/5 transition-colors"
+              style={{ border: '1px solid var(--border)' }}>
               Cancel
             </button>
             <button type="submit" disabled={loading || !email.trim()}
@@ -103,22 +104,23 @@ function CreateWsModal({ onClose, onCreate }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Workspace</h3>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl shadow-2xl w-full max-w-md p-6" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+        <h3 className="text-lg font-semibold text-white mb-4">Create Workspace</h3>
         <form onSubmit={submit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Workspace Name</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Workspace Name</label>
             <input
               autoFocus
               value={name} onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Acme Commerce Team"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="glass-input w-full rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
             />
           </div>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white/70 hover:bg-white/5 transition-colors"
+              style={{ border: '1px solid var(--border)' }}>
               Cancel
             </button>
             <button type="submit" disabled={loading || !name.trim()}
@@ -173,12 +175,12 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       {/* Workspace header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
+      <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
         <div>
-          <h3 className="font-semibold text-gray-900">{ws.name}</h3>
-          <p className="text-xs text-gray-500 mt-0.5">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+          <h3 className="font-semibold text-white">{ws.name}</h3>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{members.length} member{members.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex items-center gap-2">
           {isOwner && (
@@ -191,7 +193,7 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
           )}
           {isOwner && (
             <button onClick={deleteWorkspace} disabled={deleting}
-              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+              className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
               title="Delete workspace">
               {Ico.trash}
             </button>
@@ -202,31 +204,31 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
       {/* Members table */}
       <div>
         {members.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-8">No members yet. Invite your team!</p>
+          <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No members yet. Invite your team!</p>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Member</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
-                {isOwner && <th className="px-4 py-3" />}
+              <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>Member</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>Role</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>Joined</th>
+                {isOwner && <th className="px-4 py-3" style={{ background: 'var(--bg-elevated)' }} />}
               </tr>
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                <tr key={m.id} className="hover:bg-white/5 transition-colors" style={{ borderBottom: '1px solid var(--border)' }}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-sm font-semibold">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa' }}>
                         {(m.full_name || m.email || '?')[0].toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{m.full_name || m.email}</p>
-                        {m.full_name && <p className="text-xs text-gray-400">{m.email}</p>}
+                        <p className="text-sm font-medium text-white">{m.full_name || m.email}</p>
+                        {m.full_name && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{m.email}</p>}
                       </div>
                       {m.user_id === ws.owner_id && (
-                        <span className="text-amber-500" title="Workspace owner">{Ico.crown}</span>
+                        <span className="text-amber-400" title="Workspace owner">{Ico.crown}</span>
                       )}
                     </div>
                   </td>
@@ -235,19 +237,19 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
                       <select
                         value={m.role}
                         onChange={(e) => changeRole(m.user_id, e.target.value)}
-                        className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        className="glass-input text-xs rounded-lg px-2 py-1 text-white focus:outline-none"
                       >
                         <option value="viewer">Viewer</option>
                         <option value="editor">Editor</option>
                         <option value="admin">Admin</option>
                       </select>
                     ) : (
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[m.role] || 'bg-gray-100 text-gray-600'}`}>
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" style={ROLE_COLORS[m.role] || ROLE_COLORS.viewer}>
                         {m.role}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                  <td className="px-4 py-3 text-sm" style={{ color: 'var(--text-muted)' }}>
                     {m.joined_at ? new Date(m.joined_at).toLocaleDateString() : '—'}
                   </td>
                   {isOwner && (
@@ -255,7 +257,7 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
                       {m.user_id !== ws.owner_id && (
                         <button
                           onClick={() => removeMember(m.user_id, m.full_name || m.email)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                           title="Remove member">
                           {Ico.trash}
                         </button>
@@ -317,8 +319,8 @@ export default function TeamPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Team & Workspaces</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-white">Team &amp; Workspaces</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
               Collaborate with your team. Share products, alerts, and saved views.
             </p>
           </div>
@@ -331,14 +333,14 @@ export default function TeamPage() {
         </div>
 
         {loading ? (
-          <div className="text-center text-gray-400 py-20">Loading…</div>
+          <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>Loading…</div>
         ) : allWorkspaces.length === 0 ? (
           <div className="text-center py-20">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
               {Ico.users}
             </div>
-            <h3 className="text-lg font-medium text-gray-700 mb-2">No workspaces yet</h3>
-            <p className="text-sm text-gray-500 max-w-sm mx-auto mb-6">
+            <h3 className="text-lg font-medium text-white/70 mb-2">No workspaces yet</h3>
+            <p className="text-sm max-w-sm mx-auto mb-6" style={{ color: 'var(--text-muted)' }}>
               Create a workspace to invite your team and share your competitive intelligence data.
             </p>
             <button

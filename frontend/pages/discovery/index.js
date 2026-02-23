@@ -13,8 +13,12 @@ const Ico = {
 
 function ConfidenceBadge({ score }) {
   const pct = Math.round((score || 0) * 100);
-  const color = pct >= 80 ? 'bg-emerald-50 text-emerald-700' : pct >= 50 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700';
-  return <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>{pct}% match</span>;
+  const style = pct >= 80
+    ? { background: 'rgba(16,185,129,0.15)', color: '#10b981' }
+    : pct >= 50
+    ? { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+    : { background: 'rgba(239,68,68,0.15)', color: '#ef4444' };
+  return <span style={style} className="px-2.5 py-0.5 rounded-full text-xs font-medium">{pct}% match</span>;
 }
 
 function SuggestionCard({ suggestion, onApprove, onReject }) {
@@ -27,14 +31,14 @@ function SuggestionCard({ suggestion, onApprove, onReject }) {
   };
 
   return (
-    <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
+    <div className="rounded-2xl shadow-glass overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">{suggestion.product_title || suggestion.title}</h3>
+            <h3 className="text-sm font-semibold text-white truncate">{suggestion.product_title || suggestion.title}</h3>
             {suggestion.competitor_name && (
-              <p className="text-xs text-slate-500 mt-0.5">{suggestion.competitor_name}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{suggestion.competitor_name}</p>
             )}
           </div>
           <ConfidenceBadge score={suggestion.confidence_score} />
@@ -46,7 +50,7 @@ function SuggestionCard({ suggestion, onApprove, onReject }) {
             href={suggestion.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mb-3 max-w-full truncate"
+            className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 mb-3 max-w-full truncate"
           >
             {suggestion.url} {Ico.ext}
           </a>
@@ -54,16 +58,16 @@ function SuggestionCard({ suggestion, onApprove, onReject }) {
 
         {/* Price */}
         {suggestion.price != null && (
-          <p className="text-sm font-bold text-slate-900 mb-1">${suggestion.price.toFixed(2)}</p>
+          <p className="text-sm font-bold text-white mb-1">${suggestion.price.toFixed(2)}</p>
         )}
 
         {/* Reason */}
         {suggestion.match_reason && (
-          <p className="text-xs text-slate-400 line-clamp-2 mb-4">{suggestion.match_reason}</p>
+          <p className="text-xs line-clamp-2 mb-4" style={{ color: 'var(--text-muted)' }}>{suggestion.match_reason}</p>
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-3 border-t border-white/40">
+        <div className="flex items-center gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             onClick={() => act(() => onApprove(suggestion.id))}
             disabled={actioning}
@@ -74,7 +78,8 @@ function SuggestionCard({ suggestion, onApprove, onReject }) {
           <button
             onClick={() => act(() => onReject(suggestion.id))}
             disabled={actioning}
-            className="flex-1 py-2 glass border border-white/60 hover:bg-white/40 text-slate-600 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+            className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 hover:bg-white/5"
+            style={{ border: '1px solid var(--border)', color: 'rgba(255,255,255,0.6)' }}
           >
             Reject
           </button>
@@ -160,8 +165,8 @@ export default function DiscoveryPage() {
   if (loading) return (
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
-        <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 glass-card rounded-2xl animate-pulse" />)}</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[...Array(6)].map((_, i) => <div key={i} className="h-44 glass-card rounded-2xl animate-pulse" />)}</div>
+        <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[...Array(6)].map((_, i) => <div key={i} className="h-44 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}</div>
       </div>
     </Layout>
   );
@@ -172,8 +177,8 @@ export default function DiscoveryPage() {
 
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Auto Discovery</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Find competitor listings automatically with confidence-scored matching</p>
+          <h1 className="text-xl font-bold text-white">Auto Discovery</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Find competitor listings automatically with confidence-scored matching</p>
         </div>
 
         {/* Stats */}
@@ -193,31 +198,31 @@ export default function DiscoveryPage() {
         </div>
 
         {/* Search panel */}
-        <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/40">
-            <h2 className="text-sm font-semibold text-slate-900">Discover Competitors</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Search by product or keyword to find matching competitor listings</p>
+        <div className="rounded-2xl shadow-glass overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Discover Competitors</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Search by product or keyword to find matching competitor listings</p>
           </div>
           <div className="p-5 flex flex-wrap gap-3">
             <div className="flex-1 min-w-48">
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Product</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Product</label>
               <select
                 value={selectedProductId}
                 onChange={e => setSelectedProductId(e.target.value)}
-                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50"
               >
                 <option value="">All products</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
               </select>
             </div>
             <div className="flex-1 min-w-48">
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Keyword (optional)</label>
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Keyword (optional)</label>
               <input
                 value={keyword}
                 onChange={e => setKeyword(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSearch()}
                 placeholder="e.g. gaming mouse wireless"
-                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
               />
             </div>
             <div className="flex items-end">
@@ -236,8 +241,8 @@ export default function DiscoveryPage() {
         {/* Pending suggestions */}
         {pending.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">
-              Pending Review <span className="text-slate-400 font-normal">({pending.length})</span>
+            <h2 className="text-sm font-semibold text-white mb-3">
+              Pending Review <span className="font-normal" style={{ color: 'var(--text-muted)' }}>({pending.length})</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {pending.map(s => (
@@ -250,16 +255,16 @@ export default function DiscoveryPage() {
         {/* Approved */}
         {approved.length > 0 && (
           <div>
-            <h2 className="text-sm font-semibold text-slate-700 mb-3">
-              Approved <span className="text-slate-400 font-normal">({approved.length})</span>
+            <h2 className="text-sm font-semibold text-white mb-3">
+              Approved <span className="font-normal" style={{ color: 'var(--text-muted)' }}>({approved.length})</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {approved.map(s => (
-                <div key={s.id} className="glass-card rounded-2xl shadow-glass p-4 flex items-start gap-3 opacity-75">
-                  <div className="w-8 h-8 bg-emerald-100/40 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">{Ico.check}</div>
+                <div key={s.id} className="rounded-2xl shadow-glass p-4 flex items-start gap-3 opacity-75" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>{Ico.check}</div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{s.product_title || s.title}</p>
-                    {s.competitor_name && <p className="text-xs text-slate-500">{s.competitor_name}</p>}
+                    <p className="text-sm font-medium text-white truncate">{s.product_title || s.title}</p>
+                    {s.competitor_name && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.competitor_name}</p>}
                     <ConfidenceBadge score={s.confidence_score} />
                   </div>
                 </div>
@@ -270,10 +275,10 @@ export default function DiscoveryPage() {
 
         {/* Empty state */}
         {suggestions.length === 0 && (
-          <div className="glass-card rounded-2xl shadow-glass p-16 text-center">
-            <div className="w-14 h-14 bg-white/40 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">{Ico.search}</div>
-            <p className="text-sm font-medium text-slate-900">No suggestions yet</p>
-            <p className="text-xs text-slate-400 mt-1">Use the search panel above to discover competitor listings</p>
+          <div className="rounded-2xl shadow-glass p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.2)' }}>{Ico.search}</div>
+            <p className="text-sm font-medium text-white">No suggestions yet</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Use the search panel above to discover competitor listings</p>
           </div>
         )}
 

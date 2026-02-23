@@ -25,11 +25,16 @@ ChartJS.register(
   Filler
 );
 
+const DARK_GRID = 'rgba(255,255,255,0.04)';
+const DARK_TICK = '#4b5563';
+const DARK_TOOLTIP_BG = 'rgba(14,14,26,0.95)';
+const DARK_TOOLTIP_BORDER = 'rgba(255,255,255,0.1)';
+
 export function PriceHistoryChart({ data }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No price history data available</p>
+      <div className="flex items-center justify-center h-64 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+        <p style={{ color: 'var(--text-muted)' }}>No price history data available</p>
       </div>
     );
   }
@@ -44,13 +49,13 @@ export function PriceHistoryChart({ data }) {
     competitorData[name].push(item);
   });
 
-  // Generate colors for each competitor
+  // Amber-forward dark theme color palette
   const colors = [
-    { border: 'rgb(59, 130, 246)', bg: 'rgba(59, 130, 246, 0.1)' },
-    { border: 'rgb(16, 185, 129)', bg: 'rgba(16, 185, 129, 0.1)' },
-    { border: 'rgb(249, 115, 22)', bg: 'rgba(249, 115, 22, 0.1)' },
-    { border: 'rgb(239, 68, 68)', bg: 'rgba(239, 68, 68, 0.1)' },
-    { border: 'rgb(168, 85, 247)', bg: 'rgba(168, 85, 247, 0.1)' }
+    { border: '#f59e0b', bg: 'rgba(245,158,11,0.08)' },
+    { border: '#34d399', bg: 'rgba(52,211,153,0.08)' },
+    { border: '#f97316', bg: 'rgba(249,115,22,0.08)' },
+    { border: '#f87171', bg: 'rgba(248,113,113,0.08)' },
+    { border: '#a78bfa', bg: 'rgba(167,139,250,0.08)' },
   ];
 
   const datasets = Object.entries(competitorData).map(([name, items], idx) => {
@@ -67,43 +72,34 @@ export function PriceHistoryChart({ data }) {
       tension: 0.4,
       fill: true,
       pointRadius: 4,
-      pointHoverRadius: 6
+      pointHoverRadius: 6,
+      pointBackgroundColor: color.border,
     };
   });
 
-  const chartData = {
-    datasets
-  };
+  const chartData = { datasets };
 
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
+    interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: {
         position: 'top',
         labels: {
           usePointStyle: true,
           padding: 15,
-          font: {
-            size: 12,
-            weight: '500'
-          }
+          font: { size: 12, weight: '500' },
+          color: '#9ca3af',
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: DARK_TOOLTIP_BG,
+        borderColor: DARK_TOOLTIP_BORDER,
+        borderWidth: 1,
+        titleColor: '#f1f5f9',
+        bodyColor: '#9ca3af',
         padding: 12,
-        titleFont: {
-          size: 14,
-          weight: 'bold'
-        },
-        bodyFont: {
-          size: 13
-        },
         callbacks: {
           label: function(context) {
             return `${context.dataset.label}: $${context.parsed.y.toFixed(2)}`;
@@ -114,27 +110,18 @@ export function PriceHistoryChart({ data }) {
     scales: {
       x: {
         type: 'category',
-        grid: {
-          display: false
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: DARK_TICK },
+        border: { color: 'rgba(255,255,255,0.07)' },
       },
       y: {
         beginAtZero: false,
-        grid: {
-          color: 'rgba(0, 0, 0, 0.05)'
-        },
+        grid: { color: DARK_GRID },
+        border: { color: 'rgba(255,255,255,0.07)' },
         ticks: {
-          callback: function(value) {
-            return '$' + value.toFixed(0);
-          },
-          font: {
-            size: 11
-          }
+          callback: function(value) { return '$' + value.toFixed(0); },
+          font: { size: 11 },
+          color: DARK_TICK,
         }
       }
     }
@@ -150,8 +137,8 @@ export function PriceHistoryChart({ data }) {
 export function CompetitorComparisonChart({ data }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
-        <p className="text-gray-500">No competitor data available</p>
+      <div className="flex items-center justify-center h-64 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+        <p style={{ color: 'var(--text-muted)' }}>No competitor data available</p>
       </div>
     );
   }
@@ -163,20 +150,21 @@ export function CompetitorComparisonChart({ data }) {
         label: 'Current Price',
         data: data.map(item => item.latest_price),
         backgroundColor: [
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(16, 185, 129, 0.8)',
-          'rgba(249, 115, 22, 0.8)',
-          'rgba(239, 68, 68, 0.8)',
-          'rgba(168, 85, 247, 0.8)'
+          'rgba(245,158,11,0.7)',
+          'rgba(52,211,153,0.7)',
+          'rgba(249,115,22,0.7)',
+          'rgba(248,113,113,0.7)',
+          'rgba(167,139,250,0.7)',
         ],
         borderColor: [
-          'rgb(59, 130, 246)',
-          'rgb(16, 185, 129)',
-          'rgb(249, 115, 22)',
-          'rgb(239, 68, 68)',
-          'rgb(168, 85, 247)'
+          '#f59e0b',
+          '#34d399',
+          '#f97316',
+          '#f87171',
+          '#a78bfa',
         ],
-        borderWidth: 2
+        borderWidth: 1,
+        borderRadius: 6,
       }
     ]
   };
@@ -185,42 +173,33 @@ export function CompetitorComparisonChart({ data }) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: {
-        display: false
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: DARK_TOOLTIP_BG,
+        borderColor: DARK_TOOLTIP_BORDER,
+        borderWidth: 1,
+        titleColor: '#f1f5f9',
+        bodyColor: '#9ca3af',
         padding: 12,
         callbacks: {
-          label: function(context) {
-            return `Price: $${context.parsed.y.toFixed(2)}`;
-          }
+          label: function(context) { return `Price: $${context.parsed.y.toFixed(2)}`; }
         }
       }
     },
     scales: {
       x: {
-        grid: {
-          display: false
-        },
-        ticks: {
-          font: {
-            size: 11
-          }
-        }
+        grid: { display: false },
+        ticks: { font: { size: 11 }, color: DARK_TICK },
+        border: { color: 'rgba(255,255,255,0.07)' },
       },
       y: {
         beginAtZero: false,
-        grid: {
-          color: 'rgba(0, 0, 0, 0.05)'
-        },
+        grid: { color: DARK_GRID },
+        border: { color: 'rgba(255,255,255,0.07)' },
         ticks: {
-          callback: function(value) {
-            return '$' + value.toFixed(0);
-          },
-          font: {
-            size: 11
-          }
+          callback: function(value) { return '$' + value.toFixed(0); },
+          font: { size: 11 },
+          color: DARK_TICK,
         }
       }
     }
@@ -241,7 +220,7 @@ export function TrendIndicator({ current, previous }) {
 
   return (
     <div className={`flex items-center gap-1 text-sm font-medium ${
-      isIncrease ? 'text-red-600' : 'text-green-600'
+      isIncrease ? 'text-red-400' : 'text-emerald-400'
     }`}>
       {isIncrease ? (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

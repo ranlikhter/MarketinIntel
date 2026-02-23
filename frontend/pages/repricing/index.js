@@ -11,11 +11,11 @@ const STRATEGIES = [
 ];
 
 const STRATEGY_COLOR = {
-  match_lowest:  'bg-blue-50 text-blue-700',
-  undercut:      'bg-amber-50 text-amber-700',
-  margin_based:  'bg-emerald-50 text-emerald-700',
-  dynamic:       'bg-violet-50 text-violet-700',
-  map_protected: 'bg-red-50 text-red-700',
+  match_lowest:  'bg-blue-900/40 text-blue-400',
+  undercut:      'bg-amber-900/40 text-amber-400',
+  margin_based:  'bg-emerald-900/40 text-emerald-400',
+  dynamic:       'bg-violet-900/40 text-violet-400',
+  map_protected: 'bg-red-900/40 text-red-400',
 };
 
 const Ico = {
@@ -34,7 +34,7 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
   const [deleting, setDeleting] = useState(false);
   const [applying, setApplying] = useState(false);
   const stratLabel = STRATEGIES.find(s => s.value === rule.strategy)?.label || rule.strategy;
-  const stratStyle = STRATEGY_COLOR[rule.strategy] || 'bg-gray-100 text-gray-600';
+  const stratStyle = STRATEGY_COLOR[rule.strategy] || 'bg-white/10 text-white/40';
 
   const handleDelete = async () => {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
@@ -49,19 +49,22 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
   };
 
   return (
-    <div className={`glass-card rounded-2xl shadow-glass overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${!rule.is_active ? 'opacity-75' : ''}`}>
-      <div className={`h-1 ${rule.is_active ? 'bg-blue-500' : 'bg-white/40'}`} />
+    <div
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className={`rounded-2xl overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${!rule.is_active ? 'opacity-75' : ''}`}
+    >
+      <div className={`h-1 ${rule.is_active ? 'bg-amber-500' : 'bg-white/10'}`} />
       <div className="p-5">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-slate-900 truncate">{rule.name}</h3>
+            <h3 className="text-sm font-semibold text-white truncate">{rule.name}</h3>
             <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${stratStyle}`}>
               {stratLabel}
             </span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <span className="text-xs text-slate-400 font-medium">P{rule.priority || 1}</span>
-            <span className={`ml-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>P{rule.priority || 1}</span>
+            <span className={`ml-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${rule.is_active ? 'bg-emerald-900/40 text-emerald-400' : 'bg-white/10 text-white/40'}`}>
               {rule.is_active ? 'Active' : 'Inactive'}
             </span>
           </div>
@@ -69,8 +72,8 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
 
         {/* Adjustment */}
         {rule.adjustment_value != null && (
-          <p className="text-xs text-slate-500 mb-2">
-            Adjust by: <span className="font-medium text-slate-700">
+          <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+            Adjust by: <span className="font-medium text-white/70">
               {rule.adjustment_type === 'percentage' ? `${rule.adjustment_value}%` : `$${rule.adjustment_value}`}
             </span>
           </p>
@@ -78,23 +81,23 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
 
         {/* Price bounds */}
         {(rule.min_price != null || rule.max_price != null) && (
-          <p className="text-xs text-slate-500 mb-3">
-            {rule.min_price != null && <>Min: <span className="font-medium text-slate-700">${rule.min_price}</span> </>}
-            {rule.max_price != null && <>Max: <span className="font-medium text-slate-700">${rule.max_price}</span></>}
+          <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+            {rule.min_price != null && <>Min: <span className="font-medium text-white/70">${rule.min_price}</span> </>}
+            {rule.max_price != null && <>Max: <span className="font-medium text-white/70">${rule.max_price}</span></>}
           </p>
         )}
 
         {/* Approval status */}
         {rule.needs_approval && (
-          <span className="inline-block mb-3 px-2.5 py-0.5 bg-amber-50 text-amber-700 rounded-full text-xs font-medium">
+          <span className="inline-block mb-3 px-2.5 py-0.5 bg-amber-900/40 text-amber-400 rounded-full text-xs font-medium">
             Pending Approval
           </span>
         )}
 
-        <div className="flex items-center justify-between pt-3 border-t border-white/40">
+        <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             onClick={() => onToggle(rule.id)}
-            className={`text-xs font-medium transition-colors ${rule.is_active ? 'text-slate-500 hover:text-slate-900' : 'text-blue-600 hover:text-blue-700'}`}
+            className={`text-xs font-medium transition-colors ${rule.is_active ? 'text-white/40 hover:text-white' : 'text-amber-400 hover:text-amber-300'}`}
           >
             {rule.is_active ? 'Deactivate' : 'Activate'}
           </button>
@@ -102,11 +105,11 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
             <button
               onClick={handleApply}
               disabled={applying || !rule.is_active}
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 disabled:opacity-40 font-medium"
+              className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 disabled:opacity-40 font-medium"
             >
               {Ico.bolt} Apply
             </button>
-            <button onClick={handleDelete} disabled={deleting} className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50">
+            <button onClick={handleDelete} disabled={deleting} className="text-white/30 hover:text-red-400 transition-colors disabled:opacity-50">
               {Ico.trash}
             </button>
           </div>
@@ -148,32 +151,35 @@ function CreateModal({ products, onClose, onCreate }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative glass-card rounded-2xl shadow-glass-lg w-full max-w-md p-6 space-y-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        className="relative rounded-2xl w-full max-w-md p-6 space-y-4"
+      >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900">New Repricing Rule</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">{Ico.x}</button>
+          <h2 className="text-base font-bold text-white">New Repricing Rule</h2>
+          <button onClick={onClose} className="text-white/40 hover:text-white/70">{Ico.x}</button>
         </div>
-        {error && <p className="text-xs text-red-600 bg-red-50/70 rounded-lg px-3 py-2">{error}</p>}
+        {error && <p className="text-xs text-red-400 bg-red-900/30 rounded-lg px-3 py-2">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">Rule Name</label>
-            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Undercut competitors by 5%" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50" />
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Rule Name</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Undercut competitors by 5%" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">Strategy</label>
-            <select value={form.strategy} onChange={e => set('strategy', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Strategy</label>
+            <select value={form.strategy} onChange={e => set('strategy', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50">
               {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label} — {s.desc}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Adjustment</label>
-              <input type="number" step="0.01" value={form.adjustment_value} onChange={e => set('adjustment_value', e.target.value)} placeholder="5" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50" />
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Adjustment</label>
+              <input type="number" step="0.01" value={form.adjustment_value} onChange={e => set('adjustment_value', e.target.value)} placeholder="5" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Type</label>
-              <select value={form.adjustment_type} onChange={e => set('adjustment_type', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50">
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Type</label>
+              <select value={form.adjustment_type} onChange={e => set('adjustment_type', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50">
                 <option value="percentage">Percentage %</option>
                 <option value="fixed">Fixed $</option>
               </select>
@@ -181,20 +187,20 @@ function CreateModal({ products, onClose, onCreate }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Min Price ($)</label>
-              <input type="number" step="0.01" value={form.min_price} onChange={e => set('min_price', e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50" />
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Min Price ($)</label>
+              <input type="number" step="0.01" value={form.min_price} onChange={e => set('min_price', e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">Max Price ($)</label>
-              <input type="number" step="0.01" value={form.max_price} onChange={e => set('max_price', e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50" />
+              <label className="block text-xs font-medium text-white/70 mb-1.5">Max Price ($)</label>
+              <input type="number" step="0.01" value={form.max_price} onChange={e => set('max_price', e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">Priority (1 = highest)</label>
-            <input type="number" min="1" value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50" />
+            <label className="block text-xs font-medium text-white/70 mb-1.5">Priority (1 = highest)</label>
+            <input type="number" min="1" value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
           </div>
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 glass border border-white/60 rounded-xl text-sm font-medium text-slate-700 hover:bg-white/40 transition-colors">Cancel</button>
+            <button type="button" onClick={onClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">Cancel</button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient disabled:opacity-50">
               {saving ? 'Creating…' : 'Create Rule'}
             </button>
@@ -247,40 +253,43 @@ function ApplyResultsModal({ result, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative glass-card rounded-2xl shadow-glass-lg w-full max-w-lg max-h-[80vh] flex flex-col">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div
+        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        className="relative rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+      >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-white/40 flex items-center justify-between shrink-0">
+        <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
-            <h2 className="font-bold text-slate-900">Rule Applied</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="font-bold text-white">Rule Applied</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {suggestions.length} suggested price{suggestions.length !== 1 ? 's' : ''} calculated
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">{Ico.x}</button>
+          <button onClick={onClose} className="text-white/40 hover:text-white/70">{Ico.x}</button>
         </div>
 
         {/* Results table */}
         <div className="overflow-y-auto flex-1 p-5">
           {suggestions.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-8">No suggestions generated — add products and competitors first.</p>
+            <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No suggestions generated — add products and competitors first.</p>
           ) : (
             <div className="space-y-2">
               {suggestions.map((s) => (
-                <div key={s.product_id ?? s.title} className="flex items-center gap-3 bg-white/40 rounded-xl px-4 py-3">
+                <div key={s.product_id ?? s.title} className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: 'var(--bg-surface)' }}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{s.title || s.product_title}</p>
+                    <p className="text-sm font-medium text-white truncate">{s.title || s.product_title}</p>
                     {s.current_price != null && (
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                         Current: <span className="line-through">${s.current_price?.toFixed(2)}</span>
                         {' → '}
-                        <span className="font-semibold text-blue-600">${s.suggested_price?.toFixed(2)}</span>
+                        <span className="font-semibold text-amber-400">${s.suggested_price?.toFixed(2)}</span>
                       </p>
                     )}
                   </div>
                   {storeConn && (
                     pushed[s.product_id] ? (
-                      <span className="text-xs text-emerald-600 font-medium shrink-0">Pushed ✓</span>
+                      <span className="text-xs text-emerald-400 font-medium shrink-0">Pushed ✓</span>
                     ) : (
                       <button
                         onClick={() => pushOne(s)}
@@ -298,7 +307,7 @@ function ApplyResultsModal({ result, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-white/40 flex gap-3 shrink-0">
+        <div className="px-5 py-4 flex gap-3 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
           {storeConn && suggestions.length > 0 && (
             <button
               onClick={pushAll}
@@ -307,7 +316,7 @@ function ApplyResultsModal({ result, onClose }) {
               Push All to {storeConn.type === 'shopify' ? 'Shopify' : 'WooCommerce'}
             </button>
           )}
-          <button onClick={onClose} className={`${storeConn && suggestions.length > 0 ? '' : 'flex-1'} py-2.5 glass border border-white/60 rounded-xl text-sm font-medium text-slate-700 hover:bg-white/40 transition-colors px-6`}>
+          <button onClick={onClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} className={`${storeConn && suggestions.length > 0 ? '' : 'flex-1'} py-2.5 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors px-6`}>
             Done
           </button>
         </div>
@@ -373,8 +382,8 @@ export default function RepricingPage() {
   if (loading) return (
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
-        <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 glass-card rounded-2xl animate-pulse" />)}</div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-48 glass-card rounded-2xl animate-pulse" />)}</div>
+        <div className="grid grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)' }} />)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{[...Array(3)].map((_, i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)' }} />)}</div>
       </div>
     </Layout>
   );
@@ -386,8 +395,8 @@ export default function RepricingPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Repricing</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Automated pricing rules with 5 strategies and approval workflows</p>
+            <h1 className="text-xl font-bold text-white">Repricing</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Automated pricing rules with 5 strategies and approval workflows</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -399,26 +408,26 @@ export default function RepricingPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <div className="stat-blue rounded-2xl shadow-gradient p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{Ico.rules}</div>
-            <div><p className="text-2xl font-bold text-white leading-none">{rules.length}</p><p className="text-xs text-white/80 mt-1">Total Rules</p></div>
+          <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.25)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-blue-500/20 text-blue-400">{Ico.rules}</div>
+            <div><p className="text-2xl font-bold text-white leading-none">{rules.length}</p><p className="text-xs text-white/50 mt-1">Total Rules</p></div>
           </div>
-          <div className="stat-emerald rounded-2xl shadow-gradient p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{Ico.check}</div>
-            <div><p className="text-2xl font-bold text-white leading-none">{active.length}</p><p className="text-xs text-white/80 mt-1">Active</p></div>
+          <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-500/20 text-emerald-400">{Ico.check}</div>
+            <div><p className="text-2xl font-bold text-white leading-none">{active.length}</p><p className="text-xs text-white/50 mt-1">Active</p></div>
           </div>
-          <div className="glass-card rounded-2xl shadow-glass p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/40 text-slate-500">{Ico.pause}</div>
-            <div><p className="text-2xl font-bold text-slate-900 leading-none">{inactive.length}</p><p className="text-xs text-slate-500 mt-1">Inactive</p></div>
+          <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/10 text-white/40">{Ico.pause}</div>
+            <div><p className="text-2xl font-bold text-white leading-none">{inactive.length}</p><p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Inactive</p></div>
           </div>
         </div>
 
         {/* Rules grid */}
         {rules.length === 0 ? (
-          <div className="glass-card rounded-2xl shadow-glass p-16 text-center">
-            <div className="w-14 h-14 bg-white/40 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">{Ico.rules}</div>
-            <p className="text-sm font-medium text-slate-900">No repricing rules yet</p>
-            <p className="text-xs text-slate-400 mt-1 mb-5">Create a rule to automate your pricing strategy</p>
+          <div className="rounded-2xl p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white/20">{Ico.rules}</div>
+            <p className="text-sm font-medium text-white">No repricing rules yet</p>
+            <p className="text-xs mt-1 mb-5" style={{ color: 'var(--text-muted)' }}>Create a rule to automate your pricing strategy</p>
             <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient">
               {Ico.plus} New Rule
             </button>
@@ -432,15 +441,15 @@ export default function RepricingPage() {
         )}
 
         {/* Strategies reference */}
-        <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/40">
-            <h2 className="text-sm font-semibold text-slate-900">Available Strategies</h2>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Available Strategies</h2>
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {STRATEGIES.map(s => (
-              <div key={s.value} className="flex items-start gap-3 p-3 bg-white/40 rounded-xl">
+              <div key={s.value} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
                 <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium ${STRATEGY_COLOR[s.value]}`}>{s.label}</span>
-                <p className="text-xs text-slate-500">{s.desc}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.desc}</p>
               </div>
             ))}
           </div>

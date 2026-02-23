@@ -18,28 +18,29 @@ const Ico = {
 };
 
 function StatCard({ label, value, sub, color, icon }) {
-  const grad = {
-    blue:   'stat-blue',
-    violet: 'stat-violet',
-    emerald:'stat-emerald',
-    amber:  'stat-amber',
-  }[color];
+  const colorMap = {
+    blue:    { bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.25)',   icon: 'rgba(37,99,235,0.3)' },
+    violet:  { bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.25)',  icon: 'rgba(124,58,237,0.3)' },
+    emerald: { bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.25)',   icon: 'rgba(5,150,105,0.3)' },
+    amber:   { bg: 'rgba(245,158,11,0.15)',  border: 'rgba(245,158,11,0.25)',  icon: 'rgba(245,158,11,0.3)' },
+  }[color] || { bg: 'var(--bg-surface)', border: 'var(--border)', icon: 'rgba(255,255,255,0.1)' };
+
   return (
-    <div className={`${grad} rounded-2xl shadow-gradient p-5 flex items-center gap-4`}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{icon}</div>
+    <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: colorMap.bg, border: `1px solid ${colorMap.border}` }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ background: colorMap.icon }}>{icon}</div>
       <div>
         <p className="text-2xl font-bold text-white leading-none">{value ?? '—'}</p>
         <p className="text-xs text-white/80 mt-1">{label}</p>
-        {sub && <p className="text-xs text-white/60 mt-0.5">{sub}</p>}
+        {sub && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{sub}</p>}
       </div>
     </div>
   );
 }
 
 const SEVERITY = {
-  high:   { bar: 'bg-red-500',    badge: 'bg-red-50 text-red-700',    icon: <span className="text-red-500">{null}</span> },
-  medium: { bar: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700', icon: null },
-  low:    { bar: 'bg-blue-400',   badge: 'bg-blue-50 text-blue-700',   icon: null },
+  high:   { bar: 'bg-red-500',   badge: { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' },   badgeText: 'text-red-400' },
+  medium: { bar: 'bg-amber-400', badge: { background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }, badgeText: 'text-amber-400' },
+  low:    { bar: 'bg-blue-400',  badge: { background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.2)' },   badgeText: 'text-blue-400' },
 };
 
 function PriorityItem({ item }) {
@@ -49,15 +50,15 @@ function PriorityItem({ item }) {
       <div className={`w-1 rounded-full shrink-0 ${s.bar}`} />
       <div className="flex-1 min-w-0 py-0.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-semibold text-slate-900">{item.title}</span>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.badge}`}>{item.severity}</span>
+          <span className="text-sm font-semibold text-white">{item.title}</span>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.badgeText}`} style={s.badge}>{item.severity}</span>
           {item.count > 0 && (
-            <span className="text-xs text-slate-400">{item.count} product{item.count !== 1 ? 's' : ''}</span>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.count} product{item.count !== 1 ? 's' : ''}</span>
           )}
         </div>
-        <p className="text-xs text-slate-500 mt-0.5">{item.description}</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
         {item.action && (
-          <p className="text-xs text-slate-700 mt-1 font-medium">→ {item.action}</p>
+          <p className="text-xs text-amber-400 mt-1 font-medium">→ {item.action}</p>
         )}
       </div>
     </div>
@@ -90,10 +91,10 @@ export default function InsightsDashboard() {
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 glass-card rounded-2xl animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)' }} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-48 glass-card rounded-2xl animate-pulse" />)}
+          {[...Array(4)].map((_, i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)' }} />)}
         </div>
       </div>
     </Layout>
@@ -106,12 +107,13 @@ export default function InsightsDashboard() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Intelligence</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Actionable recommendations based on your competitive data</p>
+            <h1 className="text-xl font-bold text-white">Intelligence</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Actionable recommendations based on your competitive data</p>
           </div>
           <button
             onClick={fetchInsights}
-            className="inline-flex items-center gap-2 px-4 py-2.5 glass border border-white/60 hover:bg-white/50 text-slate-700 rounded-xl text-sm font-medium transition-colors shadow-glass"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors text-white hover:bg-white/5"
+            style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
           >
             {Ico.refresh} Refresh
           </button>
@@ -119,7 +121,7 @@ export default function InsightsDashboard() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50/70 border border-red-200/60 rounded-2xl p-4 text-sm text-red-700 backdrop-blur-sm">
+          <div className="rounded-2xl p-4 text-sm text-red-400" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
             Failed to load insights: {error}
           </div>
         )}
@@ -155,10 +157,10 @@ export default function InsightsDashboard() {
 
         {/* Today's Priorities */}
         {insights?.priorities?.length > 0 && (
-          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/40">
-              <h2 className="text-sm font-semibold text-slate-900">Today's Priorities</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Actions you should take right now</p>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-sm font-semibold text-white">Today's Priorities</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Actions you should take right now</p>
             </div>
             <div className="p-5 space-y-4">
               {insights.priorities.map((p, i) => <PriorityItem key={i} item={p} />)}
@@ -170,12 +172,12 @@ export default function InsightsDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Opportunities */}
           {insights?.opportunities?.length > 0 && (
-            <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/40 flex items-center gap-2">
-                <div className="w-7 h-7 bg-emerald-100/60 rounded-lg flex items-center justify-center text-emerald-700">{Ico.up}</div>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-emerald-400" style={{ background: 'rgba(5,150,105,0.15)' }}>{Ico.up}</div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Opportunities</h2>
-                  <p className="text-xs text-slate-500">Revenue growth potential</p>
+                  <h2 className="text-sm font-semibold text-white">Opportunities</h2>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Revenue growth potential</p>
                 </div>
               </div>
               <div className="p-5 space-y-4">
@@ -183,10 +185,10 @@ export default function InsightsDashboard() {
                   <div key={i} className="flex gap-3">
                     <div className="w-1 bg-emerald-400 rounded-full shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900">{opp.title}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{opp.description}</p>
+                      <p className="text-sm font-semibold text-white">{opp.title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{opp.description}</p>
                       {opp.potential_revenue != null && (
-                        <p className="text-xs font-medium text-emerald-600 mt-1">
+                        <p className="text-xs font-medium text-emerald-400 mt-1">
                           Potential: ${opp.potential_revenue.toFixed(2)}
                         </p>
                       )}
@@ -199,12 +201,12 @@ export default function InsightsDashboard() {
 
           {/* Threats */}
           {insights?.threats?.length > 0 && (
-            <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/40 flex items-center gap-2">
-                <div className="w-7 h-7 bg-red-100/60 rounded-lg flex items-center justify-center text-red-600">{Ico.warn}</div>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center text-red-400" style={{ background: 'rgba(239,68,68,0.12)' }}>{Ico.warn}</div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Threats</h2>
-                  <p className="text-xs text-slate-500">Competitive risks to watch</p>
+                  <h2 className="text-sm font-semibold text-white">Threats</h2>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Competitive risks to watch</p>
                 </div>
               </div>
               <div className="p-5 space-y-4">
@@ -213,14 +215,14 @@ export default function InsightsDashboard() {
                     <div className="w-1 bg-red-400 rounded-full shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-slate-900">{threat.title}</p>
+                        <p className="text-sm font-semibold text-white">{threat.title}</p>
                         {threat.severity && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-50/80 text-red-700">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-medium text-red-400" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
                             {threat.severity}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">{threat.description}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{threat.description}</p>
                     </div>
                   </div>
                 ))}
@@ -231,22 +233,22 @@ export default function InsightsDashboard() {
 
         {/* Trending Products */}
         {insights?.trending?.length > 0 && (
-          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/40 flex items-center gap-2">
-              <div className="w-7 h-7 bg-amber-100/60 rounded-lg flex items-center justify-center text-amber-700">{Ico.fire}</div>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center text-amber-400" style={{ background: 'rgba(245,158,11,0.15)' }}>{Ico.fire}</div>
               <div>
-                <h2 className="text-sm font-semibold text-slate-900">Trending Products</h2>
-                <p className="text-xs text-slate-500">Products with high market activity</p>
+                <h2 className="text-sm font-semibold text-white">Trending Products</h2>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Products with high market activity</p>
               </div>
             </div>
-            <div className="divide-y divide-white/40">
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {insights.trending.map((product, i) => (
-                <div key={i} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div key={i} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-white/5">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">{product.product_title}</p>
-                    <p className="text-xs text-slate-500 truncate">{product.reason}</p>
+                    <p className="text-sm font-medium text-white truncate">{product.product_title}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{product.reason}</p>
                   </div>
-                  <span className="shrink-0 px-2.5 py-0.5 bg-amber-100/60 text-amber-700 rounded-full text-xs font-medium">
+                  <span className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium text-amber-400" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
                     {product.change_count} changes
                   </span>
                 </div>
@@ -257,12 +259,12 @@ export default function InsightsDashboard() {
 
         {/* Empty State */}
         {!loading && !error && !insights?.priorities?.length && !insights?.opportunities?.length && !insights?.threats?.length && (
-          <div className="glass-card rounded-2xl shadow-glass p-16 text-center">
-            <div className="w-14 h-14 bg-white/40 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-300">
+          <div className="rounded-2xl p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
               {Ico.bolt}
             </div>
-            <p className="text-sm font-medium text-slate-900">No insights yet</p>
-            <p className="text-xs text-slate-400 mt-1">Add products and competitors to start getting actionable recommendations</p>
+            <p className="text-sm font-medium text-white">No insights yet</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Add products and competitors to start getting actionable recommendations</p>
           </div>
         )}
 

@@ -16,13 +16,17 @@ const Ico = {
 const TABS = ['All', 'Active', 'Inactive'];
 
 function StatCard({ label, value, color, icon }) {
-  const bg = { blue: 'bg-blue-50 text-blue-600', emerald: 'bg-emerald-50 text-emerald-600', gray: 'bg-gray-100 text-gray-500' }[color];
+  const bg = {
+    blue:    { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+    emerald: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },
+    gray:    { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
+  }[color];
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>{icon}</div>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} className="rounded-2xl shadow-sm p-5 flex items-center gap-4">
+      <div style={{ background: bg.background, color: bg.color }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">{icon}</div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
-        <p className="text-xs text-gray-500 mt-1">{label}</p>
+        <p className="text-2xl font-bold text-white leading-none">{value}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
       </div>
     </div>
   );
@@ -38,29 +42,38 @@ function CompetitorCard({ competitor, onToggle, onDelete }) {
   };
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${competitor.is_active ? 'border-gray-100' : 'border-gray-100 opacity-75'}`}>
+    <div
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className={`rounded-2xl shadow-sm overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${competitor.is_active ? '' : 'opacity-75'}`}
+    >
       {/* Top stripe */}
-      <div className={`h-1 ${competitor.is_active ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+      <div className={`h-1 ${competitor.is_active ? 'bg-emerald-400' : 'bg-white/10'}`} />
 
       <div className="p-5">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900 truncate">{competitor.name}</h3>
+            <h3 className="text-sm font-semibold text-white truncate">{competitor.name}</h3>
             <a
               href={competitor.base_url} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-0.5 truncate max-w-full"
+              className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 mt-0.5 truncate max-w-full"
             >
               {competitor.base_url} {Ico.ext}
             </a>
           </div>
-          <span className={`shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium ${competitor.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+          <span
+            style={competitor.is_active
+              ? { background: 'rgba(16,185,129,0.15)', color: '#10b981' }
+              : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
+            }
+            className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium"
+          >
             {competitor.is_active ? 'Active' : 'Inactive'}
           </span>
         </div>
 
         {/* Type + date */}
-        <div className="flex items-center gap-3 mb-4 text-xs text-gray-500">
+        <div className="flex items-center gap-3 mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
           <span className="capitalize">{competitor.website_type || 'Custom'}</span>
           <span>·</span>
           <span>Added {new Date(competitor.created_at).toLocaleDateString()}</span>
@@ -71,14 +84,14 @@ function CompetitorCard({ competitor, onToggle, onDelete }) {
           <div className="space-y-1.5 mb-4">
             {competitor.price_selector && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-400 w-8 shrink-0">Price</span>
-                <code className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg text-gray-600 truncate">{competitor.price_selector}</code>
+                <span className="w-8 shrink-0" style={{ color: 'var(--text-muted)' }}>Price</span>
+                <code style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.6)' }} className="px-2 py-0.5 rounded-lg truncate">{competitor.price_selector}</code>
               </div>
             )}
             {competitor.title_selector && (
               <div className="flex items-center gap-2 text-xs">
-                <span className="text-gray-400 w-8 shrink-0">Title</span>
-                <code className="bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg text-gray-600 truncate">{competitor.title_selector}</code>
+                <span className="w-8 shrink-0" style={{ color: 'var(--text-muted)' }}>Title</span>
+                <code style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.6)' }} className="px-2 py-0.5 rounded-lg truncate">{competitor.title_selector}</code>
               </div>
             )}
           </div>
@@ -86,20 +99,21 @@ function CompetitorCard({ competitor, onToggle, onDelete }) {
 
         {/* Notes */}
         {competitor.notes && (
-          <p className="text-xs text-gray-500 line-clamp-2 mb-4">{competitor.notes}</p>
+          <p className="text-xs line-clamp-2 mb-4" style={{ color: 'var(--text-muted)' }}>{competitor.notes}</p>
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+        <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             onClick={() => onToggle(competitor.id, competitor.is_active)}
-            className={`text-xs font-medium transition-colors ${competitor.is_active ? 'text-gray-500 hover:text-gray-900' : 'text-emerald-600 hover:text-emerald-700'}`}
+            className={`text-xs font-medium transition-colors ${competitor.is_active ? 'hover:text-white' : 'text-emerald-500 hover:text-emerald-400'}`}
+            style={competitor.is_active ? { color: 'var(--text-muted)' } : {}}
           >
             {competitor.is_active ? 'Deactivate' : 'Activate'}
           </button>
           <div className="flex items-center gap-3">
-            <Link href={`/competitors/${competitor.id}/edit`} className="text-gray-400 hover:text-gray-600 transition-colors">{Ico.edit}</Link>
-            <button onClick={handleDelete} disabled={deleting} className="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50">{Ico.trash}</button>
+            <Link href={`/competitors/${competitor.id}/edit`} className="transition-colors hover:text-white/60" style={{ color: 'var(--text-muted)' }}>{Ico.edit}</Link>
+            <button onClick={handleDelete} disabled={deleting} className="transition-colors hover:text-red-500 disabled:opacity-50" style={{ color: 'var(--text-muted)' }}>{Ico.trash}</button>
           </div>
         </div>
       </div>
@@ -148,10 +162,10 @@ export default function CompetitorsPage() {
     <Layout>
       <div className="p-4 lg:p-6 space-y-5">
         <div className="grid grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <div key={i} className="h-48 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+          {[...Array(6)].map((_, i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
         </div>
       </div>
     </Layout>
@@ -164,12 +178,12 @@ export default function CompetitorsPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Competitors</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Custom websites to monitor with CSS selectors</p>
+            <h1 className="text-xl font-bold text-white">Competitors</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Custom websites to monitor with CSS selectors</p>
           </div>
           <Link
             href="/competitors/add"
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90"
           >
             {Ico.plus} Add Competitor
           </Link>
@@ -188,12 +202,13 @@ export default function CompetitorsPage() {
             <button
               key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                tab === t ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                tab === t ? 'bg-white/10 text-white' : 'hover:bg-white/5'
               }`}
+              style={tab !== t ? { color: 'var(--text-muted)' } : {}}
             >
               {t}
               {t !== 'All' && (
-                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : 'text-gray-400'}`}>
+                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : ''}`} style={tab !== t ? { color: 'var(--text-muted)' } : {}}>
                   ({t === 'Active' ? active.length : inactive.length})
                 </span>
               )}
@@ -203,16 +218,16 @@ export default function CompetitorsPage() {
 
         {/* Grid */}
         {filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center">
-            <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">{Ico.globe}</div>
-            <p className="text-sm font-medium text-gray-900">
+          <div className="rounded-2xl shadow-sm p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.2)' }}>{Ico.globe}</div>
+            <p className="text-sm font-medium text-white">
               {tab === 'All' ? 'No competitors yet' : `No ${tab.toLowerCase()} competitors`}
             </p>
-            <p className="text-xs text-gray-400 mt-1 mb-5">
+            <p className="text-xs mt-1 mb-5" style={{ color: 'var(--text-muted)' }}>
               {tab === 'All' ? 'Add a competitor website to start tracking prices' : 'Change the filter to see other competitors'}
             </p>
             {tab === 'All' && (
-              <Link href="/competitors/add" className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+              <Link href="/competitors/add" className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90">
                 {Ico.plus} Add Competitor
               </Link>
             )}

@@ -24,28 +24,28 @@ export default function OfflinePage() {
         <title>Offline — MarketIntel</title>
       </Head>
 
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg-surface)' }}>
         {/* Icon */}
-        <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mb-6">
-          <svg className="w-10 h-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ background: 'rgba(245,158,11,0.15)' }}>
+          <svg className="w-10 h-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round"
               d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
           </svg>
         </div>
 
         {/* Heading */}
-        <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">You're offline</h1>
-        <p className="text-gray-500 text-center max-w-sm mb-1">
+        <h1 className="text-2xl font-bold text-white mb-2 text-center">You're offline</h1>
+        <p className="text-center max-w-sm mb-1" style={{ color: 'var(--text-muted)' }}>
           MarketIntel can't reach the internet right now. Check your connection and we'll
           automatically reload when you're back.
         </p>
         {lastSync && (
-          <p className="text-xs text-gray-400 mt-1">Last synced: {lastSync}</p>
+          <p className="text-xs text-white/40 mt-1">Last synced: {lastSync}</p>
         )}
 
         {/* Cached pages you can still visit */}
         <div className="mt-8 w-full max-w-xs space-y-2">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider text-center mb-3">
+          <p className="text-xs font-semibold text-white/40 uppercase tracking-wider text-center mb-3">
             Available offline
           </p>
           {[
@@ -55,8 +55,9 @@ export default function OfflinePage() {
             { href: '/insights',  label: 'Insights',   icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
           ].map(({ href, label, icon }) => (
             <Link key={href} href={href}
-              className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-              <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors"
+              style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+              <svg className="w-4 h-4 text-white/40 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
               </svg>
               {label}
@@ -67,14 +68,14 @@ export default function OfflinePage() {
         {/* Retry button */}
         <button
           onClick={() => window.location.reload()}
-          className="mt-8 px-6 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+          className="mt-8 px-6 py-2.5 text-white text-sm font-medium rounded-xl transition-colors gradient-brand hover:opacity-90"
         >
           Try again
         </button>
 
         {/* Brand */}
-        <div className="mt-12 flex items-center gap-2 text-gray-400">
-          <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+        <div className="mt-12 flex items-center gap-2 text-white/40">
+          <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>
           <span className="text-sm font-semibold">MarketIntel</span>

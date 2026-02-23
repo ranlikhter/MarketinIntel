@@ -18,17 +18,17 @@ const Ico = {
 
 function StatCard({ label, value, color, icon }) {
   const bg = {
-    blue:   'bg-blue-50 text-blue-600',
-    violet: 'bg-violet-50 text-violet-600',
-    emerald:'bg-emerald-50 text-emerald-600',
-    gray:   'bg-gray-100 text-gray-500',
+    blue:   'bg-blue-900/40 text-blue-400',
+    violet: 'bg-violet-900/40 text-violet-400',
+    emerald:'bg-emerald-900/40 text-emerald-400',
+    gray:   'bg-white/10 text-white/40',
   }[color];
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
+    <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${bg}`}>{icon}</div>
       <div>
-        <p className="text-2xl font-bold text-gray-900 leading-none">{value ?? 0}</p>
-        <p className="text-xs text-gray-500 mt-1">{label}</p>
+        <p className="text-2xl font-bold text-white leading-none">{value ?? 0}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
       </div>
     </div>
   );
@@ -105,7 +105,7 @@ const BTN_COLOR = {
   violet: 'bg-violet-600 hover:bg-violet-700',
   red:    'bg-red-600 hover:bg-red-700',
   emerald:'bg-emerald-600 hover:bg-emerald-700',
-  gray:   'bg-gray-600 hover:bg-gray-700',
+  gray:   'bg-white/20 hover:bg-white/30',
 };
 
 export default function SchedulerPage() {
@@ -167,8 +167,8 @@ export default function SchedulerPage() {
 
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Scheduler</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage automated scraping, analytics and maintenance tasks</p>
+          <h1 className="text-xl font-bold text-white">Scheduler</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Manage automated scraping, analytics and maintenance tasks</p>
         </div>
 
         {/* Stats */}
@@ -180,26 +180,29 @@ export default function SchedulerPage() {
         </div>
 
         {/* Manual Triggers */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">Manual Task Triggers</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Run tasks on demand without waiting for the schedule</p>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Manual Task Triggers</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Run tasks on demand without waiting for the schedule</p>
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {TRIGGERS.map(t => {
               const isRunning = !!running[t.key];
               const iconBg = {
-                blue: 'bg-blue-50 text-blue-600', amber: 'bg-amber-50 text-amber-600',
-                violet: 'bg-violet-50 text-violet-600', red: 'bg-red-50 text-red-600',
-                emerald: 'bg-emerald-50 text-emerald-600', gray: 'bg-gray-100 text-gray-500',
+                blue:    'bg-blue-900/40 text-blue-400',
+                amber:   'bg-amber-900/40 text-amber-400',
+                violet:  'bg-violet-900/40 text-violet-400',
+                red:     'bg-red-900/40 text-red-400',
+                emerald: 'bg-emerald-900/40 text-emerald-400',
+                gray:    'bg-white/10 text-white/40',
               }[t.color];
               return (
-                <div key={t.key} className="border border-gray-100 rounded-xl p-4 flex flex-col gap-3 hover:border-gray-200 transition-colors">
+                <div key={t.key} className="rounded-xl p-4 flex flex-col gap-3 transition-colors" style={{ border: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}>{t.icon}</div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{t.title}</p>
-                      <p className="text-xs text-gray-500 line-clamp-2">{t.desc}</p>
+                      <p className="text-sm font-semibold text-white truncate">{t.title}</p>
+                      <p className="text-xs line-clamp-2" style={{ color: 'var(--text-muted)' }}>{t.desc}</p>
                     </div>
                   </div>
                   <button
@@ -218,21 +221,21 @@ export default function SchedulerPage() {
         </div>
 
         {/* Running Tasks */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">Currently Running</h2>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Currently Running</h2>
           </div>
           {activeTasks.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">No tasks currently running</div>
+            <div className="p-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>No tasks currently running</div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div className="divide-y" style={{ '--tw-divide-opacity': 1 }}>
               {activeTasks.map(task => (
-                <div key={task.task_id} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div key={task.task_id} className="px-5 py-3 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{task.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 font-mono">{task.task_id.slice(0, 12)}… · {task.worker}</p>
+                    <p className="text-sm font-medium text-white truncate">{task.name}</p>
+                    <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--text-muted)' }}>{task.task_id.slice(0, 12)}… · {task.worker}</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-400">
                     {Ico.spin} Running
                   </span>
                 </div>
@@ -242,31 +245,31 @@ export default function SchedulerPage() {
         </div>
 
         {/* Task History */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">Session History</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Tasks triggered during this browser session</p>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Session History</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Tasks triggered during this browser session</p>
           </div>
           {taskHistory.length === 0 ? (
-            <div className="p-8 text-center text-xs text-gray-400">No tasks triggered yet</div>
+            <div className="p-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>No tasks triggered yet</div>
           ) : (
-            <div className="divide-y divide-gray-50">
+            <div>
               {taskHistory.map((task, i) => (
-                <div key={i} className="px-5 py-3 flex items-center justify-between gap-3">
+                <div key={i} className="px-5 py-3 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{task.label || task.message}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{new Date(task.timestamp).toLocaleString()}</p>
+                    <p className="text-sm font-medium text-white truncate">{task.label || task.message}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{new Date(task.timestamp).toLocaleString()}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      task.status === 'queued'  ? 'bg-blue-50 text-blue-700' :
-                      task.status === 'running' ? 'bg-amber-50 text-amber-700' :
-                                                  'bg-emerald-50 text-emerald-700'
+                      task.status === 'queued'  ? 'bg-blue-900/40 text-blue-400' :
+                      task.status === 'running' ? 'bg-amber-900/40 text-amber-400' :
+                                                  'bg-emerald-900/40 text-emerald-400'
                     }`}>
                       {task.status || 'queued'}
                     </span>
                     {task.task_id && (
-                      <code className="text-xs text-gray-400 font-mono">{task.task_id.slice(0, 8)}…</code>
+                      <code className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{task.task_id.slice(0, 8)}…</code>
                     )}
                   </div>
                 </div>
@@ -276,21 +279,21 @@ export default function SchedulerPage() {
         </div>
 
         {/* Auto Schedule */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">Automatic Schedule</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Managed by Celery Beat — runs automatically</p>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">Automatic Schedule</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Managed by Celery Beat — runs automatically</p>
           </div>
           <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {SCHEDULE.map((s, i) => (
-              <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 shrink-0 mt-0.5">
+              <div key={i} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+                <div className="w-8 h-8 bg-amber-900/40 rounded-lg flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
                   {Ico.clock}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">{s.name}</p>
-                  <p className="text-xs text-blue-600 font-medium mt-0.5">{s.schedule}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+                  <p className="text-sm font-semibold text-white">{s.name}</p>
+                  <p className="text-xs text-amber-400 font-medium mt-0.5">{s.schedule}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.desc}</p>
                 </div>
               </div>
             ))}

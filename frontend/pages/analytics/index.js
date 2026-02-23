@@ -7,6 +7,7 @@ const Ico = {
   trend:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
   down:    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>,
   box:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>,
+  refresh: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
 };
 
 const DAYS_OPTIONS = [
@@ -16,18 +17,23 @@ const DAYS_OPTIONS = [
 ];
 
 function StatCard({ label, value, color, icon }) {
-  const grad = {
-    blue:    'stat-blue',
-    emerald: 'stat-emerald',
-    amber:   'stat-amber',
-    violet:  'stat-violet',
-  }[color];
+  const styles = {
+    blue:    { bg: 'rgba(37,99,235,0.12)',  border: 'rgba(37,99,235,0.2)',   text: '#60a5fa' },
+    emerald: { bg: 'rgba(5,150,105,0.12)',  border: 'rgba(5,150,105,0.2)',   text: '#34d399' },
+    amber:   { bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.2)',  text: '#fbbf24' },
+    violet:  { bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.2)',  text: '#a78bfa' },
+  }[color] || { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', text: '#9ca3af' };
+
   return (
-    <div className={`${grad} rounded-2xl shadow-gradient p-5 flex items-center gap-4`}>
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-white/20 text-white">{icon}</div>
+    <div className="rounded-2xl p-5 flex items-center gap-4"
+      style={{ background: styles.bg, border: `1px solid ${styles.border}` }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+        style={{ background: 'rgba(0,0,0,0.2)', color: styles.text }}>
+        {icon}
+      </div>
       <div>
         <p className="text-2xl font-bold text-white leading-none">{value ?? '—'}</p>
-        <p className="text-xs text-white/80 mt-1">{label}</p>
+        <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>{label}</p>
       </div>
     </div>
   );
@@ -58,22 +64,23 @@ function TrendlineCanvas({ data }) {
             {
               label: 'Market Price',
               data: prices,
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59,130,246,0.08)',
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245,158,11,0.07)',
               fill: true,
               tension: 0.4,
               pointRadius: 3,
-              pointBackgroundColor: '#3b82f6',
+              pointBackgroundColor: '#f59e0b',
+              pointBorderColor: '#f59e0b',
             },
             {
               label: 'Forecast',
               data: forecasts,
-              borderColor: '#8b5cf6',
+              borderColor: '#f97316',
               borderDash: [5, 5],
               fill: false,
               tension: 0.4,
               pointRadius: 2,
-              pointBackgroundColor: '#8b5cf6',
+              pointBackgroundColor: '#f97316',
             },
           ],
         },
@@ -81,8 +88,21 @@ function TrendlineCanvas({ data }) {
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { position: 'top', labels: { font: { size: 12 }, boxWidth: 12, padding: 16 } },
+            legend: {
+              position: 'top',
+              labels: {
+                font: { size: 12 },
+                boxWidth: 12,
+                padding: 16,
+                color: '#9ca3af',
+              },
+            },
             tooltip: {
+              backgroundColor: 'rgba(14,14,26,0.95)',
+              borderColor: 'rgba(255,255,255,0.1)',
+              borderWidth: 1,
+              titleColor: '#f1f5f9',
+              bodyColor: '#9ca3af',
               callbacks: {
                 label: ctx => `$${ctx.parsed.y?.toFixed(2) ?? ''}`,
               },
@@ -90,15 +110,18 @@ function TrendlineCanvas({ data }) {
           },
           scales: {
             x: {
-              grid: { display: false },
-              ticks: { maxTicksLimit: 8, font: { size: 11 } },
+              grid: { color: 'rgba(255,255,255,0.04)', display: true },
+              ticks: { maxTicksLimit: 8, font: { size: 11 }, color: '#4b5563' },
+              border: { color: 'rgba(255,255,255,0.07)' },
             },
             y: {
-              grid: { color: '#f3f4f6' },
+              grid: { color: 'rgba(255,255,255,0.04)' },
               ticks: {
                 font: { size: 11 },
+                color: '#4b5563',
                 callback: v => `$${v.toFixed(0)}`,
               },
+              border: { color: 'rgba(255,255,255,0.07)' },
             },
           },
         },
@@ -157,21 +180,21 @@ export default function AnalyticsPage() {
 
         {/* Header */}
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Analytics</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Price trendlines, forecasting and historical analysis</p>
+          <h1 className="text-xl font-bold text-white">Analytics</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Price trendlines, forecasting and historical analysis</p>
         </div>
 
         {/* Product + Days selectors */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex-1 min-w-48">
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Product</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Product</label>
             {loadingProducts ? (
-              <div className="h-10 bg-white/40 rounded-xl animate-pulse" />
+              <div className="h-10 rounded-xl animate-pulse" style={{ background: 'var(--bg-surface)' }} />
             ) : (
               <select
                 value={selectedId}
                 onChange={e => setSelectedId(e.target.value)}
-                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
+                className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none"
               >
                 {products.length === 0 && <option value="">No products yet</option>}
                 {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -179,18 +202,31 @@ export default function AnalyticsPage() {
             )}
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Period</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-muted)' }}>Period</label>
             <div className="flex gap-1">
               {DAYS_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setDays(opt.value)}
-                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${days === opt.value ? 'gradient-brand text-white shadow-gradient' : 'glass border border-white/60 text-slate-600 hover:bg-white/40'}`}
+                  className={`px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                    days === opt.value
+                      ? 'gradient-brand text-white shadow-gradient'
+                      : 'text-white/50 hover:text-white hover:bg-white/5'
+                  }`}
+                  style={days !== opt.value ? { border: '1px solid var(--border)' } : {}}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex items-end pb-0.5">
+            <button onClick={loadTrendline} disabled={loading || !selectedId}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 disabled:opacity-40 transition-colors"
+              style={{ border: '1px solid rgba(245,158,11,0.2)' }}>
+              <span className={loading ? 'animate-spin' : ''}>{Ico.refresh}</span>
+              Refresh
+            </button>
           </div>
         </div>
 
@@ -205,21 +241,21 @@ export default function AnalyticsPage() {
         )}
 
         {/* Chart */}
-        <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-          <div className="px-5 py-4 border-b border-white/40">
-            <h2 className="text-sm font-semibold text-slate-900">
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">
               {selectedProduct ? selectedProduct.title : 'Price Trendline'}
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">Market price over time with linear regression forecast</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Market price over time with linear regression forecast</p>
           </div>
           <div className="p-5">
             {!selectedId || loadingProducts ? (
-              <div className="h-72 flex items-center justify-center text-sm text-slate-400">
+              <div className="h-72 flex items-center justify-center text-sm" style={{ color: 'var(--text-muted)' }}>
                 Select a product to view trendline
               </div>
             ) : loading ? (
               <div className="h-72 flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+                <div className="animate-spin rounded-full h-8 w-8 border-2 border-amber-500 border-t-transparent" />
               </div>
             ) : trendline?.data?.length > 0 ? (
               <div className="h-72">
@@ -227,9 +263,12 @@ export default function AnalyticsPage() {
               </div>
             ) : (
               <div className="h-72 flex flex-col items-center justify-center text-center">
-                <div className="w-12 h-12 bg-white/40 rounded-2xl flex items-center justify-center text-slate-300 mb-3">{Ico.chart}</div>
-                <p className="text-sm font-medium text-slate-700">No price history yet</p>
-                <p className="text-xs text-slate-400 mt-1">Scrape products to start building historical data</p>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                  style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
+                  {Ico.chart}
+                </div>
+                <p className="text-sm font-medium text-white">No price history yet</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Scrape products to start building historical data</p>
               </div>
             )}
           </div>
@@ -237,44 +276,41 @@ export default function AnalyticsPage() {
 
         {/* Forecast info */}
         {trendline?.forecast && (
-          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/40">
-              <h2 className="text-sm font-semibold text-slate-900">Forecast</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Linear regression projection with confidence interval</p>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-sm font-semibold text-white">Forecast</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Linear regression projection with confidence interval</p>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-white/40 rounded-xl">
-                <p className="text-xs text-slate-500 mb-1">7-Day Forecast</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {trendline.forecast.price_7d != null ? `$${trendline.forecast.price_7d.toFixed(2)}` : '—'}
-                </p>
-              </div>
-              <div className="text-center p-4 bg-white/40 rounded-xl">
-                <p className="text-xs text-slate-500 mb-1">30-Day Forecast</p>
-                <p className="text-xl font-bold text-slate-900">
-                  {trendline.forecast.price_30d != null ? `$${trendline.forecast.price_30d.toFixed(2)}` : '—'}
-                </p>
-              </div>
-              <div className="text-center p-4 bg-white/40 rounded-xl">
-                <p className="text-xs text-slate-500 mb-1">Trend Direction</p>
-                <p className={`text-xl font-bold ${trendline.forecast.slope > 0 ? 'text-red-600' : trendline.forecast.slope < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
-                  {trendline.forecast.slope > 0 ? 'Rising' : trendline.forecast.slope < 0 ? 'Falling' : 'Stable'}
-                </p>
-              </div>
+              {[
+                { label: '7-Day Forecast', value: trendline.forecast.price_7d != null ? `$${trendline.forecast.price_7d.toFixed(2)}` : '—' },
+                { label: '30-Day Forecast', value: trendline.forecast.price_30d != null ? `$${trendline.forecast.price_30d.toFixed(2)}` : '—' },
+                {
+                  label: 'Trend Direction',
+                  value: trendline.forecast.slope > 0 ? 'Rising' : trendline.forecast.slope < 0 ? 'Falling' : 'Stable',
+                  color: trendline.forecast.slope > 0 ? '#f87171' : trendline.forecast.slope < 0 ? '#34d399' : 'var(--text)',
+                },
+              ].map((item, i) => (
+                <div key={i} className="text-center p-4 rounded-xl" style={{ background: 'var(--bg-elevated)' }}>
+                  <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                  <p className="text-xl font-bold" style={{ color: item.color || 'white' }}>{item.value}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         {/* Seasonal patterns */}
         {trendline?.seasonal_patterns && (
-          <div className="glass-card rounded-2xl shadow-glass overflow-hidden">
-            <div className="px-5 py-4 border-b border-white/40">
-              <h2 className="text-sm font-semibold text-slate-900">Seasonal Patterns</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Day-of-week and monthly price patterns</p>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h2 className="text-sm font-semibold text-white">Seasonal Patterns</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Day-of-week and monthly price patterns</p>
             </div>
             <div className="p-5">
               {trendline.seasonal_patterns.best_time_to_buy && (
-                <div className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-100/40 rounded-xl text-xs text-emerald-700 font-medium">
+                <div className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-emerald-400 font-medium"
+                  style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.2)' }}>
                   Best time to buy: {trendline.seasonal_patterns.best_time_to_buy}
                 </div>
               )}
@@ -284,12 +320,12 @@ export default function AnalyticsPage() {
                     const val = trendline.seasonal_patterns.day_of_week[i];
                     return (
                       <div key={d} className="text-center">
-                        <p className="text-xs text-slate-500 mb-1">{d}</p>
-                        <div className="h-16 bg-white/40 rounded-lg flex items-end overflow-hidden">
+                        <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{d}</p>
+                        <div className="h-16 rounded-lg flex items-end overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
                           {val != null && (
                             <div
-                              className="w-full bg-blue-400 rounded-lg"
-                              style={{ height: `${Math.max(10, Math.min(100, val))}%` }}
+                              className="w-full rounded-lg"
+                              style={{ height: `${Math.max(10, Math.min(100, val))}%`, background: 'rgba(245,158,11,0.5)' }}
                             />
                           )}
                         </div>

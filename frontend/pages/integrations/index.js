@@ -23,16 +23,16 @@ const Ico = {
 };
 
 const INTEGRATIONS = [
-  { icon: Ico.xml,   iconBg: 'bg-orange-50 text-orange-600',   title: 'XML Feed',    desc: 'Upload a product catalog XML file. Supports Google Shopping Feed, WooCommerce exports, and custom formats.', features: ['Auto-detect format', 'Google Shopping Feed', 'WooCommerce XML', 'Custom XML formats'],   button: 'Import from XML',      btnClass: 'bg-orange-600 hover:bg-orange-700' },
-  { icon: Ico.store, iconBg: 'bg-violet-50 text-violet-600',   title: 'WooCommerce', desc: 'Connect to your WooCommerce store via REST API and automatically sync all published products.',              features: ['Direct API connection', 'Bulk import', 'Filter by category', 'Sync product status'],  button: 'Connect WooCommerce', btnClass: 'bg-violet-600 hover:bg-violet-700' },
-  { icon: Ico.cart,  iconBg: 'bg-emerald-50 text-emerald-600', title: 'Shopify',     desc: 'Connect to your Shopify store using the Admin API. Import products, variants, and collections.',             features: ['Admin API integration', 'Import all products', 'Variant support', 'Collection filtering'], button: 'Connect Shopify',    btnClass: 'bg-emerald-600 hover:bg-emerald-700' },
+  { icon: Ico.xml,   iconBg: { background: 'rgba(234,88,12,0.15)', color: '#f97316' },   title: 'XML Feed',    desc: 'Upload a product catalog XML file. Supports Google Shopping Feed, WooCommerce exports, and custom formats.', features: ['Auto-detect format', 'Google Shopping Feed', 'WooCommerce XML', 'Custom XML formats'],   button: 'Import from XML',      btnClass: 'bg-orange-600 hover:bg-orange-700' },
+  { icon: Ico.store, iconBg: { background: 'rgba(124,58,237,0.15)', color: '#8b5cf6' },  title: 'WooCommerce', desc: 'Connect to your WooCommerce store via REST API and automatically sync all published products.',              features: ['Direct API connection', 'Bulk import', 'Filter by category', 'Sync product status'],  button: 'Connect WooCommerce', btnClass: 'bg-violet-600 hover:bg-violet-700' },
+  { icon: Ico.cart,  iconBg: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },  title: 'Shopify',     desc: 'Connect to your Shopify store using the Admin API. Import products, variants, and collections.',             features: ['Admin API integration', 'Import all products', 'Variant support', 'Collection filtering'], button: 'Connect Shopify',    btnClass: 'bg-emerald-600 hover:bg-emerald-700' },
 ];
 
 const FEATURES = [
-  { icon: Ico.bolt,   iconBg: 'bg-blue-50 text-blue-600',      title: 'Fast Import',         desc: 'Import hundreds of products in seconds with optimised batch processing.' },
-  { icon: Ico.shield, iconBg: 'bg-emerald-50 text-emerald-600', title: 'Duplicate Detection', desc: 'Automatically skips products that already exist in your catalogue.' },
-  { icon: Ico.sync,   iconBg: 'bg-violet-50 text-violet-600',   title: 'Automatic Sync',      desc: 'Inventory and prices sync from connected stores every 4 hours automatically.' },
-  { icon: Ico.doc,    iconBg: 'bg-orange-50 text-orange-600',   title: 'Flexible Formats',    desc: 'Support for multiple XML formats with automatic field detection.' },
+  { icon: Ico.bolt,   iconBg: { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' },  title: 'Fast Import',         desc: 'Import hundreds of products in seconds with optimised batch processing.' },
+  { icon: Ico.shield, iconBg: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },  title: 'Duplicate Detection', desc: 'Automatically skips products that already exist in your catalogue.' },
+  { icon: Ico.sync,   iconBg: { background: 'rgba(124,58,237,0.15)', color: '#8b5cf6' },  title: 'Automatic Sync',      desc: 'Inventory and prices sync from connected stores every 4 hours automatically.' },
+  { icon: Ico.doc,    iconBg: { background: 'rgba(234,88,12,0.15)', color: '#f97316' },   title: 'Flexible Formats',    desc: 'Support for multiple XML formats with automatic field detection.' },
 ];
 
 const STEPS = [
@@ -42,13 +42,13 @@ const STEPS = [
   { n: '4', title: 'Monitor',       desc: 'Start tracking competitor prices'     },
 ];
 
-const inputCls = 'w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-shadow';
+const inputCls = 'w-full px-3.5 py-2.5 rounded-xl text-sm placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-amber-500/20 transition-shadow glass-input';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function platformMeta(platform) {
-  if (platform === 'shopify')     return { label: 'Shopify',     cls: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-  if (platform === 'woocommerce') return { label: 'WooCommerce', cls: 'bg-violet-50  text-violet-600  border-violet-100'  };
-  return { label: platform, cls: 'bg-gray-50 text-gray-600 border-gray-100' };
+  if (platform === 'shopify')     return { label: 'Shopify',     style: { background: 'rgba(16,185,129,0.15)', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' } };
+  if (platform === 'woocommerce') return { label: 'WooCommerce', style: { background: 'rgba(124,58,237,0.15)', color: '#8b5cf6', borderColor: 'rgba(124,58,237,0.3)' } };
+  return { label: platform, style: { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)', borderColor: 'var(--border)' } };
 }
 
 // ─── Add Connection Modal ──────────────────────────────────────────────────────
@@ -84,24 +84,25 @@ function AddConnectionModal({ isOpen, onClose, onSaved }) {
 
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-bold text-gray-900">Add Store Connection</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="rounded-2xl shadow-xl w-full max-w-md" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <h2 className="text-base font-bold text-white">Add Store Connection</h2>
+          <button onClick={onClose} className="hover:text-white p-1 transition-colors" style={{ color: 'var(--text-muted)' }}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         <div className="p-5 space-y-4">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             Saved credentials enable automatic inventory syncing every 4 hours and instant price push-back.
           </p>
 
-          <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
+          <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }}>
             {[['woocommerce', 'WooCommerce'], ['shopify', 'Shopify']].map(([val, lbl]) => (
               <button key={val} onClick={() => setPlatform(val)}
-                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${platform === val ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+                className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${platform === val ? 'bg-white/10 text-white shadow-sm' : 'hover:text-white'}`}
+                style={platform !== val ? { color: 'var(--text-muted)' } : {}}>
                 {lbl}
               </button>
             ))}
@@ -110,37 +111,37 @@ function AddConnectionModal({ isOpen, onClose, onSaved }) {
           {isWC ? (
             <>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Store URL</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Store URL</label>
                 <input type="url" value={form.store_url} onChange={(e) => set('store_url', e.target.value)} placeholder="https://yourstore.com" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Consumer Key</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Consumer Key</label>
                 <input type="text" value={form.consumer_key} onChange={(e) => set('consumer_key', e.target.value)} placeholder="ck_xxxxxxxxxxxxxxxx" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Consumer Secret</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Consumer Secret</label>
                 <input type="password" value={form.consumer_secret} onChange={(e) => set('consumer_secret', e.target.value)} placeholder="cs_xxxxxxxxxxxxxxxx" className={inputCls} />
               </div>
             </>
           ) : (
             <>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Shop URL</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Shop URL</label>
                 <input type="text" value={form.store_url} onChange={(e) => set('store_url', e.target.value)} placeholder="yourstore.myshopify.com" className={inputCls} />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Admin API Access Token</label>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Admin API Access Token</label>
                 <input type="password" value={form.api_key} onChange={(e) => set('api_key', e.target.value)} placeholder="shpat_xxxxxxxxxxxxxxxx" className={inputCls} />
               </div>
             </>
           )}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-4 border-t border-gray-50">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <button onClick={onClose} className="text-sm font-medium hover:text-white transition-colors" style={{ color: 'var(--text-muted)' }}>Cancel</button>
           <button onClick={handleSave} disabled={!canSubmit || saving}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-            {saving && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+            className="px-5 py-2.5 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+            {saving && <svg className="animate-spin w-4 h-4 border-amber-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
             Save Connection
           </button>
         </div>
@@ -154,7 +155,7 @@ function ConnectionRow({ conn, onRemove }) {
   const { addToast } = useToast();
   const [syncing, setSyncing]   = useState(false);
   const [removing, setRemoving] = useState(false);
-  const { label, cls } = platformMeta(conn.platform);
+  const { label, style } = platformMeta(conn.platform);
 
   async function sync() {
     setSyncing(true);
@@ -186,30 +187,31 @@ function ConnectionRow({ conn, onRemove }) {
     : 'Never';
 
   return (
-    <div className="flex items-center gap-4 py-3 border-b border-gray-50 last:border-0">
-      <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${cls}`}>
+    <div className="flex items-center gap-4 py-3 last:border-0" style={{ borderBottom: '1px solid var(--border)' }}>
+      <div className="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0" style={{ ...style, borderColor: style.borderColor }}>
         {Ico.link}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{label}</span>
-          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium border" style={{ ...style, borderColor: style.borderColor }}>{label}</span>
+          <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
           </span>
         </div>
-        <p className="text-sm font-medium text-gray-800 truncate mt-0.5">{conn.store_url}</p>
-        <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+        <p className="text-sm font-medium text-white truncate mt-0.5">{conn.store_url}</p>
+        <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: 'var(--text-muted)' }}>
           <span className="inline-block">{Ico.clock}</span> Last sync: {lastSync}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button onClick={sync} disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 text-amber-400 hover:bg-white/5"
+          style={{ border: '1px solid rgba(245,158,11,0.3)' }}>
           <span className={syncing ? 'animate-spin inline-block' : 'inline-block'}>{Ico.syncSm}</span>
           {syncing ? 'Queued' : 'Sync Now'}
         </button>
         <button onClick={remove} disabled={removing} title="Remove connection"
-          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+          className="p-1.5 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50" style={{ color: 'var(--text-muted)' }}>
           {Ico.trash}
         </button>
       </div>
@@ -240,42 +242,42 @@ export default function IntegrationsPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Integrations</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Import products and sync inventory with your e-commerce platform</p>
+            <h1 className="text-xl font-bold text-white">Integrations</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Import products and sync inventory with your e-commerce platform</p>
           </div>
           <button onClick={() => { setShowWizard(true); setImportResult(null); }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+            className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90">
             {Ico.plus} Start Import
           </button>
         </div>
 
         {/* Connected Stores */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
+        <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Connected Stores</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Inventory syncs automatically every 4 hours. Trigger a manual sync anytime.</p>
+              <h2 className="text-sm font-semibold text-white">Connected Stores</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Inventory syncs automatically every 4 hours. Trigger a manual sync anytime.</p>
             </div>
             <button onClick={() => setShowConnModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-medium rounded-lg transition-colors">
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white text-xs font-medium rounded-lg transition-colors">
               {Ico.plus} Add Store
             </button>
           </div>
 
           <div className="px-5">
             {loadingConns ? (
-              <p className="text-sm text-gray-400 py-6 text-center">Loading connections…</p>
+              <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>Loading connections…</p>
             ) : connections.length === 0 ? (
               <div className="py-8 text-center">
-                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>
                   {Ico.link}
                 </div>
-                <p className="text-sm text-gray-500 font-medium">No stores connected</p>
-                <p className="text-xs text-gray-400 mt-1 mb-4">
+                <p className="text-sm font-medium text-white">No stores connected</p>
+                <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
                   Add a store to enable automatic inventory sync and price push-back.
                 </p>
                 <button onClick={() => setShowConnModal(true)}
-                  className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-xl transition-colors">
+                  className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white text-sm font-medium rounded-xl transition-colors">
                   Connect your store
                 </button>
               </div>
@@ -290,23 +292,23 @@ export default function IntegrationsPage() {
 
         {/* Import result banner */}
         {importResult && (
-          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between gap-4">
+          <div className="rounded-2xl p-4 flex items-center justify-between gap-4" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(16,185,129,0.2)', color: '#10b981' }}>
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-emerald-900">
+                <p className="text-sm font-semibold text-emerald-400">
                   Import complete — {importResult.products_imported} product{importResult.products_imported !== 1 ? 's' : ''} added
                 </p>
                 {importResult.products_skipped > 0 && (
-                  <p className="text-xs text-emerald-600">{importResult.products_skipped} duplicate{importResult.products_skipped !== 1 ? 's' : ''} skipped</p>
+                  <p className="text-xs text-emerald-500">{importResult.products_skipped} duplicate{importResult.products_skipped !== 1 ? 's' : ''} skipped</p>
                 )}
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Link href="/products" className="text-xs font-medium text-emerald-700 hover:underline">View products →</Link>
-              <button onClick={() => setImportResult(null)} className="text-emerald-400 hover:text-emerald-600 p-1">
+              <Link href="/products" className="text-xs font-medium text-emerald-400 hover:text-emerald-300 hover:underline">View products →</Link>
+              <button onClick={() => setImportResult(null)} className="text-emerald-600 hover:text-emerald-400 p-1 transition-colors">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -316,15 +318,15 @@ export default function IntegrationsPage() {
         {/* Integration Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {INTEGRATIONS.map((intg, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-4">
+            <div key={i} className="rounded-2xl shadow-sm p-5 flex flex-col gap-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <div className="flex items-center gap-3">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${intg.iconBg}`}>{intg.icon}</div>
-                <h3 className="text-base font-bold text-gray-900">{intg.title}</h3>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={intg.iconBg}>{intg.icon}</div>
+                <h3 className="text-base font-bold text-white">{intg.title}</h3>
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed">{intg.desc}</p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{intg.desc}</p>
               <ul className="space-y-1.5">
                 {intg.features.map((f, j) => (
-                  <li key={j} className="flex items-center gap-2 text-xs text-gray-700">
+                  <li key={j} className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.7)' }}>
                     <span className="text-emerald-500 shrink-0">{Ico.check}</span>{f}
                   </li>
                 ))}
@@ -338,17 +340,17 @@ export default function IntegrationsPage() {
         </div>
 
         {/* How It Works */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900">How It Works</h2>
+        <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="text-sm font-semibold text-white">How It Works</h2>
           </div>
           <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
             {STEPS.map((s, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center text-sm font-bold shrink-0">{s.n}</div>
+                <div className="w-8 h-8 gradient-brand text-white rounded-xl flex items-center justify-center text-sm font-bold shrink-0">{s.n}</div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{s.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+                  <p className="text-sm font-semibold text-white">{s.title}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.desc}</p>
                 </div>
               </div>
             ))}
@@ -358,11 +360,11 @@ export default function IntegrationsPage() {
         {/* Feature Highlights */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {FEATURES.map((f, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${f.iconBg}`}>{f.icon}</div>
+            <div key={i} className="rounded-2xl shadow-sm p-5 flex items-start gap-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={f.iconBg}>{f.icon}</div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">{f.title}</p>
-                <p className="text-xs text-gray-500 mt-1">{f.desc}</p>
+                <p className="text-sm font-semibold text-white">{f.title}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{f.desc}</p>
               </div>
             </div>
           ))}

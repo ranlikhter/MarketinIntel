@@ -29,23 +29,23 @@ function StockBadge({ inStockCount, competitorCount }) {
   if (competitorCount === 0) return null;
   if (inStockCount === 0) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-        <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white/40" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
         Out of Stock
       </span>
     );
   }
   if (inStockCount <= 1) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-amber-400" style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
         Low Stock
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-emerald-400" style={{ background: 'rgba(5,150,105,0.12)', border: '1px solid rgba(5,150,105,0.2)' }}>
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
       In Stock
     </span>
   );
@@ -55,14 +55,15 @@ function StockBadge({ inStockCount, competitorCount }) {
 function PricePositionBadge({ position }) {
   if (!position) return null;
   const map = {
-    cheapest:  { label: 'Lowest Price', cls: 'bg-violet-50 text-violet-700' },
-    mid:       { label: 'Mid Range',    cls: 'bg-gray-100 text-gray-600'    },
-    expensive: { label: 'Expensive',    cls: 'bg-red-50 text-red-600'       },
+    cheapest:  { label: 'Lowest Price', bg: 'rgba(124,58,237,0.12)', border: 'rgba(124,58,237,0.2)', color: '#a78bfa' },
+    mid:       { label: 'Mid Range',    bg: 'rgba(255,255,255,0.07)', border: 'rgba(255,255,255,0.1)', color: '#9ca3af' },
+    expensive: { label: 'Expensive',   bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.2)',   color: '#f87171' },
   };
   const cfg = map[position];
   if (!cfg) return null;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.cls}`}>
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+      style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.color }}>
       {cfg.label}
     </span>
   );
@@ -73,8 +74,8 @@ function ProductImage({ src, title }) {
   const [err, setErr] = useState(false);
   if (!src || err) {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-white/40">
-        <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--bg-elevated)' }}>
+        <svg className="w-8 h-8" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
@@ -136,14 +137,15 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
     : null;
 
   return (
-    <div className={`glass-card rounded-2xl transition-all ${selected ? 'ring-2 ring-blue-300/60' : 'hover:shadow-glass-lg'}`}>
+    <div className={`rounded-2xl transition-all ${selected ? 'ring-2 ring-amber-500/50' : 'hover:shadow-glass-lg'}`}
+      style={{ background: 'var(--bg-surface)', border: `1px solid ${selected ? 'rgba(245,158,11,0.4)' : 'var(--border)'}` }}>
       <div className="p-4">
         <div className="flex gap-3">
           {/* Image */}
-          <div className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-white/40 border border-white/60">
+          <div className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
             <ProductImage src={product.image_url} title={product.title} />
             {changePct !== null && changePct !== undefined && (
-              <div className={`absolute bottom-1 left-1 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none ${changePct <= 0 ? 'bg-emerald-600' : 'bg-red-500'}`}>
+              <div className={`absolute bottom-1 left-1 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md leading-none ${changePct <= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
                 {changePct > 0 ? '+' : ''}{changePct}%
               </div>
             )}
@@ -155,16 +157,16 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link href={`/products/${product.id}`}
-                  className="font-semibold text-slate-900 text-sm leading-snug hover:text-blue-600 transition-colors line-clamp-2">
+                  className="font-semibold text-white text-sm leading-snug hover:text-amber-400 transition-colors line-clamp-2">
                   {product.title}
                 </Link>
                 {product.sku && (
-                  <p className="text-[11px] text-slate-400 mt-0.5">SKU: {product.sku}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>SKU: {product.sku}</p>
                 )}
               </div>
               <input type="checkbox" checked={selected}
                 onChange={(e) => onSelect(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0 cursor-pointer" />
+                className="mt-0.5 w-4 h-4 rounded shrink-0 cursor-pointer accent-amber-500" />
             </div>
 
             {/* Status badges */}
@@ -178,29 +180,29 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
             {/* Price row */}
             <div className="flex items-end justify-between mt-2.5 gap-2">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider leading-none mb-1">My Price</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider leading-none mb-1" style={{ color: 'var(--text-muted)' }}>My Price</p>
                 {editingPrice ? (
                   <div className="flex items-center gap-1">
-                    <span className="text-slate-400 text-sm font-medium">$</span>
+                    <span className="text-white/50 text-sm font-medium">$</span>
                     <input autoFocus type="number" step="0.01" value={priceInput}
                       onChange={(e) => setPriceInput(e.target.value)}
                       onBlur={handleSavePrice}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
-                      className="w-20 text-lg font-bold text-slate-900 border-b-2 border-blue-500 bg-transparent focus:outline-none" />
-                    {saving && <span className="text-xs text-slate-400 animate-pulse">saving…</span>}
+                      className="w-20 text-lg font-bold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none" />
+                    {saving && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}
                   </div>
                 ) : (
                   <button onClick={() => { setPriceInput(myPrice ?? ''); setEditingPrice(true); }}
-                    className="text-lg font-bold text-slate-900 hover:text-blue-600 transition-colors text-left leading-tight"
+                    className="text-lg font-bold text-white hover:text-amber-400 transition-colors text-left leading-tight"
                     title="Click to set your price">
                     {myPrice != null ? `$${myPrice.toFixed(2)}` : (
-                      <span className="text-slate-300 text-base font-medium">Set price</span>
+                      <span className="text-base font-medium" style={{ color: 'var(--text-muted)' }}>Set price</span>
                     )}
                   </button>
                 )}
                 {product.lowest_price && (
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Mkt: <span className="font-medium">${product.lowest_price.toFixed(2)}</span>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Mkt: <span className="font-medium text-amber-400">${product.lowest_price.toFixed(2)}</span>
                   </p>
                 )}
               </div>
@@ -210,15 +212,15 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/40">
-          <span className={`text-xs font-medium ${product.competitor_count > 0 ? 'text-slate-500' : 'text-slate-300'}`}>
+        <div className="flex items-center justify-between mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+          <span className="text-xs font-medium" style={{ color: product.competitor_count > 0 ? 'var(--text-muted)' : 'var(--text-dim)' }}>
             {product.competitor_count > 0
               ? `${product.competitor_count} competitor${product.competitor_count !== 1 ? 's' : ''}`
               : 'No matches yet'}
           </span>
           <div className="flex items-center gap-3">
-            <Link href={`/products/${product.id}`} className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors">Details</Link>
-            <button onClick={onDelete} className="text-xs font-medium text-red-400 hover:text-red-600 transition-colors">Remove</button>
+            <Link href={`/products/${product.id}`} className="text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors">Details</Link>
+            <button onClick={onDelete} className="text-xs font-medium text-red-400 hover:text-red-300 transition-colors">Remove</button>
           </div>
         </div>
       </div>
@@ -332,20 +334,20 @@ export default function ProductsPage() {
     return (
       <Layout>
         <div className="px-4 sm:px-6 max-w-2xl mx-auto lg:max-w-none lg:px-6">
-          <div className="h-8 bg-white/50 rounded-xl animate-pulse mb-6 w-40" />
+          <div className="h-8 rounded-xl animate-pulse mb-6 w-40" style={{ background: 'var(--bg-surface)' }} />
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
             {[1,2,3,4,5,6].map(i => (
-              <div key={i} className="glass-card rounded-2xl p-4 animate-pulse">
+              <div key={i} className="rounded-2xl p-4 animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                 <div className="flex gap-3">
-                  <div className="w-20 h-20 bg-white/60 rounded-xl shrink-0" />
+                  <div className="w-20 h-20 rounded-xl shrink-0" style={{ background: 'var(--bg-elevated)' }} />
                   <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-4 bg-white/60 rounded-lg w-3/4" />
-                    <div className="h-3 bg-white/60 rounded-lg w-1/3" />
+                    <div className="h-4 rounded-lg w-3/4" style={{ background: 'var(--bg-elevated)' }} />
+                    <div className="h-3 rounded-lg w-1/3" style={{ background: 'var(--bg-elevated)' }} />
                     <div className="flex gap-1.5 mt-2">
-                      <div className="h-5 w-16 bg-white/60 rounded-full" />
-                      <div className="h-5 w-20 bg-white/60 rounded-full" />
+                      <div className="h-5 w-16 rounded-full" style={{ background: 'var(--bg-elevated)' }} />
+                      <div className="h-5 w-20 rounded-full" style={{ background: 'var(--bg-elevated)' }} />
                     </div>
-                    <div className="h-5 bg-white/60 rounded-lg w-1/2 mt-2" />
+                    <div className="h-5 rounded-lg w-1/2 mt-2" style={{ background: 'var(--bg-elevated)' }} />
                   </div>
                 </div>
               </div>
@@ -360,9 +362,9 @@ export default function ProductsPage() {
     return (
       <Layout>
         <div className="px-4 sm:px-6 max-w-2xl mx-auto">
-          <div className="bg-red-50/70 border border-red-200/60 rounded-2xl p-6 text-center backdrop-blur-sm">
-            <p className="font-semibold text-red-800 mb-2">{error}</p>
-            <button onClick={loadProducts} className="text-sm text-red-600 underline">Try again</button>
+          <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <p className="font-semibold text-red-400 mb-2">{error}</p>
+            <button onClick={loadProducts} className="text-sm text-red-400 underline">Try again</button>
           </div>
         </div>
       </Layout>
@@ -376,14 +378,15 @@ export default function ProductsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Products</h1>
-            <p className="text-sm text-slate-500 mt-0.5">{products.length} product{products.length !== 1 ? 's' : ''} monitored</p>
+            <h1 className="text-2xl font-bold text-white">Products</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>{products.length} product{products.length !== 1 ? 's' : ''} monitored</p>
           </div>
           <div className="hidden sm:flex items-center gap-2">
             {products.length > 0 && (
               <button
                 onClick={() => exportToCSV(filtered)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl glass border border-white/60 text-slate-600 text-sm font-medium hover:bg-white/50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white/60 hover:text-white hover:bg-white/5 transition-colors"
+                style={{ border: '1px solid var(--border)' }}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -404,28 +407,29 @@ export default function ProductsPage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
           {[
-            { label: 'Products',    value: products.length, cls: 'stat-blue'    },
-            { label: 'Competitors', value: totalMatches,    cls: 'stat-violet'  },
-            { label: 'Cheapest',    value: cheapestCount,   cls: 'stat-emerald' },
-            { label: 'Expensive',   value: expensiveCount,  cls: 'stat-rose'    },
+            { label: 'Products',    value: products.length, bg: 'rgba(37,99,235,0.15)',   border: 'rgba(37,99,235,0.2)',   color: '#60a5fa' },
+            { label: 'Competitors', value: totalMatches,    bg: 'rgba(124,58,237,0.15)',  border: 'rgba(124,58,237,0.2)',  color: '#a78bfa' },
+            { label: 'Cheapest',    value: cheapestCount,   bg: 'rgba(5,150,105,0.15)',   border: 'rgba(5,150,105,0.2)',   color: '#34d399' },
+            { label: 'Expensive',   value: expensiveCount,  bg: 'rgba(239,68,68,0.15)',   border: 'rgba(239,68,68,0.2)',   color: '#f87171' },
           ].map(s => (
-            <div key={s.label} className={`${s.cls} rounded-2xl px-4 py-3 shadow-gradient`}>
+            <div key={s.label} className="rounded-2xl px-4 py-3"
+              style={{ background: s.bg, border: `1px solid ${s.border}` }}>
               <p className="text-2xl font-bold text-white">{s.value}</p>
-              <p className="text-xs text-white/80 font-medium mt-0.5">{s.label}</p>
+              <p className="text-xs font-medium mt-0.5" style={{ color: s.color }}>{s.label}</p>
             </div>
           ))}
         </div>
 
         {/* Search */}
         <div className="relative mb-4">
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </span>
           <input type="text" placeholder="Search by name or SKU…" value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-sm text-slate-800 placeholder-slate-400" />
+            className="w-full pl-10 pr-4 py-2.5 glass-input rounded-xl text-sm" />
         </div>
 
         {/* Filter tabs */}
@@ -435,9 +439,10 @@ export default function ProductsPage() {
             const active = activeTab === tab.key;
             return (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${active ? 'gradient-brand text-white shadow-gradient shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/40'}`}>
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${active ? 'gradient-brand text-white shadow-gradient' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                style={!active ? { border: '1px solid var(--border)' } : {}}>
                 {tab.label}
-                <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-white/50 text-slate-500'}`}>
+                <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20 text-white' : 'bg-white/10 text-white/40'}`}>
                   {count}
                 </span>
               </button>
@@ -448,16 +453,18 @@ export default function ProductsPage() {
         {/* Bulk select row */}
         {filtered.length > 0 && (
           <div className="flex items-center gap-3 mb-4">
-            <button onClick={toggleAll} className="flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 transition-colors font-medium">
+            <button onClick={toggleAll} className="flex items-center gap-2 text-xs font-medium transition-colors" style={{ color: 'var(--text-muted)' }}>
               <input type="checkbox" readOnly
                 checked={selected.size > 0 && selected.size === filtered.length}
                 ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length; }}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                className="w-4 h-4 rounded accent-amber-500" />
               {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
             </button>
             {selected.size > 0 && (
               <div className="flex items-center gap-2 ml-auto">
-                <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="px-3 py-1.5 text-xs font-medium text-slate-600 glass border border-white/60 rounded-lg hover:bg-white/50 transition-colors">Export CSV</button>
+                <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))}
+                  className="px-3 py-1.5 text-xs font-medium text-white/50 hover:text-white rounded-lg transition-colors"
+                  style={{ border: '1px solid var(--border)' }}>Export CSV</button>
                 <Link href="/repricing" className="px-3 py-1.5 text-xs font-semibold text-white gradient-brand rounded-lg hover:opacity-90 transition-opacity">Reprice</Link>
               </div>
             )}
@@ -466,17 +473,17 @@ export default function ProductsPage() {
 
         {/* Cards grid */}
         {filtered.length === 0 ? (
-          <div className="glass-card rounded-2xl shadow-glass p-12 text-center">
-            <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)' }}>
+              <svg className="w-8 h-8" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                   d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-slate-900">
+            <h3 className="text-base font-semibold text-white">
               {search ? 'No results' : activeTab !== 'all' ? 'None in this filter' : 'No products yet'}
             </h3>
-            <p className="text-sm text-slate-400 mt-1 mb-5">
+            <p className="text-sm mt-1 mb-5" style={{ color: 'var(--text-muted)' }}>
               {search ? `No products match "${search}"`
                 : activeTab !== 'all' ? 'Try a different filter.'
                 : 'Add your first product to start tracking competitor prices.'}
@@ -505,11 +512,12 @@ export default function ProductsPage() {
 
         {/* Floating bulk-action bar */}
         {selected.size > 0 && (
-          <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:w-auto bg-slate-900/90 backdrop-blur-xl text-white rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl z-40">
+          <div className="fixed bottom-20 lg:bottom-6 left-4 right-4 lg:left-auto lg:right-6 lg:w-auto backdrop-blur-xl text-white rounded-2xl px-4 py-3 flex items-center gap-4 shadow-xl z-40"
+            style={{ background: 'rgba(20,20,40,0.95)', border: '1px solid var(--border-md)' }}>
             <span className="text-sm font-medium flex-1">{selected.size} item{selected.size !== 1 ? 's' : ''} selected</span>
-            <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="text-xs text-slate-300 hover:text-white transition-colors font-medium">Export CSV</button>
-            <Link href="/repricing" className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors">Reprice</Link>
-            <button onClick={() => setSelected(new Set())} className="text-slate-400 hover:text-white transition-colors ml-1">
+            <button onClick={() => exportToCSV(products.filter(p => selected.has(p.id)))} className="text-xs text-white/50 hover:text-white transition-colors font-medium">Export CSV</button>
+            <Link href="/repricing" className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">Reprice</Link>
+            <button onClick={() => setSelected(new Set())} className="text-white/40 hover:text-white transition-colors ml-1">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>

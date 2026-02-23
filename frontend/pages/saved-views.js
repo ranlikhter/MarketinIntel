@@ -76,24 +76,27 @@ function CreateViewModal({ onClose, onCreate }) {
   const EMOJIS = ['📊', '🎯', '🚨', '💰', '📈', '📉', '⚡', '🏆', '🔥', '👀', '💡', '🛒'];
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-lg font-semibold text-gray-900 mb-5">Create Saved View</h3>
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div
+        style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        className="rounded-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"
+      >
+        <h3 className="text-lg font-semibold text-white mb-5">Create Saved View</h3>
         <form onSubmit={submit} className="space-y-4">
 
           {/* Name + icon */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">View Name *</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">View Name *</label>
               <input autoFocus value={form.name} onChange={(e) => set('name', e.target.value)}
                 placeholder="e.g. Problem Products"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full glass-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
             </div>
             <div className="w-28">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Icon</label>
               <input value={form.icon} onChange={(e) => set('icon', e.target.value)}
                 placeholder="🎯"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full glass-input rounded-lg px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
             </div>
           </div>
 
@@ -101,7 +104,7 @@ function CreateViewModal({ onClose, onCreate }) {
           <div className="flex flex-wrap gap-1.5">
             {EMOJIS.map((e) => (
               <button key={e} type="button" onClick={() => set('icon', e)}
-                className={`w-8 h-8 rounded-lg text-base hover:bg-gray-100 transition-colors ${form.icon === e ? 'bg-blue-100 ring-1 ring-blue-400' : ''}`}>
+                className={`w-8 h-8 rounded-lg text-base hover:bg-white/5 transition-colors ${form.icon === e ? 'bg-amber-900/40 ring-1 ring-amber-400/50' : ''}`}>
                 {e}
               </button>
             ))}
@@ -109,23 +112,23 @@ function CreateViewModal({ onClose, onCreate }) {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+            <label className="block text-sm font-medium text-white/70 mb-1">Description (optional)</label>
             <input value={form.description} onChange={(e) => set('description', e.target.value)}
               placeholder="Products where we're most expensive and competition is high"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full glass-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
           </div>
 
           {/* Filters section */}
-          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+          <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--bg-surface)' }}>
+            <p className="text-xs font-semibold text-white/40 uppercase tracking-wider flex items-center gap-1.5">
               {Ico.filter} Filters
             </p>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Price Position</label>
+                <label className="block text-xs font-medium text-white/50 mb-1">Price Position</label>
                 <select value={form.price_position} onChange={(e) => set('price_position', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  className="w-full glass-input rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400/50">
                   <option value="">Any</option>
                   {PRICE_POSITIONS.map((p) => (
                     <option key={p} value={p}>{p.replace('_', ' ')}</option>
@@ -134,9 +137,9 @@ function CreateViewModal({ onClose, onCreate }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Competition Level</label>
+                <label className="block text-xs font-medium text-white/50 mb-1">Competition Level</label>
                 <select value={form.competition_level} onChange={(e) => set('competition_level', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  className="w-full glass-input rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400/50">
                   <option value="">Any</option>
                   {COMPETITION_LEVELS.map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -145,9 +148,9 @@ function CreateViewModal({ onClose, onCreate }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Activity</label>
+                <label className="block text-xs font-medium text-white/50 mb-1">Activity</label>
                 <select value={form.activity} onChange={(e) => set('activity', e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400">
+                  className="w-full glass-input rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400/50">
                   <option value="">Any</option>
                   {ACTIVITIES.map((a) => (
                     <option key={a} value={a}>{a.replace('_', ' ')}</option>
@@ -160,18 +163,18 @@ function CreateViewModal({ onClose, onCreate }) {
           {/* Sort */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Sort By</label>
               <select value={form.sort_by} onChange={(e) => set('sort_by', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full glass-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50">
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Order</label>
+              <label className="block text-sm font-medium text-white/70 mb-1">Order</label>
               <select value={form.sort_order} onChange={(e) => set('sort_order', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full glass-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50">
                 <option value="desc">Descending</option>
                 <option value="asc">Ascending</option>
               </select>
@@ -182,19 +185,20 @@ function CreateViewModal({ onClose, onCreate }) {
           <label className="flex items-center gap-3 cursor-pointer select-none">
             <div
               onClick={() => set('is_default', !form.is_default)}
-              className={`w-10 h-5.5 rounded-full flex items-center px-0.5 transition-colors ${form.is_default ? 'bg-blue-500' : 'bg-gray-300'}`}>
+              className={`w-10 h-5.5 rounded-full flex items-center px-0.5 transition-colors ${form.is_default ? 'bg-amber-500' : 'bg-white/20'}`}>
               <div className={`w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${form.is_default ? 'translate-x-4' : 'translate-x-0'}`} />
             </div>
-            <span className="text-sm text-gray-700">Set as default view on the Products page</span>
+            <span className="text-sm text-white/60">Set as default view on the Products page</span>
           </label>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">
+              style={{ border: '1px solid var(--border)' }}
+              className="flex-1 px-4 py-2 text-white/60 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={loading || !form.name.trim()}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              className="flex-1 px-4 py-2 gradient-brand text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity">
               {loading ? 'Saving…' : 'Save View'}
             </button>
           </div>
@@ -257,7 +261,10 @@ function ViewCard({ view, onDelete, onDuplicate }) {
   const sortLabel = SORT_OPTIONS.find((o) => o.value === view.sort_by)?.label || view.sort_by;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5">
+    <div
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className="rounded-2xl hover:shadow-md transition-shadow p-5"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           {view.icon && (
@@ -265,31 +272,31 @@ function ViewCard({ view, onDelete, onDuplicate }) {
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 truncate">{view.name}</h3>
+              <h3 className="font-semibold text-white truncate">{view.name}</h3>
               {view.is_default && (
-                <span className="shrink-0 px-1.5 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded">
+                <span className="shrink-0 px-1.5 py-0.5 bg-amber-900/40 text-amber-400 text-xs font-medium rounded">
                   Default
                 </span>
               )}
               {view.is_shared && (
-                <span className="shrink-0 px-1.5 py-0.5 bg-purple-50 text-purple-600 text-xs font-medium rounded">
+                <span className="shrink-0 px-1.5 py-0.5 bg-violet-900/40 text-violet-400 text-xs font-medium rounded">
                   Shared
                 </span>
               )}
             </div>
             {view.description && (
-              <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{view.description}</p>
+              <p className="text-sm mt-0.5 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{view.description}</p>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button onClick={duplicate} disabled={duping} title="Duplicate"
-            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50">
+            className="p-1.5 text-white/30 hover:text-amber-400 hover:bg-amber-900/20 rounded-lg transition-colors disabled:opacity-50">
             {Ico.copy}
           </button>
           <button onClick={deleteView} disabled={deleting} title="Delete"
-            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50">
+            className="p-1.5 text-white/30 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50">
             {Ico.trash}
           </button>
         </div>
@@ -299,28 +306,28 @@ function ViewCard({ view, onDelete, onDuplicate }) {
       {filterTags.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mt-3">
           {filterTags.map((tag) => (
-            <span key={tag} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">{tag}</span>
+            <span key={tag} className="px-2 py-0.5 text-xs rounded-full" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>{tag}</span>
           ))}
         </div>
       )}
 
       {/* Sort */}
       {view.sort_by && (
-        <p className="text-xs text-gray-400 mt-2">
-          Sort by <span className="font-medium text-gray-500">{sortLabel}</span> ({view.sort_order})
+        <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+          Sort by <span className="font-medium text-white/50">{sortLabel}</span> ({view.sort_order})
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-3 text-xs text-gray-400">
+      <div className="flex items-center justify-between mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
           <span>Used {view.use_count || 0}×</span>
           {view.last_used_at && (
             <span>· Last: {new Date(view.last_used_at).toLocaleDateString()}</span>
           )}
         </div>
         <button onClick={loadView}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors">
+          className="flex items-center gap-1.5 px-3 py-1.5 gradient-brand text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity">
           {Ico.play} Load View
         </button>
       </div>
@@ -361,14 +368,14 @@ export default function SavedViewsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Saved Views</h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <h1 className="text-2xl font-bold text-white">Saved Views</h1>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
               Save your favourite filter combinations and jump back in instantly.
             </p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 gradient-brand text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-gradient"
           >
             {Ico.plus} New View
           </button>
@@ -376,8 +383,8 @@ export default function SavedViewsPage() {
 
         {/* Suggested starter views */}
         {!loading && views.length === 0 && (
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 mb-6">
-            <h3 className="font-semibold text-blue-900 mb-3">Quick-start templates</h3>
+          <div className="rounded-2xl p-6 mb-6" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
+            <h3 className="font-semibold text-amber-400 mb-3">Quick-start templates</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               {[
                 { icon: '🚨', name: 'Problem Products', desc: 'Most expensive + high competition', filters: { price_position: 'most_expensive', competition_level: 'high' } },
@@ -392,11 +399,12 @@ export default function SavedViewsPage() {
                       addToast(`"${t.name}" saved!`, 'success');
                     } catch {}
                   }}
-                  className="text-left p-3 bg-white rounded-xl border border-blue-100 hover:border-blue-300 hover:shadow-sm transition-all">
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                  className="text-left p-3 rounded-xl hover:border-amber-400/30 hover:shadow-sm transition-all">
                   <span className="text-xl">{t.icon}</span>
-                  <p className="text-sm font-semibold text-gray-900 mt-1.5">{t.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{t.desc}</p>
-                  <span className="text-xs text-blue-600 font-medium mt-2 inline-block">+ Add this view</span>
+                  <p className="text-sm font-semibold text-white mt-1.5">{t.name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{t.desc}</p>
+                  <span className="text-xs text-amber-400 font-medium mt-2 inline-block">+ Add this view</span>
                 </button>
               ))}
             </div>
@@ -404,16 +412,16 @@ export default function SavedViewsPage() {
         )}
 
         {loading ? (
-          <div className="text-center text-gray-400 py-20">Loading…</div>
+          <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>Loading…</div>
         ) : views.length === 0 ? (
           <div className="text-center py-16">
-            <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 text-white/20" style={{ background: 'var(--bg-elevated)' }}>
               {Ico.bookmark}
             </div>
-            <p className="text-gray-500 font-medium">No saved views yet</p>
-            <p className="text-sm text-gray-400 mt-1">Create a view to save your filter and sort preferences.</p>
+            <p className="text-white/50 font-medium">No saved views yet</p>
+            <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Create a view to save your filter and sort preferences.</p>
             <button onClick={() => setShowCreate(true)}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+              className="mt-4 px-4 py-2 gradient-brand text-white rounded-xl text-sm font-medium hover:opacity-90 transition-opacity">
               Create first view
             </button>
           </div>
