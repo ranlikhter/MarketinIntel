@@ -67,7 +67,7 @@ function SaveButton({ loading, children = 'Save Changes' }) {
       disabled={loading}
       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg gradient-brand text-white text-sm font-medium
         hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity shadow-gradient focus:outline-none
-        focus:ring-2 focus:ring-amber-400 focus:ring-offset-2"
+        focus:ring-2 focus:ring-amber-400"
     >
       {loading && (
         <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -600,7 +600,7 @@ function NotificationsTab({ user }) {
       aria-checked={value}
       onClick={() => !disabled && onChange(!value)}
       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors
-        focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2
+        focus:outline-none focus:ring-2 focus:ring-amber-500
         ${value ? 'bg-amber-500' : 'bg-white/20'}
         ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     >
@@ -887,13 +887,13 @@ function ApiAccessTab({ user }) {
         <div className="space-y-4">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Authentication Header</p>
-            <code className="block bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3">
+            <code className="block text-green-400 text-sm font-mono rounded-lg px-4 py-3" style={{ background: 'var(--bg-elevated)' }}>
               Authorization: Bearer YOUR_API_KEY
             </code>
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-muted)' }}>Example Request</p>
-            <pre className="bg-gray-900 text-green-400 text-sm font-mono rounded-lg px-4 py-3 overflow-x-auto">{`curl http://localhost:8000/products/ \\
+            <pre className="text-green-400 text-sm font-mono rounded-lg px-4 py-3 overflow-x-auto" style={{ background: 'var(--bg-elevated)' }}>{`curl http://localhost:8000/products/ \\
   -H "Authorization: Bearer YOUR_API_KEY"`}</pre>
           </div>
         </div>

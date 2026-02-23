@@ -96,7 +96,6 @@ export default function DiscoveryPage() {
   const [searching, setSearching] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [keyword, setKeyword] = useState('');
-  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0 });
 
   useEffect(() => { loadData(); }, []);
 
@@ -108,13 +107,8 @@ export default function DiscoveryPage() {
         api.request('/api/discovery/suggestions'),
       ]);
       setProducts(productsData);
-      const suggestions = suggestionsData?.suggestions || suggestionsData || [];
-      setSuggestions(suggestions);
-      setStats({
-        total:    suggestions.length,
-        pending:  suggestions.filter(s => s.status === 'pending').length,
-        approved: suggestions.filter(s => s.status === 'approved').length,
-      });
+      const loadedSuggestions = suggestionsData?.suggestions || suggestionsData || [];
+      setSuggestions(loadedSuggestions);
     } catch (e) {
       console.error(e);
     } finally {

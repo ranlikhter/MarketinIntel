@@ -144,21 +144,27 @@ export default function DataTable({
             >
               Prev
             </button>
-            {[...Array(Math.min(5, totalPages))].map((_, idx) => {
-              const page = idx + 1;
-              return (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    currentPage === page ? 'gradient-brand text-white shadow-gradient' : 'text-white/50 hover:text-white hover:bg-white/5'
-                  }`}
-                  style={currentPage !== page ? { border: '1px solid var(--border)' } : {}}
-                >
-                  {page}
-                </button>
-              );
-            })}
+            {(() => {
+              const maxVisible = 5;
+              let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+              let end = start + maxVisible - 1;
+              if (end > totalPages) { end = totalPages; start = Math.max(1, end - maxVisible + 1); }
+              return [...Array(end - start + 1)].map((_, idx) => {
+                const page = start + idx;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      currentPage === page ? 'gradient-brand text-white shadow-gradient' : 'text-white/50 hover:text-white hover:bg-white/5'
+                    }`}
+                    style={currentPage !== page ? { border: '1px solid var(--border)' } : {}}
+                  >
+                    {page}
+                  </button>
+                );
+              });
+            })()}
             <button
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
               disabled={currentPage === totalPages}

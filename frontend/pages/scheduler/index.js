@@ -160,7 +160,7 @@ export default function SchedulerPage() {
 
         {/* Toast */}
         {toast && (
-          <div className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white transition-all ${toast.type === 'error' ? 'bg-red-600' : 'bg-gray-900'}`}>
+          <div className={`fixed top-20 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-white transition-all ${toast.type === 'error' ? 'bg-red-600' : ''}`} style={toast.type !== 'error' ? { background: 'var(--bg-elevated)', border: '1px solid var(--border)' } : {}}>
             {toast.msg}
           </div>
         )}
@@ -228,7 +228,7 @@ export default function SchedulerPage() {
           {activeTasks.length === 0 ? (
             <div className="p-8 text-center text-xs" style={{ color: 'var(--text-muted)' }}>No tasks currently running</div>
           ) : (
-            <div className="divide-y" style={{ '--tw-divide-opacity': 1 }}>
+            <div className="divide-y divide-white/[0.07]">
               {activeTasks.map(task => (
                 <div key={task.task_id} className="px-5 py-3 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="min-w-0">

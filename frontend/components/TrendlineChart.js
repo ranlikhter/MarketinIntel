@@ -19,6 +19,7 @@ export default function TrendlineChart({ productId, defaultDays = 30 }) {
   const [comparisonData, setComparisonData] = useState(null);
   const [startDate2, setStartDate2] = useState('');
   const [endDate2, setEndDate2] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   useEffect(() => {
     loadTrendline();
@@ -38,9 +39,10 @@ export default function TrendlineChart({ productId, defaultDays = 30 }) {
 
   const handleCustomDateRange = async () => {
     if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
+      setValidationError('Please select both start and end dates');
       return;
     }
+    setValidationError('');
 
     setLoading(true);
     try {
@@ -55,9 +57,10 @@ export default function TrendlineChart({ productId, defaultDays = 30 }) {
 
   const handleCompareRanges = async () => {
     if (!startDate || !endDate || !startDate2 || !endDate2) {
-      alert('Please select both start and end dates for both periods');
+      setValidationError('Please select both start and end dates for both periods');
       return;
     }
+    setValidationError('');
 
     setLoading(true);
     try {
@@ -256,6 +259,7 @@ export default function TrendlineChart({ productId, defaultDays = 30 }) {
             >
               Apply
             </button>
+            {validationError && <span className="text-xs text-red-400">{validationError}</span>}
           </>
         )}
 

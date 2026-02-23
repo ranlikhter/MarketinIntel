@@ -182,14 +182,13 @@ function CreateViewModal({ onClose, onCreate }) {
           </div>
 
           {/* Default toggle */}
-          <label className="flex items-center gap-3 cursor-pointer select-none">
+          <button type="button" onClick={() => set('is_default', !form.is_default)} className="flex items-center gap-3 cursor-pointer select-none">
             <div
-              onClick={() => set('is_default', !form.is_default)}
-              className={`w-10 h-5.5 rounded-full flex items-center px-0.5 transition-colors ${form.is_default ? 'bg-amber-500' : 'bg-white/20'}`}>
-              <div className={`w-4.5 h-4.5 bg-white rounded-full shadow transition-transform ${form.is_default ? 'translate-x-4' : 'translate-x-0'}`} />
+              className={`w-11 h-6 rounded-full flex items-center px-0.5 transition-colors ${form.is_default ? 'bg-amber-500' : 'bg-white/20'}`}>
+              <div className={`w-5 h-5 bg-white rounded-full shadow transition-transform ${form.is_default ? 'translate-x-5' : 'translate-x-0'}`} />
             </div>
             <span className="text-sm text-white/60">Set as default view on the Products page</span>
-          </label>
+          </button>
 
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose}

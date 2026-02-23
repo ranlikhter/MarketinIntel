@@ -35,7 +35,7 @@ export function useToast() {
 
 function ToastContainer({ toasts, removeToast }) {
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+    <div className="fixed top-20 right-4 z-50 space-y-2 max-w-sm">
       {toasts.map(toast => (
         <Toast key={toast.id} {...toast} onClose={() => removeToast(toast.id)} />
       ))}

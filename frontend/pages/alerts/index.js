@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
+import { ConfirmModal } from '../../components/Modal';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 const ALERT_TYPES = [
@@ -47,7 +49,6 @@ function AlertCard({ alert, onToggle, onDelete }) {
   const typeStyle = TYPE_COLOR[alert.alert_type] || { text: 'text-white', style: { background: 'var(--bg-elevated)', border: '1px solid var(--border)' } };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this alert?')) return;
     setDeleting(true);
     await onDelete(alert.id);
   };
@@ -233,11 +234,13 @@ function CreateModal({ products, onClose, onCreate }) {
 }
 
 export default function AlertsPage() {
+  const { addToast } = useToast();
   const [alerts, setAlerts] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('All');
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ open: false, alertId: null });
 
   useEffect(() => {
     loadData();
@@ -263,14 +266,15 @@ export default function AlertsPage() {
     try {
       await api.toggleAlert(id);
       setAlerts(as => as.map(a => a.id === id ? { ...a, is_active: !a.is_active } : a));
-    } catch { alert('Failed to update alert'); }
+    } catch { addToast('Failed to update alert', 'error'); }
   };
 
   const handleDelete = async (id) => {
     try {
       await api.deleteAlert(id);
       setAlerts(as => as.filter(a => a.id !== id));
-    } catch { alert('Failed to delete alert'); }
+      addToast('Alert removed', 'success');
+    } catch { addToast('Failed to delete alert', 'error'); }
   };
 
   const handleCreate = async (data) => {
@@ -381,7 +385,7 @@ export default function AlertsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map(a => (
-              <AlertCard key={a.id} alert={a} onToggle={handleToggle} onDelete={handleDelete} />
+              <AlertCard key={a.id} alert={a} onToggle={handleToggle} onDelete={() => setDeleteModal({ open: true, alertId: a.id })} />
             ))}
           </div>
         )}
@@ -413,6 +417,16 @@ export default function AlertsPage() {
           onCreate={handleCreate}
         />
       )}
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, alertId: null })}
+        onConfirm={() => handleDelete(deleteModal.alertId)}
+        title="Delete Alert"
+        message="Delete this alert? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </Layout>
   );
 }

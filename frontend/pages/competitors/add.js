@@ -69,7 +69,7 @@ export default function AddCompetitorPage() {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="rounded-lg shadow" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+        <form onSubmit={handleSubmit} className="rounded-2xl shadow" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
           <div className="p-6 space-y-6">
             {/* Basic Information */}
             <div className="pb-6" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -89,7 +89,7 @@ export default function AddCompetitorPage() {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="e.g., CompetitorStore, Amazon"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     A friendly name to identify this competitor
@@ -109,7 +109,7 @@ export default function AddCompetitorPage() {
                     value={formData.base_url}
                     onChange={handleChange}
                     placeholder="https://www.competitor.com"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     The main website URL (must start with http:// or https://)
@@ -126,7 +126,7 @@ export default function AddCompetitorPage() {
                     id="website_type"
                     value={formData.website_type}
                     onChange={handleChange}
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm"
                   >
                     <option value="custom">Custom Website</option>
                     <option value="ecommerce">E-commerce Store</option>
@@ -157,7 +157,7 @@ export default function AddCompetitorPage() {
                     value={formData.price_selector}
                     onChange={handleChange}
                     placeholder=".price, #product-price, .a-price-whole"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm font-mono text-xs"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm font-mono text-xs"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Example: <code style={{ background: 'rgba(255,255,255,0.08)' }} className="px-1 rounded">.price</code> or <code style={{ background: 'rgba(255,255,255,0.08)' }} className="px-1 rounded">#product-price</code>
@@ -176,7 +176,7 @@ export default function AddCompetitorPage() {
                     value={formData.title_selector}
                     onChange={handleChange}
                     placeholder="h1.product-title, #productTitle"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm font-mono text-xs"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm font-mono text-xs"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Example: <code style={{ background: 'rgba(255,255,255,0.08)' }} className="px-1 rounded">h1.product-title</code>
@@ -195,7 +195,7 @@ export default function AddCompetitorPage() {
                     value={formData.stock_selector}
                     onChange={handleChange}
                     placeholder=".stock-status, #availability"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm font-mono text-xs"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm font-mono text-xs"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Example: <code style={{ background: 'rgba(255,255,255,0.08)' }} className="px-1 rounded">.availability</code>
@@ -214,7 +214,7 @@ export default function AddCompetitorPage() {
                     value={formData.image_selector}
                     onChange={handleChange}
                     placeholder=".product-image, #landingImage"
-                    className="glass-input mt-1 block w-full rounded-md sm:text-sm font-mono text-xs"
+                    className="glass-input mt-1 block w-full rounded-xl sm:text-sm font-mono text-xs"
                   />
                   <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Example: <code style={{ background: 'rgba(255,255,255,0.08)' }} className="px-1 rounded">img.product-image</code>
@@ -247,7 +247,7 @@ export default function AddCompetitorPage() {
                 value={formData.notes}
                 onChange={handleChange}
                 placeholder="Any additional information about this competitor..."
-                className="glass-input mt-1 block w-full rounded-md sm:text-sm"
+                className="glass-input mt-1 block w-full rounded-xl sm:text-sm"
               />
             </div>
           </div>

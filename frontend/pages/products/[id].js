@@ -540,9 +540,10 @@ export default function ProductDetailPage() {
     </Layout>
   );
 
-  const lowestPrice = matches.length ? Math.min(...matches.map(m => m.latest_price || Infinity)) : null;
-  const avgPrice = matches.length ? matches.reduce((s, m) => s + (m.latest_price || 0), 0) / matches.length : null;
-  const priceRange = matches.length > 1 ? (Math.max(...matches.map(m => m.latest_price || 0)) - (lowestPrice || 0)) : null;
+  const pricedMatches = matches.filter(m => m.latest_price != null);
+  const lowestPrice = pricedMatches.length ? Math.min(...pricedMatches.map(m => m.latest_price)) : null;
+  const avgPrice = pricedMatches.length ? pricedMatches.reduce((s, m) => s + m.latest_price, 0) / pricedMatches.length : null;
+  const priceRange = pricedMatches.length > 1 ? (Math.max(...pricedMatches.map(m => m.latest_price)) - lowestPrice) : null;
 
   return (
     <Layout>
@@ -657,7 +658,7 @@ export default function ProductDetailPage() {
                         value={priceInput}
                         onChange={e => setPriceInput(e.target.value)}
                         onBlur={handleSavePrice}
-                        onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') setEditingPrice(false); }}
                         className="w-24 text-sm font-semibold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none"
                       />
                       {savingPrice && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}

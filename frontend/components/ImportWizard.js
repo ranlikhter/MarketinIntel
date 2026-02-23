@@ -212,7 +212,7 @@ export default function ImportWizard({ onComplete }) {
 
       {/* Step 2: Configure */}
       {step === 2 && (
-        <div className="rounded-lg p-8" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+        <div className="rounded-2xl p-8" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
           <button
             onClick={() => setStep(1)}
             className="mb-6 text-amber-400 hover:text-amber-300 font-medium text-sm flex items-center gap-1"
@@ -322,7 +322,7 @@ function XMLImportForm({ file, format, onFileChange, onFormatChange, onImport, i
         <select
           value={format}
           onChange={(e) => onFormatChange(e.target.value)}
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         >
           <option value="auto">Auto-detect</option>
           <option value="google_shopping">Google Shopping Feed</option>
@@ -363,7 +363,7 @@ function WooCommerceImportForm({ data, onChange, onImport, importing }) {
           value={data.storeUrl}
           onChange={(e) => onChange({ ...data, storeUrl: e.target.value })}
           placeholder="https://yourstore.com"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -376,7 +376,7 @@ function WooCommerceImportForm({ data, onChange, onImport, importing }) {
           value={data.consumerKey}
           onChange={(e) => onChange({ ...data, consumerKey: e.target.value })}
           placeholder="ck_xxxxx"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -389,7 +389,7 @@ function WooCommerceImportForm({ data, onChange, onImport, importing }) {
           value={data.consumerSecret}
           onChange={(e) => onChange({ ...data, consumerSecret: e.target.value })}
           placeholder="cs_xxxxx"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -400,10 +400,10 @@ function WooCommerceImportForm({ data, onChange, onImport, importing }) {
         <input
           type="number"
           value={data.importLimit}
-          onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) })}
+          onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) || 100 })}
           min="1"
           max="1000"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -439,7 +439,7 @@ function ShopifyImportForm({ data, onChange, onImport, importing }) {
           value={data.shopUrl}
           onChange={(e) => onChange({ ...data, shopUrl: e.target.value })}
           placeholder="your-store.myshopify.com"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -452,7 +452,7 @@ function ShopifyImportForm({ data, onChange, onImport, importing }) {
           value={data.accessToken}
           onChange={(e) => onChange({ ...data, accessToken: e.target.value })}
           placeholder="shpat_xxxxx"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 
@@ -463,10 +463,10 @@ function ShopifyImportForm({ data, onChange, onImport, importing }) {
         <input
           type="number"
           value={data.importLimit}
-          onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) })}
+          onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) || 100 })}
           min="1"
           max="1000"
-          className="glass-input block w-full rounded-md focus:border-amber-500 focus:ring-amber-500 text-white"
+          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
         />
       </div>
 

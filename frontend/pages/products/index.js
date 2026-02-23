@@ -187,7 +187,7 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
                     <input autoFocus type="number" step="0.01" value={priceInput}
                       onChange={(e) => setPriceInput(e.target.value)}
                       onBlur={handleSavePrice}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSavePrice(); if (e.key === 'Escape') setEditingPrice(false); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') setEditingPrice(false); }}
                       className="w-20 text-lg font-bold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none" />
                     {saving && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}
                   </div>

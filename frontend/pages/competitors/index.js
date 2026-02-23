@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
+import { ConfirmModal } from '../../components/Modal';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
 const Ico = {
@@ -17,7 +19,7 @@ const TABS = ['All', 'Active', 'Inactive'];
 
 function StatCard({ label, value, color, icon }) {
   const bg = {
-    blue:    { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+    amber:   { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
     emerald: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },
     gray:    { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
   }[color];
@@ -36,7 +38,6 @@ function CompetitorCard({ competitor, onToggle, onDelete }) {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
-    if (!confirm(`Delete "${competitor.name}"? This will remove all associated data.`)) return;
     setDeleting(true);
     await onDelete(competitor.id);
   };
@@ -122,9 +123,11 @@ function CompetitorCard({ competitor, onToggle, onDelete }) {
 }
 
 export default function CompetitorsPage() {
+  const { addToast } = useToast();
   const [competitors, setCompetitors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('All');
+  const [deleteModal, setDeleteModal] = useState({ open: false, competitor: null });
 
   useEffect(() => { loadCompetitors(); }, []);
 
@@ -144,14 +147,15 @@ export default function CompetitorsPage() {
     try {
       await api.toggleCompetitorStatus(id);
       setCompetitors(cs => cs.map(c => c.id === id ? { ...c, is_active: !currentStatus } : c));
-    } catch { alert('Failed to update competitor status'); }
+    } catch { addToast('Failed to update competitor status', 'error'); }
   };
 
   const handleDelete = async (id) => {
     try {
       await api.deleteCompetitor(id);
       setCompetitors(cs => cs.filter(c => c.id !== id));
-    } catch { alert('Failed to delete competitor'); }
+      addToast('Competitor removed', 'success');
+    } catch { addToast('Failed to delete competitor', 'error'); }
   };
 
   const active = competitors.filter(c => c.is_active);
@@ -191,7 +195,7 @@ export default function CompetitorsPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total" value={competitors.length} color="blue" icon={Ico.globe} />
+          <StatCard label="Total" value={competitors.length} color="amber" icon={Ico.globe} />
           <StatCard label="Active" value={active.length} color="emerald" icon={Ico.check} />
           <StatCard label="Inactive" value={inactive.length} color="gray" icon={Ico.pause} />
         </div>
@@ -235,11 +239,21 @@ export default function CompetitorsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map(c => (
-              <CompetitorCard key={c.id} competitor={c} onToggle={handleToggle} onDelete={handleDelete} />
+              <CompetitorCard key={c.id} competitor={c} onToggle={handleToggle} onDelete={() => setDeleteModal({ open: true, competitor: c })} />
             ))}
           </div>
         )}
       </div>
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, competitor: null })}
+        onConfirm={() => handleDelete(deleteModal.competitor?.id)}
+        title="Delete Competitor"
+        message={`Delete "${deleteModal.competitor?.name}"? This will remove all associated data.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </Layout>
   );
 }

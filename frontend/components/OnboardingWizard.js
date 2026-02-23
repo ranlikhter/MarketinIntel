@@ -618,7 +618,7 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
 }
 
 // ─── Step 4: Done ─────────────────────────────────────────────────────────────
-function StepDone({ product, importedCount, competitor, onDismiss }) {
+function StepDone({ product, importedCount, competitor, alertCreated, onDismiss }) {
   return (
     <div className="text-center space-y-6 py-4">
       <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-emerald-400" style={{ background: 'rgba(16,185,129,0.15)' }}>{Ico.rocket}</div>
@@ -638,7 +638,7 @@ function StepDone({ product, importedCount, competitor, onDismiss }) {
           <SummaryRow done={!!product} label={product ? `Product: ${product.title}` : 'No product added yet'} />
         )}
         <SummaryRow done={!!competitor} label={competitor ? `Competitor: ${competitor.name}` : 'No competitor added yet'} />
-        <SummaryRow done label="Alert configured" />
+        <SummaryRow done={alertCreated} label={alertCreated ? "Alert configured" : "No alert configured yet"} />
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -680,6 +680,7 @@ export default function OnboardingWizard({ onDismiss }) {
   const [product, setProduct]         = useState(null);
   const [importedCount, setImported]  = useState(0);
   const [competitor, setCompetitor]   = useState(null);
+  const [alertCreated, setAlertCreated] = useState(false);
 
   useEffect(() => {
     try {
@@ -707,7 +708,7 @@ export default function OnboardingWizard({ onDismiss }) {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
           <span className="text-xs font-semibold text-white/40 uppercase tracking-wide">
-            Setup Guide · Step {Math.min(step + 1, TOTAL)} of {TOTAL - 1}
+            Setup Guide · Step {Math.min(step + 1, TOTAL - 1)} of {TOTAL - 1}
           </span>
         </div>
         <button onClick={handleDismiss} className="p-1.5 rounded-lg text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors" title="Dismiss">
@@ -748,7 +749,7 @@ export default function OnboardingWizard({ onDismiss }) {
           <StepAlert
             product={product}
             importedCount={importedCount}
-            onNext={() => goTo(4)}
+            onNext={() => { setAlertCreated(true); goTo(4); }}
             onSkip={() => goTo(4)}
           />
         )}
@@ -758,6 +759,7 @@ export default function OnboardingWizard({ onDismiss }) {
             product={product}
             importedCount={importedCount}
             competitor={competitor}
+            alertCreated={alertCreated}
             onDismiss={handleDismiss}
           />
         )}

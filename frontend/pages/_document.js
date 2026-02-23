@@ -12,10 +12,10 @@ export default function Document() {
         <link rel="manifest" href="/manifest.json" />
 
         {/* PWA meta */}
-        <meta name="theme-color" content="#2563eb" />
+        <meta name="theme-color" content="#08080e" />
         <meta name="application-name" content="MarketIntel" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="MarketIntel" />
         <meta name="mobile-web-app-capable" content="yes" />
 
