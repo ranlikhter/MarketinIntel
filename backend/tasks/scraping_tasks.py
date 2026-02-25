@@ -67,65 +67,125 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
             # Run async scrape
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            # search_products returns a List[Dict] on success, or {"error": ...} on failure
             results = loop.run_until_complete(
-                scraper.search_product(product.title, max_results=5)
+                scraper.search_products(product.title, max_results=5)
             )
             loop.close()
 
-            if not results.get('success'):
-                raise Exception(results.get('error', 'Scraping failed'))
+            # Handle error response
+            if isinstance(results, dict) and 'error' in results:
+                raise Exception(results['error'])
+
+            items = results if isinstance(results, list) else []
+
+            # Build a dict representation of our product for the matcher
+            product_dict = {
+                'title': product.title or '',
+                'brand': product.brand or '',
+                'description': product.description or '',
+                'mpn': product.mpn or '',
+                'upc_ean': product.upc_ean or '',
+            }
 
             matches_found = 0
 
             # Process each result
-            for item in results.get('products', []):
-                # Calculate match score
-                match_score = matcher.calculate_similarity(
-                    product.title,
-                    item['title']
-                )
+            for item in items:
+                # Build candidate dict for the matcher
+                candidate_dict = {
+                    'title': item.get('title', ''),
+                    'brand': item.get('brand', ''),
+                    'description': item.get('description', ''),
+                    'mpn': item.get('mpn', ''),
+                    'upc_ean': item.get('upc_ean', ''),
+                }
 
-                if match_score < 70:  # Skip low confidence matches
+                # Calculate match score (0.0 – 1.0)
+                match_score = matcher._calculate_similarity(product_dict, candidate_dict)
+
+                if match_score < 0.7:  # Skip low confidence matches
+                    continue
+
+                item_url = item.get('url', '')
+                if not item_url:
                     continue
 
                 # Check if match exists
                 existing = self.db.query(CompetitorMatch).filter(
-                    CompetitorMatch.product_id == product_id,
-                    CompetitorMatch.competitor_url == item['url']
+                    CompetitorMatch.monitored_product_id == product_id,
+                    CompetitorMatch.competitor_url == item_url
                 ).first()
 
+                now = datetime.utcnow()
+
                 if existing:
-                    # Update existing match
-                    existing.latest_price = item['price']
-                    existing.stock_status = item['stock_status']
-                    existing.last_scraped_at = datetime.utcnow()
+                    # Update existing match with latest scraped data
+                    existing.latest_price = item.get('price')
+                    existing.stock_status = item.get('stock_status')
+                    existing.last_scraped_at = now
                     existing.match_score = match_score
+                    # Rich intelligence fields
+                    existing.external_id = item.get('asin') or existing.external_id
+                    existing.rating = item.get('rating')
+                    existing.review_count = item.get('review_count')
+                    existing.is_prime = item.get('is_prime')
+                    existing.fulfillment_type = item.get('fulfillment_type')
+                    existing.seller_name = item.get('seller_name')
+                    existing.category = item.get('category') or existing.category
+                    existing.variant = item.get('variant')
+                    existing.brand = existing.brand or item.get('brand')
+                    existing.description = existing.description or item.get('description')
+                    existing.mpn = existing.mpn or item.get('mpn')
+                    existing.upc_ean = existing.upc_ean or item.get('upc_ean')
+                    existing.image_url = item.get('image_url') or existing.image_url
                     match = existing
                 else:
                     # Create new match
                     match = CompetitorMatch(
-                        product_id=product_id,
+                        monitored_product_id=product_id,
                         competitor_website_id=competitor.id if competitor else None,
                         competitor_name=website,
-                        competitor_url=item['url'],
-                        competitor_product_title=item['title'],
-                        latest_price=item['price'],
-                        stock_status=item['stock_status'],
+                        competitor_url=item_url,
+                        competitor_product_title=item.get('title', ''),
+                        latest_price=item.get('price'),
+                        stock_status=item.get('stock_status'),
                         image_url=item.get('image_url'),
                         match_score=match_score,
-                        last_scraped_at=datetime.utcnow()
+                        last_scraped_at=now,
+                        # Rich intelligence fields
+                        external_id=item.get('asin'),
+                        rating=item.get('rating'),
+                        review_count=item.get('review_count'),
+                        is_prime=item.get('is_prime'),
+                        fulfillment_type=item.get('fulfillment_type'),
+                        seller_name=item.get('seller_name'),
+                        category=item.get('category'),
+                        variant=item.get('variant'),
+                        brand=item.get('brand'),
+                        description=item.get('description'),
+                        mpn=item.get('mpn'),
+                        upc_ean=item.get('upc_ean'),
                     )
                     self.db.add(match)
                     self.db.flush()  # Get match ID
 
-                # Record price history
-                if item['price']:
+                # Record price history snapshot with full rich data
+                if item.get('price'):
                     price_record = PriceHistory(
                         match_id=match.id,
                         price=item['price'],
-                        currency='USD',
-                        in_stock=(item['stock_status'] == 'In Stock'),
-                        timestamp=datetime.utcnow()
+                        currency=item.get('currency', 'USD'),
+                        in_stock=item.get('in_stock', True),
+                        timestamp=now,
+                        was_price=item.get('was_price'),
+                        discount_pct=item.get('discount_pct'),
+                        shipping_cost=item.get('shipping_cost'),
+                        total_price=item.get('total_price'),
+                        promotion_label=item.get('promotion_label'),
+                        seller_name=item.get('seller_name'),
+                        seller_count=item.get('seller_count'),
+                        scrape_quality=item.get('scrape_quality'),
                     )
                     self.db.add(price_record)
 
@@ -242,7 +302,7 @@ def retry_failed_scrapes(self):
 
         tasks = []
         for match in failed_matches:
-            task = scrape_single_product.delay(match.product_id)
+            task = scrape_single_product.delay(match.monitored_product_id)
             tasks.append(task.id)
 
         logger.info(f"Queued {len(tasks)} retry tasks")

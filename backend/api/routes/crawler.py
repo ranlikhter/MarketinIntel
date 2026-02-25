@@ -3,6 +3,8 @@ Site Crawler API Endpoints
 Automatically discover and scrape competitor websites
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
@@ -12,6 +14,8 @@ from datetime import datetime
 from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
 from scrapers.site_crawler import SiteCrawler
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/crawler", tags=["crawler"])
 
@@ -109,21 +113,22 @@ async def start_site_crawl(
                         # Create competitor match
                         if competitor:
                             match = CompetitorMatch(
-                                product_id=new_product.id,
+                                monitored_product_id=new_product.id,
                                 competitor_website_id=competitor.id,
                                 competitor_name=competitor.name,
                                 competitor_url=product_data['url'],
                                 competitor_product_title=product_data['title'],
                                 latest_price=product_data.get('price'),
                                 stock_status=product_data.get('stock_status'),
-                                image_url=product_data.get('image_url')
+                                image_url=product_data.get('image_url'),
+                                last_scraped_at=datetime.utcnow(),
                             )
                             db.add(match)
 
                         products_imported += 1
 
                 except Exception as e:
-                    print(f"Error importing product: {e}")
+                    logger.error(f"Error importing product: {e}")
                     continue
 
             db.commit()
