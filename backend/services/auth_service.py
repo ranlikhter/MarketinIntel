@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or "your-secret-key-change-this-in-production"
+# WARNING: The fallback above is for development only. Set JWT_SECRET_KEY in production.
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30
@@ -67,7 +68,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return encoded_jwt
@@ -91,18 +92,23 @@ def create_refresh_token(data: dict) -> str:
     return encoded_jwt
 
 
-def verify_token(token: str) -> Optional[dict]:
+def verify_token(token: str, expected_type: str = "access") -> Optional[dict]:
     """
     Verify and decode a JWT token
 
     Args:
         token: JWT token string
+        expected_type: Expected token type ("access" or "refresh")
 
     Returns:
         Decoded token payload dict, or None if invalid
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # Reject tokens with wrong type (prevents refresh tokens being used as access tokens)
+        token_type = payload.get("type")
+        if token_type and token_type != expected_type:
+            return None
         return payload
     except JWTError:
         return None

@@ -600,7 +600,11 @@ class ForecastingService:
         sum_x_squared = sum(x ** 2 for x in x_values)
 
         # Slope (m)
-        m = (n * sum_xy - sum_x * sum_y) / (n * sum_x_squared - sum_x ** 2)
+        denominator = n * sum_x_squared - sum_x ** 2
+        if denominator == 0:
+            m = 0  # No trend when all data points are at the same timestamp
+        else:
+            m = (n * sum_xy - sum_x * sum_y) / denominator
 
         # Intercept (b)
         b = (sum_y - m * sum_x) / n
@@ -608,11 +612,11 @@ class ForecastingService:
         # Predict future price
         last_day = x_values[-1]
         future_day = last_day + days_ahead
-        predicted_price = m * future_day + b
+        predicted_price = max(0, m * future_day + b)  # Clamp to non-negative
 
         current_price = price_points[-1]["price"]
         price_change = predicted_price - current_price
-        price_change_pct = (price_change / current_price) * 100
+        price_change_pct = (price_change / current_price * 100) if current_price != 0 else 0
 
         # Generate forecast points
         forecast_points = []

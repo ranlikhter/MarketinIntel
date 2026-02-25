@@ -62,6 +62,7 @@ class RepricingService:
                 suggested_price -= margin_amount
             if margin_pct:
                 suggested_price -= (lowest_price * (margin_pct / 100))
+            suggested_price = max(0.01, suggested_price)  # Never go negative
 
             suggestions.append({
                 "product_id": product.id,
@@ -112,6 +113,7 @@ class RepricingService:
                 suggested_price -= undercut_amount
             if undercut_pct:
                 suggested_price -= (lowest_price * (undercut_pct / 100))
+            suggested_price = max(0.01, suggested_price)  # Never go negative
 
             suggestions.append({
                 "product_id": product.id,
@@ -438,17 +440,17 @@ class RepricingService:
             original_price = suggestion["suggested_price"]
 
             # Apply minimum price
-            if min_price and suggestion["suggested_price"] < min_price:
+            if min_price is not None and suggestion["suggested_price"] < min_price:
                 suggestion["suggested_price"] = min_price
                 suggestion["constraint_applied"] = "min_price"
 
             # Apply maximum price
-            if max_price and suggestion["suggested_price"] > max_price:
+            if max_price is not None and suggestion["suggested_price"] > max_price:
                 suggestion["suggested_price"] = max_price
                 suggestion["constraint_applied"] = "max_price"
 
             # Apply MAP
-            if map_price and suggestion["suggested_price"] < map_price:
+            if map_price is not None and suggestion["suggested_price"] < map_price:
                 suggestion["suggested_price"] = map_price
                 suggestion["constraint_applied"] = "map_protection"
                 suggestion["map_warning"] = f"Price adjusted to MAP: ${map_price}"

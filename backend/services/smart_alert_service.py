@@ -9,10 +9,14 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import os
 
+import logging
+
 from database.models import (
     PriceAlert, ProductMonitored, CompetitorMatch,
     PriceHistory, User
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SmartAlertService:
@@ -105,6 +109,9 @@ class SmartAlertService:
             previous = prices[1]
 
             if not latest.in_stock or not previous.in_stock:
+                continue
+
+            if previous.price == 0:
                 continue
 
             # Calculate change
@@ -296,6 +303,9 @@ class SmartAlertService:
         old_avg = sum(old_prices) / len(old_prices)
         new_avg = sum(new_prices) / len(new_prices)
 
+        if old_avg == 0:
+            return False
+
         # Calculate trend
         trend_pct = ((new_avg - old_avg) / old_avg) * 100
 
@@ -406,7 +416,7 @@ class SmartAlertService:
                 text_content=text_content
             )
         except Exception as e:
-            print(f"Failed to send email for alert {alert.id}: {e}")
+            logger.error(f"Failed to send email for alert {alert.id}: {e}")
 
     def _send_sms_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send SMS notification — uses stdlib-based sms_service (no twilio package needed)"""
@@ -421,7 +431,7 @@ class SmartAlertService:
         try:
             send_sms(to_number=alert.phone_number, message=message)
         except Exception as e:
-            print(f"Failed to send SMS for alert {alert.id}: {e}")
+            logger.error(f"Failed to send SMS for alert {alert.id}: {e}")
 
     def _send_slack_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send Slack webhook notification — uses stdlib-based webhook_service"""
@@ -439,7 +449,7 @@ class SmartAlertService:
                 product_url=product_url,
             )
         except Exception as e:
-            print(f"Failed to send Slack notification for alert {alert.id}: {e}")
+            logger.error(f"Failed to send Slack notification for alert {alert.id}: {e}")
 
     def _send_discord_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send Discord webhook notification — uses stdlib-based webhook_service"""
@@ -457,7 +467,7 @@ class SmartAlertService:
                 product_url=product_url,
             )
         except Exception as e:
-            print(f"Failed to send Discord notification for alert {alert.id}: {e}")
+            logger.error(f"Failed to send Discord notification for alert {alert.id}: {e}")
 
     def _send_push_notification(self, alert: PriceAlert, data: Dict[str, Any]):
         """Send push notification (PWA) via Web Push / VAPID"""
@@ -466,14 +476,14 @@ class SmartAlertService:
         vapid_claims_email = os.getenv('VAPID_CLAIMS_EMAIL', 'alerts@marketintel.com')
 
         if not all([vapid_private_key, vapid_public_key]):
-            print(f"VAPID keys not configured – skipping push notification for alert {alert.id}")
+            logger.warning(f"VAPID keys not configured – skipping push notification for alert {alert.id}")
             return
 
         # Push subscription endpoint stored on the alert (or user) record would be needed.
         # For now we log the intent; the frontend registers a subscription and stores it in the DB.
         push_subscription = getattr(alert, 'push_subscription', None)
         if not push_subscription:
-            print(f"No push subscription registered for alert {alert.id}")
+            logger.warning(f"No push subscription registered for alert {alert.id}")
             return
 
         try:
@@ -491,9 +501,9 @@ class SmartAlertService:
                 vapid_claims={"sub": f"mailto:{vapid_claims_email}"}
             )
         except ImportError:
-            print("pywebpush package not installed – skipping push notification")
+            logger.warning("pywebpush package not installed – skipping push notification")
         except Exception as e:
-            print(f"Failed to send push notification for alert {alert.id}: {e}")
+            logger.error(f"Failed to send push notification for alert {alert.id}: {e}")
 
     # Digest Management
 
@@ -586,7 +596,7 @@ class SmartAlertService:
                 top_price_increases=top_increases[:5],
             )
         except Exception as e:
-            print(f"Failed to send {label.lower()} digest to user {user_id}: {e}")
+            logger.error(f"Failed to send {label.lower()} digest to user {user_id}: {e}")
 
 
 # Factory function

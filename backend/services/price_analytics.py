@@ -135,7 +135,7 @@ class PriceAnalytics:
             }
 
         except Exception as e:
-            logger.error(f"Error calculating trendline: {e}")
+            logger.exception(f"Error calculating trendline: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -292,7 +292,7 @@ class PriceAnalytics:
             }
 
         except Exception as e:
-            logger.error(f"Error in competitor comparison: {e}")
+            logger.exception(f"Error in competitor comparison: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -370,7 +370,7 @@ class PriceAnalytics:
             }
 
         except Exception as e:
-            logger.error(f"Error checking price alerts: {e}")
+            logger.exception(f"Error checking price alerts: {e}")
             return {
                 'success': False,
                 'error': str(e)

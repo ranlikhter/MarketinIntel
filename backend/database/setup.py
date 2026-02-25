@@ -61,6 +61,8 @@ def run_migrations():
         "ALTER TABLE price_history ADD COLUMN scrape_quality TEXT",
         # v5 — inventory quantity on monitored products
         "ALTER TABLE products_monitored ADD COLUMN inventory_quantity INTEGER",
+        # v6 — created_at on competitor_matches (was missing, needed by insights/filters/alerts)
+        "ALTER TABLE competitor_matches ADD COLUMN created_at TIMESTAMP",
     ]
     with engine.connect() as conn:
         for sql in migrations:

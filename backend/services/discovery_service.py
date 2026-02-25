@@ -112,7 +112,12 @@ class DiscoveryService:
 
         # Analyze patterns
         brands = set(p.brand for p in existing_products if p.brand)
-        categories = set(p.category for p in existing_products if p.category)
+        # Category lives on CompetitorMatch, not ProductMonitored — collect from matches
+        categories = set()
+        for p in existing_products:
+            for m in p.competitor_matches:
+                if m.category:
+                    categories.add(m.category)
 
         # Filter by criteria
         if based_on_category:
@@ -162,12 +167,10 @@ class DiscoveryService:
         - Competitor analysis tools
         """
         # Get existing competitor websites
-        existing_sites = self.db.query(CompetitorWebsite).filter(
-            CompetitorWebsite.user_id == self.user.id
-        ).all()
+        existing_sites = self.db.query(CompetitorWebsite).all()
 
         existing_domains = {
-            urlparse(site.website_url).netloc
+            urlparse(site.base_url).netloc
             for site in existing_sites
         }
 
@@ -229,7 +232,7 @@ class DiscoveryService:
 
         # Get all competitor websites
         competitor_sites = self.db.query(CompetitorWebsite).filter(
-            CompetitorWebsite.user_id == self.user.id
+            CompetitorWebsite.is_active == True
         ).all()
 
         if not competitor_sites:
@@ -581,33 +584,33 @@ class DiscoveryService:
         self,
         products: List[ProductMonitored]
     ) -> Dict[str, Dict[str, Any]]:
-        """Analyze competitor coverage by category"""
+        """Analyze competitor coverage by category (uses category from CompetitorMatch)"""
         category_stats = {}
 
         for product in products:
-            if not product.category:
-                continue
+            # Collect categories from competitor matches (category is on CompetitorMatch, not ProductMonitored)
+            product_categories = set()
+            for m in product.competitor_matches:
+                if m.category:
+                    product_categories.add(m.category)
 
-            if product.category not in category_stats:
-                category_stats[product.category] = {
-                    "products": 0,
-                    "total_competitors": 0
-                }
+            for cat in product_categories:
+                if cat not in category_stats:
+                    category_stats[cat] = {
+                        "products": 0,
+                        "total_competitors": 0
+                    }
 
-            category_stats[product.category]["products"] += 1
-
-            competitor_count = self.db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product.id
-            ).count()
-
-            category_stats[product.category]["total_competitors"] += competitor_count
+                category_stats[cat]["products"] += 1
+                category_stats[cat]["total_competitors"] += len(product.competitor_matches)
 
         # Calculate averages
         for category in category_stats:
-            category_stats[category]["avg_competitors"] = (
-                category_stats[category]["total_competitors"] /
-                category_stats[category]["products"]
-            )
+            if category_stats[category]["products"] > 0:
+                category_stats[category]["avg_competitors"] = (
+                    category_stats[category]["total_competitors"] /
+                    category_stats[category]["products"]
+                )
 
         return category_stats
 

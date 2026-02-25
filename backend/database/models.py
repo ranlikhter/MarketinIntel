@@ -88,6 +88,7 @@ class CompetitorMatch(Base):
     competitor_product_title = Column(String(500), nullable=False)   # How the competitor lists it
 
     match_score = Column(Float, default=0.0)                 # 0-100, confidence this is the same product
+    created_at = Column(DateTime, default=datetime.utcnow)   # When the match was first created
     last_scraped_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Latest price data (for quick access without querying price_history)
