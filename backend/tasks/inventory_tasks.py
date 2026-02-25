@@ -16,7 +16,7 @@ from datetime import datetime
 
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
-from database.models import ProductMonitored, StoreConnection
+from database.models import ProductMonitored, StoreConnection, MyPriceHistory
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,13 @@ def _apply_updates(store_products: list, user_id: int, db) -> int:
             try:
                 new_price = float(price)
                 if matched.my_price != new_price:
+                    history = MyPriceHistory(
+                        product_id=matched.id,
+                        old_price=matched.my_price,
+                        new_price=new_price,
+                        note="store sync",
+                    )
+                    db.add(history)
                     matched.my_price = new_price
                     changed = True
             except (TypeError, ValueError):

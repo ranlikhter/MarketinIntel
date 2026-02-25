@@ -63,6 +63,14 @@ def run_migrations():
         "ALTER TABLE products_monitored ADD COLUMN inventory_quantity INTEGER",
         # v6 — created_at on competitor_matches (was missing, needed by insights/filters/alerts)
         "ALTER TABLE competitor_matches ADD COLUMN created_at TIMESTAMP",
+        # v7 — seller_count on competitor_matches (was only in price_history, now also on match for latest-value access)
+        "ALTER TABLE competitor_matches ADD COLUMN seller_count INTEGER",
+        # v7 — intelligence snapshot columns on price_history (preserve historical trends, not just latest)
+        "ALTER TABLE price_history ADD COLUMN rating REAL",
+        "ALTER TABLE price_history ADD COLUMN review_count INTEGER",
+        "ALTER TABLE price_history ADD COLUMN is_prime INTEGER",
+        "ALTER TABLE price_history ADD COLUMN fulfillment_type TEXT",
+        "ALTER TABLE price_history ADD COLUMN product_condition TEXT",
     ]
     with engine.connect() as conn:
         for sql in migrations:

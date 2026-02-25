@@ -105,6 +105,7 @@ class CompetitorMatch(Base):
     fulfillment_type = Column(String(20), nullable=True)     # 'FBA', 'FBM', 'merchant'
     product_condition = Column(String(30), nullable=True)    # 'New', 'Used', 'Refurbished'
     seller_name = Column(String(200), nullable=True)         # Who is selling it
+    seller_count = Column(Integer, nullable=True)            # Number of competing sellers (latest)
     category = Column(String(200), nullable=True)            # Product category/breadcrumb
     variant = Column(String(200), nullable=True)             # Which variant (size/color/model)
     # Match-rate identifiers (used to confirm product identity)
@@ -146,6 +147,12 @@ class PriceHistory(Base):
     seller_count = Column(Integer, nullable=True)            # Number of competing sellers at scrape time
     is_buy_box_winner = Column(Boolean, nullable=True)       # Did this seller own the buy box?
     scrape_quality = Column(String(20), nullable=True)       # 'clean', 'partial', 'fallback'
+    # Intelligence snapshot (copied from scrape so historical trends are preserved)
+    rating = Column(Float, nullable=True)                    # Star rating at this point in time
+    review_count = Column(Integer, nullable=True)            # Review count at this point in time
+    is_prime = Column(Boolean, nullable=True)                # Prime eligibility at scrape time
+    fulfillment_type = Column(String(20), nullable=True)     # 'FBA', 'FBM', 'merchant'
+    product_condition = Column(String(30), nullable=True)    # 'New', 'Used', 'Refurbished'
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")

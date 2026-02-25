@@ -131,7 +131,9 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
                     existing.review_count = item.get('review_count')
                     existing.is_prime = item.get('is_prime')
                     existing.fulfillment_type = item.get('fulfillment_type')
+                    existing.product_condition = item.get('product_condition') or existing.product_condition
                     existing.seller_name = item.get('seller_name')
+                    existing.seller_count = item.get('seller_count')
                     existing.category = item.get('category') or existing.category
                     existing.variant = item.get('variant')
                     existing.brand = existing.brand or item.get('brand')
@@ -159,7 +161,9 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
                         review_count=item.get('review_count'),
                         is_prime=item.get('is_prime'),
                         fulfillment_type=item.get('fulfillment_type'),
+                        product_condition=item.get('product_condition'),
                         seller_name=item.get('seller_name'),
+                        seller_count=item.get('seller_count'),
                         category=item.get('category'),
                         variant=item.get('variant'),
                         brand=item.get('brand'),
@@ -186,6 +190,12 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
                         seller_name=item.get('seller_name'),
                         seller_count=item.get('seller_count'),
                         scrape_quality=item.get('scrape_quality'),
+                        # Intelligence snapshot — preserved for historical trend analysis
+                        rating=item.get('rating'),
+                        review_count=item.get('review_count'),
+                        is_prime=item.get('is_prime'),
+                        fulfillment_type=item.get('fulfillment_type'),
+                        product_condition=item.get('product_condition'),
                     )
                     self.db.add(price_record)
 
