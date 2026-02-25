@@ -242,8 +242,9 @@ function StatCard({ label, sub, value, color, icon }) {
 }
 
 function StockBadge({ status }) {
-  if (status === 'In Stock')    return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>In Stock</span>;
+  if (status === 'In Stock')     return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>In Stock</span>;
   if (status === 'Out of Stock') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>Out of Stock</span>;
+  if (!status)                   return null;
   return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>Low Stock</span>;
 }
 
@@ -503,16 +504,18 @@ export default function ProductDetailPage() {
   };
 
   const startEditProduct = () => {
-    setProductInput({ title: product.title || '', brand: product.brand || '', sku: product.sku || '', image_url: product.image_url || '' });
+    setProductInput({ title: product.title || '', brand: product.brand || '', sku: product.sku || '', image_url: product.image_url || '', cost_price: product.cost_price != null ? String(product.cost_price) : '' });
     setEditingProduct(true);
   };
 
   const handleSaveProduct = async () => {
     if (!productInput.title.trim()) { addToast('Title is required', 'error'); return; }
+    const costPriceVal = productInput.cost_price.trim() ? parseFloat(productInput.cost_price) : null;
+    if (productInput.cost_price.trim() && (isNaN(costPriceVal) || costPriceVal < 0)) { addToast('Cost price must be a positive number', 'error'); return; }
     setSavingProduct(true);
     try {
-      await api.updateProduct(product.id, { title: productInput.title.trim(), brand: productInput.brand.trim(), sku: productInput.sku.trim(), image_url: productInput.image_url.trim() });
-      setProduct(p => ({ ...p, ...productInput }));
+      await api.updateProduct(product.id, { title: productInput.title.trim(), brand: productInput.brand.trim(), sku: productInput.sku.trim(), image_url: productInput.image_url.trim(), cost_price: costPriceVal });
+      setProduct(p => ({ ...p, ...productInput, cost_price: costPriceVal }));
       setEditingProduct(false);
       addToast('Product updated', 'success');
     } catch {
@@ -658,6 +661,21 @@ export default function ProductDetailPage() {
                     className="glass-input w-full text-sm font-mono rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
                     placeholder="SKU-001"
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1">
+                    Cost Price <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(COGS — for margin calculations)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={productInput.cost_price}
+                      onChange={e => setProductInput(p => ({ ...p, cost_price: e.target.value }))}
+                      className="glass-input w-full text-sm rounded-xl pl-7 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-medium text-white/70 mb-1">Image URL</label>
@@ -1072,20 +1090,28 @@ export default function ProductDetailPage() {
           const fbaCount = matches.filter(m => m.fulfillment_type === 'FBA').length;
           const fbmCount = matches.filter(m => m.fulfillment_type === 'FBM' || m.fulfillment_type === 'merchant').length;
           const primeCount = matches.filter(m => m.is_prime).length;
-          const freeShipCount = matches.filter(m => m.shipping_cost === 0 || m.shipping_cost == null).length;
+          const freeShipCount = matches.filter(m => m.shipping_cost === 0).length;
           const promoCount = matches.filter(m => m.promotion_label).length;
 
-          // Total landed cost ranking
-          const landedCostRanking = [...matches]
-            .filter(m => m.latest_price != null)
-            .map(m => ({
+          // Total landed cost ranking (includes your price in the correct position)
+          const landedCostRanking = [
+            ...matches.filter(m => m.latest_price != null).map(m => ({
               name: m.competitor_name,
               price: m.latest_price,
               shipping: m.shipping_cost || 0,
               total: m.total_price || m.latest_price,
               stock: m.stock_status,
-            }))
-            .sort((a, b) => a.total - b.total);
+              isMe: false,
+            })),
+            ...(product.my_price != null ? [{
+              name: 'You',
+              price: product.my_price,
+              shipping: 0,
+              total: product.my_price,
+              stock: 'In Stock',
+              isMe: true,
+            }] : []),
+          ].sort((a, b) => a.total - b.total);
 
           return (
             <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
@@ -1172,17 +1198,24 @@ export default function ProductDetailPage() {
                   <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Total Landed Cost Ranking</p>
                   <div className="space-y-1.5">
                     {landedCostRanking.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--bg-elevated)' }}>
+                      <div key={i} className="flex items-center gap-2 rounded-xl p-2.5"
+                        style={item.isMe
+                          ? { background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.12)' }
+                          : { background: 'var(--bg-elevated)' }
+                        }
+                      >
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                          i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-white/50'
-                        }`} style={i > 0 ? { background: 'var(--bg-surface)' } : {}}>
+                          item.isMe ? 'bg-sky-500/20 text-sky-400'
+                          : i === 0 ? 'bg-emerald-500/20 text-emerald-400'
+                          : 'text-white/50'
+                        }`} style={!item.isMe && i > 0 ? { background: 'var(--bg-surface)' } : {}}>
                           {i + 1}
                         </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white truncate">{item.name}</p>
+                          <p className={`text-xs truncate font-medium ${item.isMe ? 'text-sky-400' : 'text-white'}`}>{item.name}</p>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-xs font-bold text-white">${item.total.toFixed(2)}</p>
+                          <p className={`text-xs font-bold ${item.isMe ? 'text-sky-400' : 'text-white'}`}>${item.total.toFixed(2)}</p>
                           {item.shipping > 0 && (
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>+${item.shipping.toFixed(2)} ship</p>
                           )}
@@ -1192,17 +1225,6 @@ export default function ProductDetailPage() {
                         )}
                       </div>
                     ))}
-                    {product.my_price != null && (
-                      <div className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.12)' }}>
-                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-sky-500/20 text-sky-400">
-                          Y
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-sky-400 font-medium">Your Price</p>
-                        </div>
-                        <p className="text-xs font-bold text-sky-400">${product.my_price.toFixed(2)}</p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
