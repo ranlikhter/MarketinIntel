@@ -258,7 +258,7 @@ export default function InsightsDashboard() {
         )}
 
         {/* Empty State */}
-        {!loading && !error && !insights?.priorities?.length && !insights?.opportunities?.length && !insights?.threats?.length && (
+        {!loading && !error && !insights?.priorities?.length && !insights?.opportunities?.length && !insights?.threats?.length && !insights?.trending?.length && (
           <div className="rounded-2xl p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
               {Ico.bolt}

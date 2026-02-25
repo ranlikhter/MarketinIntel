@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 
@@ -132,9 +132,11 @@ export default function SchedulerPage() {
     } catch { /* silent refresh */ }
   };
 
+  const toastTimerRef = useRef(null);
   const showToast = (msg, type = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3500);
   };
 
   const trigger = async (t) => {

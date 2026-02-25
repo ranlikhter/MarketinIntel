@@ -48,9 +48,8 @@ function AlertCard({ alert, onToggle, onDelete }) {
   const typeLabel = ALERT_TYPES.find(t => t.value === alert.alert_type)?.label || alert.alert_type;
   const typeStyle = TYPE_COLOR[alert.alert_type] || { text: 'text-white', style: { background: 'var(--bg-elevated)', border: '1px solid var(--border)' } };
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    await onDelete(alert.id);
+  const handleDelete = () => {
+    onDelete(alert.id);
   };
 
   return (

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
+import api from '../lib/api';
 
 export default function Pricing() {
   const [billingPeriod, setBillingPeriod] = useState('monthly'); // 'monthly' or 'yearly'
@@ -121,12 +122,8 @@ export default function Pricing() {
     try {
       const priceId = billingPeriod === 'yearly' ? plan.priceId.yearly : plan.priceId.monthly;
 
-      const response = await fetch('http://localhost:8000/api/billing/create-checkout-session', {
+      const data = await api.request('/api/billing/create-checkout-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
         body: JSON.stringify({
           price_id: priceId,
           success_url: `${window.location.origin}/dashboard?success=true`,
@@ -134,17 +131,14 @@ export default function Pricing() {
         }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // Redirect to Stripe Checkout
+      if (data.url) {
         window.location.href = data.url;
       } else {
         alert('Failed to start checkout: ' + (data.detail || 'Unknown error'));
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      alert('Failed to start checkout');
+      alert('Failed to start checkout: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(null);
     }

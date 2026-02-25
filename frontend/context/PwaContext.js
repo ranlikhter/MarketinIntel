@@ -36,10 +36,11 @@ export function PwaProvider({ children }) {
       setCanInstall(true);
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
-    window.addEventListener('appinstalled', () => {
+    const onInstalled = () => {
       setCanInstall(false);
       setDeferredPrompt(null);
-    });
+    };
+    window.addEventListener('appinstalled', onInstalled);
 
     // ── Online / Offline ───────────────────────────────────────────────────
     setIsOnline(navigator.onLine);
@@ -51,6 +52,7 @@ export function PwaProvider({ children }) {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
       window.removeEventListener('online',  goOnline);
       window.removeEventListener('offline', goOffline);
     };

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function DataTable({
   columns,
@@ -13,6 +13,9 @@ export default function DataTable({
   const [sortColumn, setSortColumn] = useState(null);
   const [sortDirection, setSortDirection] = useState('asc');
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset to page 1 when data changes
+  useEffect(() => { setCurrentPage(1); }, [data]);
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return data;

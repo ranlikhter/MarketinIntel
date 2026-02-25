@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
@@ -358,7 +358,7 @@ function MatchCard({ match, myPrice }) {
             <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>vs My Price</span>
               <span className={`text-xs font-bold ${priceDiff < 0 ? 'text-red-400' : priceDiff > 0 ? 'text-emerald-400' : 'text-white/50'}`}>
-                {priceDiff > 0 ? `+$${priceDiff.toFixed(2)} (+${priceDiffPct}%)` : priceDiff < 0 ? `-$${Math.abs(priceDiff).toFixed(2)} (${priceDiffPct}%)` : 'Same'}
+                {priceDiff > 0 ? `+$${priceDiff.toFixed(2)} (+${priceDiffPct}%)` : priceDiff < 0 ? `-$${Math.abs(priceDiff).toFixed(2)} (${Math.abs(priceDiffPct)}%)` : 'Same'}
               </span>
             </div>
           )}
@@ -412,6 +412,7 @@ export default function ProductDetailPage() {
   const [scrapeTarget, setScrapeTarget] = useState('amazon.com');
   const [customSite, setCustomSite] = useState('');
   const [showAddUrl, setShowAddUrl] = useState(false);
+  const cancelPriceRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -657,8 +658,8 @@ export default function ProductDetailPage() {
                         type="number" step="0.01" min="0"
                         value={priceInput}
                         onChange={e => setPriceInput(e.target.value)}
-                        onBlur={handleSavePrice}
-                        onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') setEditingPrice(false); }}
+                        onBlur={() => { if (!cancelPriceRef.current) handleSavePrice(); cancelPriceRef.current = false; }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { cancelPriceRef.current = true; setEditingPrice(false); } }}
                         className="w-24 text-sm font-semibold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none"
                       />
                       {savingPrice && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}

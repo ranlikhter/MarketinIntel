@@ -37,9 +37,8 @@ function StatCard({ label, value, color, icon }) {
 function CompetitorCard({ competitor, onToggle, onDelete }) {
   const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = async () => {
-    setDeleting(true);
-    await onDelete(competitor.id);
+  const handleDelete = () => {
+    onDelete(competitor.id);
   };
 
   return (

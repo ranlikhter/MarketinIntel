@@ -40,12 +40,13 @@ export default function AddCompetitorPage() {
       }
 
       // Create competitor
-      const newCompetitor = await api.createCompetitor(formData);
+      await api.createCompetitor(formData);
 
       // Redirect to competitors list
       router.push('/competitors');
     } catch (err) {
       setError(err.message || 'Failed to create competitor');
+    } finally {
       setSubmitting(false);
     }
   };

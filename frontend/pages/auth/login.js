@@ -20,7 +20,11 @@ export default function Login() {
     try {
       const result = await login(email, password);
       if (result.success) {
-        router.push(router.query.redirect || '/dashboard');
+        const redirect = router.query.redirect;
+        const safeRedirect = (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//'))
+          ? redirect
+          : '/dashboard';
+        router.push(safeRedirect);
       } else {
         setError(result.error || 'Login failed');
       }

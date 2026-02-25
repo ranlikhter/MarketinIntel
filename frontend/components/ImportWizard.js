@@ -51,7 +51,7 @@ export default function ImportWizard({ onComplete }) {
         if (onComplete) onComplete(result);
         setStep(3);
       } else {
-        addToast('Import failed: ' + (result.errors[0] || 'Unknown error'), 'error');
+        addToast('Import failed: ' + (result?.errors?.[0] || 'Unknown error'), 'error');
       }
     } catch (error) {
       addToast('Import failed: ' + error.message, 'error');
@@ -84,7 +84,7 @@ export default function ImportWizard({ onComplete }) {
         if (onComplete) onComplete(result);
         setStep(3);
       } else {
-        addToast('Import failed: ' + (result.errors[0] || 'Unknown error'), 'error');
+        addToast('Import failed: ' + (result?.errors?.[0] || 'Unknown error'), 'error');
       }
     } catch (error) {
       addToast('Import failed: ' + error.message, 'error');
@@ -116,7 +116,7 @@ export default function ImportWizard({ onComplete }) {
         if (onComplete) onComplete(result);
         setStep(3);
       } else {
-        addToast('Import failed: ' + (result.errors[0] || 'Unknown error'), 'error');
+        addToast('Import failed: ' + (result?.errors?.[0] || 'Unknown error'), 'error');
       }
     } catch (error) {
       addToast('Import failed: ' + error.message, 'error');

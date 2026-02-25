@@ -131,7 +131,7 @@ function CreateViewModal({ onClose, onCreate }) {
                   className="w-full glass-input rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400/50">
                   <option value="">Any</option>
                   {PRICE_POSITIONS.map((p) => (
-                    <option key={p} value={p}>{p.replace('_', ' ')}</option>
+                    <option key={p} value={p}>{p.replaceAll('_', ' ')}</option>
                   ))}
                 </select>
               </div>
@@ -153,7 +153,7 @@ function CreateViewModal({ onClose, onCreate }) {
                   className="w-full glass-input rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-400/50">
                   <option value="">Any</option>
                   {ACTIVITIES.map((a) => (
-                    <option key={a} value={a}>{a.replace('_', ' ')}</option>
+                    <option key={a} value={a}>{a.replaceAll('_', ' ')}</option>
                   ))}
                 </select>
               </div>
@@ -216,9 +216,9 @@ function ViewCard({ view, onDelete, onDuplicate }) {
 
   const filters = view.filters || {};
   const filterTags = [
-    filters.price_position && `Price: ${filters.price_position.replace('_', ' ')}`,
+    filters.price_position && `Price: ${filters.price_position.replaceAll('_', ' ')}`,
     filters.competition_level && `Competition: ${filters.competition_level}`,
-    filters.activity && `Activity: ${filters.activity.replace('_', ' ')}`,
+    filters.activity && `Activity: ${filters.activity.replaceAll('_', ' ')}`,
   ].filter(Boolean);
 
   function loadView() {
@@ -394,7 +394,7 @@ export default function SavedViewsPage() {
                   onClick={async () => {
                     try {
                       const v = await api.createSavedView({ name: t.name, icon: t.icon, description: t.desc, filters: t.filters, sort_by: 'created_at', sort_order: 'desc' });
-                      setViews([v]);
+                      setViews(prev => [v, ...prev]);
                       addToast(`"${t.name}" saved!`, 'success');
                     } catch {}
                   }}

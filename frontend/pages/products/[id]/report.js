@@ -212,7 +212,7 @@ export default function ProductReportPage() {
                         </td>
                         <td style={{ padding: '10px 12px', fontWeight: 700, color: '#1f2937', borderBottom: '1px solid #f3f4f6' }}>{fmt(m.latest_price)}</td>
                         <td style={{ padding: '10px 12px', color: diffColor, fontWeight: 600, borderBottom: '1px solid #f3f4f6' }}>
-                          {diff != null ? (diff > 0 ? `+${fmt(Math.abs(diff))} (+${diffPct}%)` : diff < 0 ? `-${fmt(Math.abs(diff))} (${diffPct}%)` : 'Same') : '—'}
+                          {diff != null ? (diff > 0 ? `+${fmt(Math.abs(diff))} (+${diffPct}%)` : diff < 0 ? `-${fmt(Math.abs(diff))} (${Math.abs(diffPct)}%)` : 'Same') : '—'}
                         </td>
                         <td style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>
                           <span style={{

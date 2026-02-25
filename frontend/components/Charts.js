@@ -215,8 +215,10 @@ export function CompetitorComparisonChart({ data }) {
 export function TrendIndicator({ current, previous }) {
   if (!previous) return null;
 
-  const change = ((current - previous) / previous * 100).toFixed(1);
+  const change = (current - previous) / previous * 100;
   const isIncrease = current > previous;
+
+  if (current === previous) return <span className="text-white/50 text-sm">0.0%</span>;
 
   return (
     <div className={`flex items-center gap-1 text-sm font-medium ${
@@ -231,7 +233,7 @@ export function TrendIndicator({ current, previous }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
         </svg>
       )}
-      <span>{Math.abs(change)}%</span>
+      <span>{Math.abs(change).toFixed(1)}%</span>
     </div>
   );
 }

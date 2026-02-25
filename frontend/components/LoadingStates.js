@@ -35,8 +35,9 @@ export function SkeletonLine({ width = 'full' }) {
     '1/3': 'w-1/3'
   };
 
+  const widthClass = widthClasses[width] || 'w-full';
   return (
-    <div className={`h-4 rounded animate-pulse ${widthClasses[width]}`} style={{ background: 'var(--bg-elevated)' }} />
+    <div className={`h-4 rounded animate-pulse ${widthClass}`} style={{ background: 'var(--bg-elevated)' }} />
   );
 }
 

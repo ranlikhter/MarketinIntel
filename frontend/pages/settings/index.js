@@ -4,24 +4,12 @@ import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/Toast';
-
-const API_BASE = 'http://localhost:8000';
+import api from '../../lib/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function authHeader() {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...authHeader(), ...(options.headers || {}) },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || 'Request failed');
-  return data;
+  return api.request(path, options);
 }
 
 // ─── Shared UI primitives ─────────────────────────────────────────────────────
@@ -784,10 +772,7 @@ function ApiAccessTab({ user }) {
   const [keyName, setKeyName]   = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/auth/api-keys', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
-    })
-      .then((r) => r.ok ? r.json() : [])
+    api.request('/api/auth/api-keys')
       .then(setKeys)
       .catch(() => setKeys([]))
       .finally(() => setLoading(false));
@@ -798,13 +783,10 @@ function ApiAccessTab({ user }) {
     if (!keyName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch('http://localhost:8000/api/auth/api-keys', {
+      const data = await api.request('/api/auth/api-keys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
         body: JSON.stringify({ name: keyName.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed');
       setKeys((prev) => [data, ...prev]);
       setNewKey(data.full_key);
       setKeyName('');
@@ -819,10 +801,7 @@ function ApiAccessTab({ user }) {
   async function revokeKey(id, name) {
     if (!confirm(`Revoke "${name}"?`)) return;
     try {
-      await fetch(`http://localhost:8000/api/auth/api-keys/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
-      });
+      await api.request(`/api/auth/api-keys/${id}`, { method: 'DELETE' });
       setKeys((prev) => prev.filter((k) => k.id !== id));
       addToast('Key revoked', 'success');
     } catch {

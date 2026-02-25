@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { ConfirmModal } from '../../components/Modal';
@@ -92,6 +92,7 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
   const [myPrice, setMyPrice] = useState(product.my_price);
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
+  const cancelRef = useRef(false);
 
   const handleSavePrice = async () => {
     const parsed = parseFloat(priceInput);
@@ -186,8 +187,8 @@ function ProductCard({ product, selected, onSelect, onDelete }) {
                     <span className="text-white/50 text-sm font-medium">$</span>
                     <input autoFocus type="number" step="0.01" value={priceInput}
                       onChange={(e) => setPriceInput(e.target.value)}
-                      onBlur={handleSavePrice}
-                      onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') setEditingPrice(false); }}
+                      onBlur={() => { if (!cancelRef.current) handleSavePrice(); cancelRef.current = false; }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { cancelRef.current = true; setEditingPrice(false); } }}
                       className="w-20 text-lg font-bold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none" />
                     {saving && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}
                   </div>

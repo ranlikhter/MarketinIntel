@@ -39,13 +39,22 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
   const handleDelete = async () => {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
     setDeleting(true);
-    await onDelete(rule.id);
+    try {
+      await onDelete(rule.id);
+    } catch {
+      setDeleting(false);
+    }
   };
 
   const handleApply = async () => {
     setApplying(true);
-    await onApply(rule.id);
-    setApplying(false);
+    try {
+      await onApply(rule.id);
+    } catch {
+      // parent handles error
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
@@ -228,12 +237,12 @@ function ApplyResultsModal({ result, onClose }) {
     try {
       if (storeConn.type === 'woocommerce') {
         await api.pushPriceToWooCommerce(
-          storeConn.storeUrl, storeConn.consumerKey, storeConn.consumerSecret,
+          storeConn.credentials?.store_url || storeConn.storeUrl, storeConn.credentials?.consumer_key || storeConn.consumerKey, storeConn.credentials?.consumer_secret || storeConn.consumerSecret,
           suggestion.sku || '', suggestion.title || '', suggestion.suggested_price
         );
       } else if (storeConn.type === 'shopify') {
         await api.pushPriceToShopify(
-          storeConn.shopUrl, storeConn.accessToken,
+          storeConn.credentials?.shop_url || storeConn.shopUrl, storeConn.credentials?.access_token || storeConn.accessToken,
           suggestion.sku || '', suggestion.title || '', suggestion.suggested_price
         );
       }

@@ -644,7 +644,7 @@ function StepDone({ product, importedCount, competitor, alertCreated, onDismiss 
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         {importedCount > 0 || product ? (
           <Link
-            href={importedCount > 0 ? '/products' : `/products/${product.id}`}
+            href={importedCount > 0 ? '/products' : (product?.id ? `/products/${product.id}` : '/products')}
             onClick={onDismiss}
             className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-white rounded-xl text-sm font-medium transition-colors gradient-brand hover:opacity-90"
           >
