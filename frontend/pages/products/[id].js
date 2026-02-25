@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { PriceHistoryChart } from '../../components/Charts';
+import { PriceTimelineChart } from '../../components/Charts';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
@@ -831,20 +831,28 @@ export default function ProductDetailPage() {
           <StatCard label="Price Range" value={priceRange != null ? `$${priceRange.toFixed(2)}` : '—'} sub="high – low" color="amber" icon={Ico.range} />
         </div>
 
-        {/* Price history */}
+        {/* Price timeline — competitors + my price on one chart */}
         <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-sm font-semibold text-white">Price History</p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-white">Price Timeline</p>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{priceHistory.length} data point{priceHistory.length !== 1 ? 's' : ''}</span>
           </div>
-          {priceHistory.length === 0 ? (
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+            Competitor prices vs your price over time.{' '}
+            {myPriceHistory.length > 0 && <span className="text-sky-400 font-medium">Diamond markers = your price changes.</span>}
+          </p>
+          {priceHistory.length === 0 && myPriceHistory.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: 'var(--bg-elevated)' }}>{Ico.avg}</div>
               <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No price history yet</p>
               <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Scrape competitors to start tracking</p>
             </div>
           ) : (
-            <PriceHistoryChart data={priceHistory} />
+            <PriceTimelineChart
+              priceHistory={priceHistory}
+              myPriceHistory={myPriceHistory}
+              myCurrentPrice={product?.my_price}
+            />
           )}
         </div>
 
