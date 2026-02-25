@@ -262,13 +262,63 @@ function StarRating({ rating }) {
   );
 }
 
-function MatchCard({ match, myPrice }) {
+function OpportunityBadge({ match, allMatches, myPrice }) {
+  if (!match.latest_price) return null;
+
+  // Out of stock = green opportunity
+  if (match.stock_status === 'Out of Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+        Opportunity — Out of Stock
+      </div>
+    );
+  }
+
+  // Most expensive and you're cheapest = safe
+  const inStockPriced = allMatches.filter(m => m.latest_price != null && m.stock_status !== 'Out of Stock');
+  if (inStockPriced.length === 0) return null;
+
+  const maxPrice = Math.max(...inStockPriced.map(m => m.latest_price));
+  const minPrice = Math.min(...inStockPriced.map(m => m.latest_price));
+
+  // You're the most expensive
+  if (myPrice != null && myPrice > maxPrice && match.latest_price === minPrice && match.stock_status === 'In Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(248,113,113,0.12)', color: '#f87171' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+        Undercuts you — cheapest in-stock
+      </div>
+    );
+  }
+
+  // Competitor has a promotion running
+  if (match.promotion_label && match.stock_status === 'In Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+        Running promo — watch price
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function MatchCard({ match, myPrice, allMatches }) {
   const [imgErr, setImgErr] = useState(false);
   const priceDiff = myPrice != null && match.latest_price != null ? match.latest_price - myPrice : null;
   const priceDiffPct = priceDiff != null && myPrice ? ((priceDiff / myPrice) * 100).toFixed(1) : null;
 
   return (
     <div className="rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      {/* Opportunity flag */}
+      {allMatches && (
+        <div className="px-3 pt-2">
+          <OpportunityBadge match={match} allMatches={allMatches} myPrice={myPrice} />
+        </div>
+      )}
+
       {/* Image with badge overlay */}
       <div className="relative h-36 flex items-center justify-center overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
         {!imgErr && match.image_url ? (
@@ -831,6 +881,377 @@ export default function ProductDetailPage() {
           <StatCard label="Price Range" value={priceRange != null ? `$${priceRange.toFixed(2)}` : '—'} sub="high – low" color="amber" icon={Ico.range} />
         </div>
 
+        {/* ── Market Position + Margin panels ── */}
+        {pricedMatches.length > 0 && product.my_price != null && (() => {
+          const highestPrice = Math.max(...pricedMatches.map(m => m.latest_price));
+          const sortedPrices = [...pricedMatches.map(m => m.latest_price), product.my_price].sort((a, b) => a - b);
+          const myRank = sortedPrices.indexOf(product.my_price) + 1;
+          const totalPlayers = sortedPrices.length;
+          const gapToLowest = product.my_price - lowestPrice;
+          const gapToAvg = product.my_price - avgPrice;
+          const gapToAvgPct = avgPrice ? ((gapToAvg / avgPrice) * 100).toFixed(1) : 0;
+          const positionPct = highestPrice > lowestPrice ? ((product.my_price - lowestPrice) / (highestPrice - lowestPrice)) * 100 : 50;
+
+          // Margin calculations
+          const costPrice = product.cost_price;
+          const hasMargin = costPrice != null && costPrice > 0;
+          const marginAtMyPrice = hasMargin ? ((product.my_price - costPrice) / product.my_price * 100) : null;
+          const marginAtLowest = hasMargin && lowestPrice ? ((lowestPrice - costPrice) / lowestPrice * 100) : null;
+          const breakEvenPrice = costPrice || null;
+
+          // Repricing suggestion: target 2nd-lowest price if we're not already there
+          const uniquePrices = [...new Set(pricedMatches.map(m => m.latest_price))].sort((a, b) => a - b);
+          const suggestedPrice = uniquePrices.length >= 2 ? uniquePrices[0] - 0.01 : uniquePrices[0];
+          const marginAtSuggested = hasMargin && suggestedPrice > costPrice ? ((suggestedPrice - costPrice) / suggestedPrice * 100) : null;
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Market Position Panel */}
+              <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                  </div>
+                  <p className="text-sm font-semibold text-white">Your Market Position</p>
+                </div>
+
+                {/* Rank badge */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`text-3xl font-black ${myRank === 1 ? 'text-emerald-400' : myRank === totalPlayers ? 'text-red-400' : 'text-amber-400'}`}>
+                    #{myRank}
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-medium">of {totalPlayers} {totalPlayers === 1 ? 'seller' : 'sellers'} by price</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {myRank === 1 ? 'You have the lowest price' : myRank === totalPlayers ? 'You have the highest price' : `${myRank - 1} cheaper, ${totalPlayers - myRank} more expensive`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Position bar */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+                    <span>${lowestPrice.toFixed(2)}</span>
+                    <span>${highestPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
+                    <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(90deg, #34d399 0%, #f59e0b 50%, #f87171 100%)', opacity: 0.25 }} />
+                    {/* Competitor dots */}
+                    {pricedMatches.map((m, i) => {
+                      const pos = highestPrice > lowestPrice ? ((m.latest_price - lowestPrice) / (highestPrice - lowestPrice)) * 100 : 50;
+                      return (
+                        <div key={i} className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/30"
+                          style={{ left: `${Math.min(Math.max(pos, 2), 98)}%`, transform: 'translate(-50%, -50%)' }}
+                          title={`${m.competitor_name}: $${m.latest_price.toFixed(2)}`}
+                        />
+                      );
+                    })}
+                    {/* My price marker */}
+                    <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-sky-400 bg-sky-500 shadow-lg shadow-sky-500/30"
+                      style={{ left: `${Math.min(Math.max(positionPct, 3), 97)}%`, transform: 'translate(-50%, -50%)' }}
+                      title={`Your price: $${product.my_price.toFixed(2)}`}
+                    />
+                  </div>
+                  <p className="text-center text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> You</span>
+                    <span className="mx-2">·</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/30 inline-block" /> Competitors</span>
+                  </p>
+                </div>
+
+                {/* Gap metrics */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gap to Lowest</p>
+                    <p className={`text-lg font-bold ${gapToLowest <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {gapToLowest <= 0 ? `-$${Math.abs(gapToLowest).toFixed(2)}` : `+$${gapToLowest.toFixed(2)}`}
+                    </p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>vs Market Avg</p>
+                    <p className={`text-lg font-bold ${gapToAvg <= 0 ? 'text-emerald-400' : gapToAvg > 0 ? 'text-amber-400' : 'text-white/50'}`}>
+                      {gapToAvg > 0 ? '+' : ''}{gapToAvgPct}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Margin & Repricing Panel */}
+              <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <p className="text-sm font-semibold text-white">
+                    {hasMargin ? 'Margin & Repricing' : 'Repricing Suggestion'}
+                  </p>
+                </div>
+
+                {hasMargin ? (
+                  <>
+                    {/* Margin gauges */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin at My Price</p>
+                        <p className={`text-lg font-bold ${marginAtMyPrice >= 20 ? 'text-emerald-400' : marginAtMyPrice >= 10 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {marginAtMyPrice.toFixed(1)}%
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>${(product.my_price - costPrice).toFixed(2)} profit</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin if Match Lowest</p>
+                        <p className={`text-lg font-bold ${marginAtLowest >= 20 ? 'text-emerald-400' : marginAtLowest >= 10 ? 'text-amber-400' : marginAtLowest > 0 ? 'text-red-400' : 'text-red-500'}`}>
+                          {marginAtLowest != null ? `${marginAtLowest.toFixed(1)}%` : '—'}
+                        </p>
+                        {marginAtLowest != null && marginAtLowest < 0 && (
+                          <p className="text-xs text-red-400 font-medium">Below cost!</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl p-3 mb-4" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Cost Price</p>
+                          <p className="text-sm font-semibold text-white">${costPrice.toFixed(2)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Break-even</p>
+                          <p className="text-sm font-semibold text-white">${breakEvenPrice.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl p-3 mb-4 flex items-center gap-2" style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)' }}>
+                    <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-xs text-sky-400">Set a cost price to see margin analysis. Edit this product to add it.</p>
+                  </div>
+                )}
+
+                {/* Repricing suggestion */}
+                {suggestedPrice < product.my_price && suggestedPrice > (costPrice || 0) && (
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                    <div className="flex items-start gap-2">
+                      <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-amber-400 mb-1">Repricing Suggestion</p>
+                        <p className="text-sm text-white">
+                          Undercut the cheapest competitor at{' '}
+                          <span className="font-bold text-amber-400">${suggestedPrice.toFixed(2)}</span>
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          <span>Save: ${(product.my_price - suggestedPrice).toFixed(2)} less than now</span>
+                          {marginAtSuggested != null && (
+                            <span className={marginAtSuggested >= 10 ? 'text-emerald-400' : 'text-amber-400'}>
+                              Margin: {marginAtSuggested.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {suggestedPrice >= product.my_price && (
+                  <div className="rounded-xl p-3 flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                    <p className="text-xs text-emerald-400 font-medium">You already have the best or matching price</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Market Intelligence Panel ── */}
+        {pricedMatches.length > 0 && (() => {
+          const inStockMatches = matches.filter(m => m.stock_status === 'In Stock');
+          const outOfStockMatches = matches.filter(m => m.stock_status === 'Out of Stock');
+          const lowStockMatches = matches.filter(m => m.stock_status && m.stock_status !== 'In Stock' && m.stock_status !== 'Out of Stock');
+          const withRating = matches.filter(m => m.rating != null);
+          const fbaCount = matches.filter(m => m.fulfillment_type === 'FBA').length;
+          const fbmCount = matches.filter(m => m.fulfillment_type === 'FBM' || m.fulfillment_type === 'merchant').length;
+          const primeCount = matches.filter(m => m.is_prime).length;
+          const freeShipCount = matches.filter(m => m.shipping_cost === 0 || m.shipping_cost == null).length;
+          const promoCount = matches.filter(m => m.promotion_label).length;
+
+          // Total landed cost ranking
+          const landedCostRanking = [...matches]
+            .filter(m => m.latest_price != null)
+            .map(m => ({
+              name: m.competitor_name,
+              price: m.latest_price,
+              shipping: m.shipping_cost || 0,
+              total: m.total_price || m.latest_price,
+              stock: m.stock_status,
+            }))
+            .sort((a, b) => a.total - b.total);
+
+          return (
+            <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <p className="text-sm font-semibold text-white">Market Intelligence</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Stock & Availability */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Stock & Availability</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span className="text-xs text-white">In Stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-white">{inStockMatches.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ background: 'var(--text-muted)' }} />
+                        <span className="text-xs text-white">Out of Stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-white">{outOfStockMatches.length}</span>
+                    </div>
+                    {lowStockMatches.length > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span className="text-xs text-white">Low Stock</span>
+                        </div>
+                        <span className="text-sm font-bold text-white">{lowStockMatches.length}</span>
+                      </div>
+                    )}
+                    {outOfStockMatches.length > 0 && (
+                      <div className="rounded-xl p-2 mt-1" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                        <p className="text-xs text-emerald-400">
+                          {outOfStockMatches.map(m => m.competitor_name).join(', ')} {outOfStockMatches.length === 1 ? 'is' : 'are'} out of stock — potential pricing opportunity
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fulfillment & Shipping */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Fulfillment & Shipping</p>
+                  <div className="space-y-2">
+                    {fbaCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">FBA (Amazon Fulfilled)</span>
+                        <span className="text-sm font-bold text-white">{fbaCount}</span>
+                      </div>
+                    )}
+                    {fbmCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">FBM / Merchant</span>
+                        <span className="text-sm font-bold text-white">{fbmCount}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <span className="text-xs text-white">Prime Eligible</span>
+                      <span className="text-sm font-bold text-white">{primeCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <span className="text-xs text-white">Free Shipping</span>
+                      <span className="text-sm font-bold text-emerald-400">{freeShipCount}</span>
+                    </div>
+                    {promoCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">Active Promotions</span>
+                        <span className="text-sm font-bold text-red-400">{promoCount}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Total Landed Cost Ranking */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Total Landed Cost Ranking</p>
+                  <div className="space-y-1.5">
+                    {landedCostRanking.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          i === 0 ? 'bg-emerald-500/20 text-emerald-400' : 'text-white/50'
+                        }`} style={i > 0 ? { background: 'var(--bg-surface)' } : {}}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white truncate">{item.name}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold text-white">${item.total.toFixed(2)}</p>
+                          {item.shipping > 0 && (
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>+${item.shipping.toFixed(2)} ship</p>
+                          )}
+                        </div>
+                        {item.stock === 'Out of Stock' && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>OOS</span>
+                        )}
+                      </div>
+                    ))}
+                    {product.my_price != null && (
+                      <div className="flex items-center gap-2 rounded-xl p-2.5" style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.12)' }}>
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-sky-500/20 text-sky-400">
+                          Y
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-sky-400 font-medium">Your Price</p>
+                        </div>
+                        <p className="text-xs font-bold text-sky-400">${product.my_price.toFixed(2)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rating Comparison Table */}
+              {withRating.length > 0 && (
+                <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Rating & Review Comparison</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          <th className="text-left py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Competitor</th>
+                          <th className="text-center py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Rating</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Reviews</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Price</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...withRating].sort((a, b) => (b.rating || 0) - (a.rating || 0)).map(m => (
+                          <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td className="py-2.5 text-white font-medium truncate max-w-[140px]">{m.competitor_name}</td>
+                            <td className="py-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                <span className="text-white font-semibold">{m.rating.toFixed(1)}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right" style={{ color: 'var(--text-muted)' }}>
+                              {m.review_count != null ? m.review_count.toLocaleString() : '—'}
+                            </td>
+                            <td className="py-2.5 text-right text-amber-400 font-semibold">
+                              {m.latest_price != null ? `$${m.latest_price.toFixed(2)}` : '—'}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <StockBadge status={m.stock_status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* Price timeline — competitors + my price on one chart */}
         <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
           <div className="flex items-center justify-between mb-1">
@@ -891,7 +1312,7 @@ export default function ProductDetailPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {matches.map(m => (
-                <MatchCard key={m.id} match={m} myPrice={product?.my_price} />
+                <MatchCard key={m.id} match={m} myPrice={product?.my_price} allMatches={matches} />
               ))}
               {/* Always show the "add from URL" card at the end */}
               <AddUrlCard onClick={() => setShowAddUrl(true)} />
