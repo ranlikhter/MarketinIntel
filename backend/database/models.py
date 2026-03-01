@@ -337,6 +337,7 @@ class User(Base):
     saved_views = relationship("SavedView", back_populates="user", cascade="all, delete-orphan")
     api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
     store_connections = relationship("StoreConnection", back_populates="user", cascade="all, delete-orphan")
+    activity_logs = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -592,3 +593,37 @@ class StoreConnection(Base):
 
     def __repr__(self):
         return f"<StoreConnection(id={self.id}, platform='{self.platform}', url='{self.store_url}')>"
+
+
+class ActivityLog(Base):
+    """
+    Table: activity_logs
+    Full audit trail of every user-initiated action across the platform.
+    """
+    __tablename__ = "activity_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # What happened
+    action = Column(String(50), nullable=False, index=True)   # e.g. "product.create", "price.update"
+    category = Column(String(30), nullable=False, index=True) # "product","price","alert","rule","integration","account","team"
+
+    # What it affected
+    entity_type = Column(String(30), nullable=True)   # "product", "match", "alert", "rule", "apikey", "workspace"
+    entity_id = Column(Integer, nullable=True, index=True)
+    entity_name = Column(String(500), nullable=True)  # Human-readable name for display
+
+    # Human-readable summary
+    description = Column(Text, nullable=False)
+
+    # Structured extra data (old/new values, counts, etc.)
+    metadata_ = Column("metadata", JSON, nullable=True)
+
+    status = Column(String(10), default="success")    # "success" | "error"
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    user = relationship("User", back_populates="activity_logs")
+
+    def __repr__(self):
+        return f"<ActivityLog(id={self.id}, action='{self.action}', user_id={self.user_id})>"

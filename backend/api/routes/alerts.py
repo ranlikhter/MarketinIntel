@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from database.connection import get_db
 from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
 from services.email_service import email_service
+from services.activity_service import log_activity
 from api.dependencies import get_current_user, check_usage_limit
 
 router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
@@ -183,6 +184,9 @@ async def create_alert(
     )
 
     db.add(new_alert)
+    db.flush()
+    product_title = product.title
+    log_activity(db, current_user.id, "alert.create", "alert", f"Created price alert for '{product_title}'", entity_type="alert", entity_id=new_alert.id, entity_name=product_title, metadata={"alert_type": new_alert.alert_type, "product_id": new_alert.product_id})
     db.commit()
     db.refresh(new_alert)
 
@@ -328,6 +332,11 @@ async def delete_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == alert.product_id
+    ).first()
+    product_title = product.title if product else "Unknown"
+    log_activity(db, current_user.id, "alert.delete", "alert", f"Deleted price alert for '{product_title}'", entity_type="alert", entity_id=alert_id, entity_name=product_title)
     db.delete(alert)
     db.commit()
 
@@ -355,6 +364,11 @@ async def toggle_alert(
     alert.enabled = not alert.enabled
     alert.updated_at = datetime.utcnow()
 
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == alert.product_id
+    ).first()
+    product_title = product.title if product else "Unknown"
+    log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert for '{product_title}'", entity_type="alert", entity_id=alert.id, entity_name=product_title, metadata={"enabled": alert.enabled})
     db.commit()
     db.refresh(alert)
 

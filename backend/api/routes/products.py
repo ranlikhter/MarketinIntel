@@ -24,6 +24,7 @@ from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User, MyPriceHistory
 from scrapers.scraper_manager import scrape_url, search_products
 from api.dependencies import get_current_user, check_usage_limit
+from services.activity_service import log_activity
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
@@ -185,6 +186,11 @@ def create_product(
     )
 
     db.add(db_product)
+    db.flush()
+    log_activity(db, current_user.id, "product.create", "product",
+                 f"Added product '{db_product.title}' to monitoring",
+                 entity_type="product", entity_id=db_product.id, entity_name=db_product.title,
+                 metadata={"sku": db_product.sku, "brand": db_product.brand, "my_price": db_product.my_price})
     db.commit()
     db.refresh(db_product)  # Get the ID that was auto-generated
 
@@ -356,6 +362,7 @@ def update_product(
 
     # Auto-record my_price change before applying the update
     updates = product_update.dict(exclude_none=True)
+    old_price = product.my_price
     if 'my_price' in updates and updates['my_price'] != product.my_price:
         price_record = MyPriceHistory(
             product_id=product.id,
@@ -366,6 +373,25 @@ def update_product(
 
     for field, value in updates.items():
         setattr(product, field, value)
+
+    # Log price change separately if my_price was updated
+    if 'my_price' in updates and updates['my_price'] != old_price:
+        new_p = updates['my_price']
+        pct = round((new_p - old_price) / old_price * 100, 1) if old_price else None
+        direction = "raised" if new_p > (old_price or 0) else "lowered"
+        desc = f"Price {direction} from ${old_price:.2f} to ${new_p:.2f}" if old_price else f"Price set to ${new_p:.2f}"
+        if pct is not None:
+            desc += f" ({'+' if pct > 0 else ''}{pct}%)"
+        log_activity(db, current_user.id, "price.update", "price", desc,
+                     entity_type="product", entity_id=product.id, entity_name=product.title,
+                     metadata={"old_price": old_price, "new_price": new_p, "change_pct": pct})
+    elif updates:
+        changed = [k for k in updates if k != 'my_price']
+        if changed:
+            log_activity(db, current_user.id, "product.update", "product",
+                         f"Updated product '{product.title}'",
+                         entity_type="product", entity_id=product.id, entity_name=product.title,
+                         metadata={"fields_changed": changed})
 
     db.commit()
     db.refresh(product)
@@ -640,6 +666,10 @@ async def trigger_scrape(
                 )
                 db.add(price_record)
 
+        log_activity(db, current_user.id, "product.scrape", "competitor",
+                     f"Scraped {website} for '{product.title}' — {matches_created} new match{'es' if matches_created != 1 else ''} found",
+                     entity_type="product", entity_id=product_id, entity_name=product.title,
+                     metadata={"website": website, "matches_found": len(search_results), "matches_created": matches_created})
         db.commit()
 
         return {
@@ -816,6 +846,13 @@ async def scrape_competitor_url(
             )
             db.add(price_record)
 
+        action_label = "competitor.update" if existing else "competitor.add"
+        action_desc = f"{'Updated' if existing else 'Added'} competitor '{competitor_name}' for '{product.title}'"
+        if scrape_price:
+            action_desc += f" (${scrape_price:.2f})"
+        log_activity(db, current_user.id, action_label, "competitor", action_desc,
+                     entity_type="product", entity_id=product_id, entity_name=product.title,
+                     metadata={"competitor_name": competitor_name, "url": competitor_url, "price": scrape_price})
         db.commit()
         db.refresh(existing if existing else new_match)
         match_obj = existing if existing else new_match
@@ -1106,17 +1143,27 @@ def export_product_xlsx(
 
 
 @router.delete("/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_db)):
+def delete_product(product_id: int, db: Session = Depends(get_db),
+                   current_user: User = Depends(get_current_user)):
     """
     DELETE /products/{id}
 
     Delete a product and all its competitor matches.
     """
-    product = db.query(ProductMonitored).filter(ProductMonitored.id == product_id).first()
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    title = product.title
+    match_count = len(product.competitor_matches)
     db.delete(product)
+    log_activity(db, current_user.id, "product.delete", "product",
+                 f"Deleted product '{title}' and {match_count} competitor match{'es' if match_count != 1 else ''}",
+                 entity_type="product", entity_id=product_id, entity_name=title,
+                 metadata={"matches_removed": match_count})
     db.commit()
 
     return {"status": "deleted", "product_id": product_id}

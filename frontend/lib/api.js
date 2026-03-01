@@ -262,6 +262,16 @@ const api = {
   syncStoreInventory: (id) =>
     request(`/api/integrations/store-connections/${id}/sync`, { method: 'POST' }),
 
+  // ─── Activity Log ─────────────────────────────────────────────────────────────
+  getActivity: ({ page = 1, limit = 50, category, action, entityId, days } = {}) => {
+    const params = new URLSearchParams({ page, limit });
+    if (category) params.set('category', category);
+    if (action)   params.set('action', action);
+    if (entityId) params.set('entity_id', entityId);
+    if (days)     params.set('days', days);
+    return request(`/api/activity?${params}`);
+  },
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

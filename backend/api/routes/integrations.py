@@ -17,6 +17,7 @@ from integrations.xml_parser import XMLProductParser
 from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
 from api.routes.auth import get_current_user
+from services.activity_service import log_activity
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -131,7 +132,8 @@ async def import_from_xml(
 @router.post("/import/woocommerce", response_model=ImportResult)
 async def import_from_woocommerce(
     connection: WooCommerceConnection,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Import products from WooCommerce store
@@ -319,7 +321,11 @@ class ShopifyPricePushRequest(BaseModel):
 
 
 @router.post("/push-price/woocommerce")
-async def push_price_woocommerce(request: WooCommercePricePushRequest):
+async def push_price_woocommerce(
+    request: WooCommercePricePushRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Update a product's price on a WooCommerce store.
     Matches by SKU first, then title fallback.
@@ -337,6 +343,8 @@ async def push_price_woocommerce(request: WooCommercePricePushRequest):
         )
         if not result['success']:
             raise HTTPException(status_code=400, detail=result.get('error', 'Price update failed'))
+        log_activity(db, current_user.id, "store.push_price", "integration", f"Pushed price ${request.new_price:.2f} for '{request.title or request.sku}' to WooCommerce", metadata={"platform": "woocommerce", "sku": request.sku, "new_price": request.new_price})
+        db.flush()
         return result
 
     except HTTPException:
