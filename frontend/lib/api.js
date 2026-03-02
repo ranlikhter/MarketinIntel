@@ -272,6 +272,20 @@ const api = {
     return request(`/api/activity?${params}`);
   },
 
+  // ─── Forecasting ──────────────────────────────────────────────────────────────
+  getForecastHistory:   (productId, days = 90) =>
+    request(`/api/forecasting/products/${productId}/history?days=${days}`),
+  getForecast:          (productId, daysAhead = 30) =>
+    request(`/api/forecasting/products/${productId}/forecast?days_ahead=${daysAhead}`),
+  getSeasonalPatterns:  (productId, months = 12) =>
+    request(`/api/forecasting/products/${productId}/seasonal?months=${months}`),
+  getCompetitorPerf:    (competitorName, days = 90) =>
+    request(`/api/forecasting/competitors/${encodeURIComponent(competitorName)}/performance?days=${days}`),
+  getPriceDrops:        (days = 30, minDropPct = 10) =>
+    request(`/api/forecasting/price-drops?days=${days}&min_drop_pct=${minDropPct}`),
+  getForecastSummary:   () =>
+    request('/api/forecasting/trends/summary'),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };
