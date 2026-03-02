@@ -7,7 +7,7 @@ from celery import Task
 from celery_app import celery_app
 from sqlalchemy.orm import Session
 from database.connection import SessionLocal
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite
+from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, CompetitorPromotion
 from scrapers.amazon_scraper import AmazonScraper
 from matchers.simple_matcher import SimpleProductMatcher
 from datetime import datetime, timedelta
@@ -199,6 +199,9 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
                     )
                     self.db.add(price_record)
 
+                # Persist detected promotions
+                _upsert_promotions(self.db, match.id, item.get("promotions") or [])
+
                 matches_found += 1
 
             self.db.commit()
@@ -219,6 +222,52 @@ def scrape_single_product(self, product_id: int, website: str = 'amazon.com'):
         logger.error(f"Error scraping product {product_id}: {e}")
         # Retry with exponential backoff
         raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
+
+
+def _upsert_promotions(db, match_id: int, promotions: list):
+    """
+    Keep the competitor_promotions table in sync with what was just scraped.
+
+    - New promotions are inserted with is_active=True.
+    - Previously seen promotions that are still present get last_seen_at updated.
+    - Previously seen promotions that are no longer present get is_active=False.
+    """
+    from datetime import datetime
+    now = datetime.utcnow()
+
+    # Deactivate all existing active promos for this match (will reactivate below)
+    db.query(CompetitorPromotion).filter_by(match_id=match_id, is_active=True).update(
+        {"is_active": False}, synchronize_session=False
+    )
+
+    for p in promotions:
+        desc = (p.get("description") or "").strip()[:500]
+        if not desc:
+            continue
+        promo_type = p.get("promo_type") or "other"
+
+        # Try to find an existing record with the same description
+        existing = (
+            db.query(CompetitorPromotion)
+            .filter_by(match_id=match_id, description=desc)
+            .first()
+        )
+        if existing:
+            existing.is_active = True
+            existing.last_seen_at = now
+        else:
+            db.add(CompetitorPromotion(
+                match_id=match_id,
+                promo_type=promo_type,
+                description=desc,
+                buy_qty=p.get("buy_qty"),
+                get_qty=p.get("get_qty"),
+                discount_pct=p.get("discount_pct"),
+                free_item_name=p.get("free_item_name"),
+                first_seen_at=now,
+                last_seen_at=now,
+                is_active=True,
+            ))
 
 
 @celery_app.task(base=DatabaseTask, bind=True)

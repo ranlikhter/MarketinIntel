@@ -529,6 +529,74 @@ function NotificationsTab({ user }) {
   const [saving, setSaving] = useState(false);
   const [testingSend, setTestingSend] = useState(false);
 
+  // ── Push notification state ─────────────────────────────────────────────────
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  // Check push support and current subscription status on mount
+  useEffect(() => {
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+    setPushSupported(supported);
+    if (!supported) return;
+    navigator.serviceWorker.ready.then(reg => {
+      reg.pushManager.getSubscription().then(sub => {
+        setPushSubscribed(!!sub);
+      });
+    }).catch(() => {});
+  }, []);
+
+  const handlePushToggle = async () => {
+    if (!pushSupported) return;
+    setPushLoading(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+
+      if (existing) {
+        // Unsubscribe
+        await existing.unsubscribe();
+        await api.unsubscribePush(existing.endpoint);
+        setPushSubscribed(false);
+        addToast('Browser push notifications disabled', 'info');
+      } else {
+        // Subscribe — fetch VAPID key first
+        const { vapid_public_key: vapidKey } = await api.getPushVapidKey();
+        if (!vapidKey) throw new Error('VAPID key unavailable');
+
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: vapidKey,
+        });
+        const json = sub.toJSON();
+        await api.subscribePush(
+          json.endpoint,
+          json.keys.p256dh,
+          json.keys.auth,
+          navigator.userAgent,
+        );
+        setPushSubscribed(true);
+        addToast('Browser push notifications enabled', 'success');
+      }
+    } catch (err) {
+      addToast(`Push setup failed: ${err.message}`, 'error');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    setPushLoading(true);
+    try {
+      await api.sendTestPush();
+      addToast('Test push notification sent', 'success');
+    } catch (err) {
+      addToast(`Failed: ${err.message}`, 'error');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Try to load from backend first, fall back to localStorage
     apiFetch('/api/notifications/preferences')
@@ -689,7 +757,7 @@ function NotificationsTab({ user }) {
               </div>
             </Field>
           </div>
-          <div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
             <Field label="Discord">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -703,6 +771,29 @@ function NotificationsTab({ user }) {
                     onChange={e => set('discordWebhook', e.target.value)}
                     placeholder="https://discord.com/api/webhooks/..."
                   />
+                )}
+              </div>
+            </Field>
+          </div>
+          <div>
+            <Field label="Browser Push" hint={pushSupported ? undefined : 'Not supported in this browser'}>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                    {pushSubscribed ? 'Push notifications are enabled for this browser' : 'Get instant alerts in this browser / OS'}
+                  </span>
+                  <Toggle value={pushSubscribed} onChange={handlePushToggle} disabled={!pushSupported || pushLoading} />
+                </div>
+                {pushSubscribed && (
+                  <button
+                    type="button"
+                    onClick={handleTestPush}
+                    disabled={pushLoading}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity disabled:opacity-50"
+                    style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                  >
+                    {pushLoading ? 'Sending…' : 'Send test push'}
+                  </button>
                 )}
               </div>
             </Field>

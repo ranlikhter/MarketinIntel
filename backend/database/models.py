@@ -117,6 +117,7 @@ class CompetitorMatch(Base):
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
     price_history = relationship("PriceHistory", back_populates="competitor_match", cascade="all, delete-orphan")
+    promotions = relationship("CompetitorPromotion", back_populates="competitor_match", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<CompetitorMatch(id={self.id}, competitor='{self.competitor_name}', match_score={self.match_score})>"
@@ -338,6 +339,7 @@ class User(Base):
     api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
     store_connections = relationship("StoreConnection", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
+    push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -627,3 +629,69 @@ class ActivityLog(Base):
 
     def __repr__(self):
         return f"<ActivityLog(id={self.id}, action='{self.action}', user_id={self.user_id})>"
+
+
+class PushSubscription(Base):
+    """
+    Table: push_subscriptions
+    Stores browser Web Push API subscriptions so the backend can send
+    push notifications to users' devices even when the tab is closed.
+    Each browser/device creates its own row identified by endpoint URL.
+    """
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    # Web Push subscription keys (from browser PushManager.subscribe())
+    endpoint = Column(Text, nullable=False, unique=True)   # Push service delivery URL
+    p256dh = Column(Text, nullable=False)                  # ECDH public key for payload encryption
+    auth = Column(Text, nullable=False)                    # Auth secret for payload encryption
+
+    # Device context
+    user_agent = Column(String(500), nullable=True)
+
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="push_subscriptions")
+
+    def __repr__(self):
+        return f"<PushSubscription(id={self.id}, user_id={self.user_id}, active={self.is_active})>"
+
+
+class CompetitorPromotion(Base):
+    """
+    Table: competitor_promotions
+    Stores structured promotional offers detected on competitor product pages.
+
+    Promotion types:
+    - bogo    : Buy One Get One Free
+    - bundle  : Buy X Get Y (quantity-based, e.g., "Buy 3 Get 1 Free")
+    - pct_off : Percentage discount (e.g., "20% off when you buy 2")
+    - free_item : Free item added to order
+    - other   : Coupon codes, seasonal sales, etc.
+    """
+    __tablename__ = "competitor_promotions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+
+    # Structured promotion data
+    promo_type = Column(String(20), nullable=False)         # "bogo", "bundle", "pct_off", "free_item", "other"
+    description = Column(String(500), nullable=False)       # Raw human-readable text, e.g. "Buy 2 Get 1 Free"
+    buy_qty = Column(Integer, nullable=True)                # Quantity customer must purchase
+    get_qty = Column(Integer, nullable=True)                # Quantity customer receives free/discounted
+    discount_pct = Column(Float, nullable=True)             # Percentage off (for pct_off type)
+    free_item_name = Column(String(200), nullable=True)     # Name of free item (for free_item type)
+
+    # Lifecycle
+    first_seen_at = Column(DateTime, default=datetime.utcnow, index=True)
+    last_seen_at = Column(DateTime, default=datetime.utcnow)
+    is_active = Column(Boolean, default=True, index=True)
+
+    competitor_match = relationship("CompetitorMatch", back_populates="promotions")
+
+    def __repr__(self):
+        return f"<CompetitorPromotion(id={self.id}, type='{self.promo_type}', desc='{self.description[:40]}')>"

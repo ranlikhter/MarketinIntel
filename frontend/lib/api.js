@@ -286,6 +286,32 @@ const api = {
   getForecastSummary:   () =>
     request('/api/forecasting/trends/summary'),
 
+  // ─── Push Notifications ───────────────────────────────────────────────────────
+  getPushVapidKey: () =>
+    request('/api/notifications/push/vapid-public-key'),
+  subscribePush: (endpoint, p256dh, auth, userAgent) =>
+    request('/api/notifications/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint, p256dh, auth, user_agent: userAgent }),
+    }),
+  unsubscribePush: (endpoint) =>
+    request('/api/notifications/push/unsubscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint }),
+    }),
+  sendTestPush: () =>
+    request('/api/notifications/push/test', { method: 'POST' }),
+
+  // ─── Promotions ───────────────────────────────────────────────────────────────
+  getPromotions: ({ days = 30, promoType, competitor, activeOnly = true } = {}) => {
+    const params = new URLSearchParams({ days, active_only: activeOnly });
+    if (promoType) params.set('promo_type', promoType);
+    if (competitor) params.set('competitor', competitor);
+    return request(`/api/promotions?${params}`);
+  },
+  getPromotionStats: (days = 30) =>
+    request(`/api/promotions/stats?days=${days}`),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

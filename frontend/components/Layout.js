@@ -58,6 +58,7 @@ const NAV_ITEMS = [
   { href: '/scheduler',        label: 'Scheduler',      icon: Icon.clock,     match: (p) => p.startsWith('/scheduler') },
   { href: '/analytics',        label: 'Analytics',      icon: Icon.chart,     match: (p) => p.startsWith('/analytics') },
   { href: '/repricing',        label: 'Repricing',      icon: Icon.tag,       match: (p) => p.startsWith('/repricing') },
+  { href: '/promotions',       label: 'Promotions',     icon: Icon.lightning, match: (p) => p.startsWith('/promotions') },
   { href: '/discovery',        label: 'Discovery',      icon: Icon.globe,     match: (p) => p.startsWith('/discovery') },
   { href: '/settings/team',    label: 'Team',           icon: Icon.users,     match: (p) => p.startsWith('/settings/team'),     group: 'Settings' },
   { href: '/settings/api-keys',label: 'API Keys',       icon: Icon.key,       match: (p) => p.startsWith('/settings/api-keys'), group: 'Settings' },

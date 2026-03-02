@@ -99,6 +99,7 @@ class GenericWebScraper:
             "shipping_cost": None,
             "total_price": None,
             "promotion_label": None,
+            "promotions": [],           # List of structured promotion dicts
             "brand": None,
             "description": None,
             "mpn": None,
@@ -185,8 +186,10 @@ class GenericWebScraper:
                 elif result["price"] is not None:
                     result["total_price"] = result["price"]
 
-                # Extract promotion label
-                result["promotion_label"] = self._extract_promotion_fallback(soup)
+                # Extract promotion label + structured promotions
+                promo_label, promos = self._extract_promotion_fallback(soup, page_content)
+                result["promotion_label"] = promo_label
+                result["promotions"] = promos
 
                 # Extract match-rate identifiers
                 result["brand"] = self._extract_brand_fallback(soup)
@@ -513,33 +516,17 @@ class GenericWebScraper:
         return mpn, upc_ean
 
 
-    def _extract_promotion_fallback(self, soup: BeautifulSoup) -> Optional[str]:
-        """Look for discount banners, sale badges, coupon labels."""
-        promo_patterns = [
-            {"class": "promo-badge"}, {"class": "sale-badge"}, {"class": "offer-badge"},
-            {"class": "discount-badge"}, {"class": "deal-badge"}, {"class": "coupon"},
-            {"class": "savings"}, {"class": "promotion"},
-        ]
-        for pattern in promo_patterns:
-            elem = soup.find(attrs=pattern)
-            if elem:
-                text = elem.get_text(strip=True)
-                if text and len(text) < 100:
-                    return text
-        # JSON-LD: look for priceValidUntil or name in Offer
-        for script in soup.find_all('script', type='application/ld+json'):
-            try:
-                import json
-                data = json.loads(script.string or '{}')
-                offers = data.get('offers', {}) if isinstance(data, dict) else {}
-                if isinstance(offers, list) and offers:
-                    offers = offers[0]
-                promo = offers.get('description') or offers.get('name')
-                if promo and len(promo) < 100:
-                    return promo
-            except Exception:
-                pass
-        return None
+    def _extract_promotion_fallback(self, soup: BeautifulSoup, page_html: str = "") -> tuple:
+        """
+        Detect promotions using the PromotionDetector.
+
+        Returns (promotion_label: str | None, promotions: list[dict])
+        """
+        from scrapers.promotion_detector import detect_promotions
+        page_text = soup.get_text(" ", strip=True) if not page_html else None
+        promos = detect_promotions(soup, page_text)
+        label = promos[0]["description"] if promos else None
+        return label, promos
 
 
 # Async helper function for easy use

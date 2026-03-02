@@ -49,6 +49,17 @@ class TestEmailRequest(BaseModel):
     email: EmailStr
 
 
+class PushSubscribeRequest(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+    user_agent: Optional[str] = None
+
+
+class PushUnsubscribeRequest(BaseModel):
+    endpoint: str
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/preferences")
@@ -137,3 +148,73 @@ async def send_test_email(
         return {"success": True, "message": f"Test email sent to {request.email}"}
     else:
         raise HTTPException(status_code=500, detail="Failed to send test email. Check SMTP configuration.")
+
+
+# ── Push notification endpoints ─────────────────────────────────────────────────
+
+@router.get("/push/vapid-public-key")
+async def get_vapid_public_key(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Return the VAPID public key so the browser can subscribe."""
+    _get_user(credentials, db)
+    import services.push_service as push_service
+    key = push_service.get_vapid_public_key()
+    if not key:
+        raise HTTPException(status_code=503, detail="Push notifications not configured (VAPID keys missing)")
+    return {"vapid_public_key": key}
+
+
+@router.post("/push/subscribe")
+async def subscribe_push(
+    request: PushSubscribeRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Save a browser push subscription."""
+    user = _get_user(credentials, db)
+    import services.push_service as push_service
+    sub = push_service.subscribe(
+        db=db,
+        user_id=user.id,
+        endpoint=request.endpoint,
+        p256dh=request.p256dh,
+        auth=request.auth,
+        user_agent=request.user_agent,
+    )
+    return {"success": True, "subscription_id": sub.id}
+
+
+@router.delete("/push/unsubscribe")
+async def unsubscribe_push(
+    request: PushUnsubscribeRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Deactivate a browser push subscription."""
+    user = _get_user(credentials, db)
+    import services.push_service as push_service
+    removed = push_service.unsubscribe(db=db, user_id=user.id, endpoint=request.endpoint)
+    return {"success": removed}
+
+
+@router.post("/push/test")
+async def send_test_push(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Send a test Web Push notification to all of the user's subscribed devices."""
+    user = _get_user(credentials, db)
+    import services.push_service as push_service
+    result = push_service.send_push_to_user(
+        db=db,
+        user_id=user.id,
+        title="MarketIntel Test",
+        body="Push notifications are working correctly.",
+        url="/settings?tab=notifications",
+        tag="test-push",
+    )
+    if result.get("skipped"):
+        raise HTTPException(status_code=400, detail=result.get("reason", "No active push subscriptions"))
+    return {"success": True, **result}
