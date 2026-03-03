@@ -2,7 +2,7 @@
 Scraper Manager — Intelligent Scraper Selection
 
 Automatically routes URLs to the right scraper:
-  - AmazonScraper   for *.amazon.* URLs
+  - AmazonScraper   for *.amazon.* URLs  (with Apify cloud fallback on CAPTCHA)
   - GenericWebScraper for everything else
 
 Performance additions over the original:
@@ -10,6 +10,11 @@ Performance additions over the original:
   - DomainRateLimiter — throttles per domain to avoid bans
   - ResponseCache   — skips re-scraping the same URL within 5 minutes
   - Thread-safe singleton via threading.Lock
+
+Apify fallback:
+  When local Amazon scraping hits a CAPTCHA, the request is automatically
+  retried via Apify's cloud infrastructure (proxy rotation, residential IPs).
+  Requires APIFY_API_TOKEN in the environment and `pip install apify-client`.
 """
 
 import threading
@@ -17,6 +22,7 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 
 from scrapers.amazon_scraper import AmazonScraper
+from scrapers.apify_scraper import ApifyScraper
 from scrapers.generic_scraper import GenericWebScraper
 from scrapers.browser_pool import (
     BrowserPool,
@@ -38,6 +44,7 @@ class ScraperManager:
     def __init__(self, browser_pool: Optional[BrowserPool] = None):
         self._pool = browser_pool
         self.amazon_scraper = AmazonScraper(browser_pool=browser_pool)
+        self.apify_scraper = ApifyScraper()
         self.generic_scraper = GenericWebScraper(browser_pool=browser_pool)
 
         self.specialized_scrapers = {
@@ -99,6 +106,12 @@ class ScraperManager:
                 if result.get("error"):
                     if "CAPTCHA" in result["error"]:
                         circuit_breaker.record_failure(domain)
+                        # Fall back to Apify cloud scraper for Amazon CAPTCHA blocks
+                        if isinstance(scraper, AmazonScraper) and self.apify_scraper.is_configured:
+                            apify_result = await self.apify_scraper.scrape_product(url)
+                            if not apify_result.get("error"):
+                                response_cache.set(url, apify_result)
+                                return apify_result
                     if attempt < max_retries - 1:
                         await _backoff(attempt, base=5)
                         continue
@@ -130,7 +143,12 @@ class ScraperManager:
         if not scraper:
             return {"error": f"No specialized scraper for {website}."}
         if isinstance(scraper, AmazonScraper):
-            return await scraper.search_products(query, max_results)
+            results = await scraper.search_products(query, max_results)
+            # Fall back to Apify if local search was blocked by CAPTCHA
+            if isinstance(results, dict) and "CAPTCHA" in results.get("error", ""):
+                if self.apify_scraper.is_configured:
+                    return await self.apify_scraper.search_products(query, max_results)
+            return results
         return {"error": "Search not implemented for this website"}
 
     # ── Helpers ───────────────────────────────────────────────────────────────

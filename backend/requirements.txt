@@ -8,6 +8,7 @@ sqlalchemy>=2.0.36
 # Web Scraping
 playwright>=1.49.0
 beautifulsoup4>=4.12.3
+apify-client>=1.8.0
 
 # Utilities
 python-dotenv>=1.0.1
