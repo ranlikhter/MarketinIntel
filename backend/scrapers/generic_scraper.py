@@ -1,39 +1,61 @@
 """
 Generic Web Scraper for Custom Competitor Websites
 
-This scraper can extract product data from ANY website using CSS selectors.
-It's designed to work with custom competitor websites that clients add themselves.
+Extracts product data from ANY website using CSS selectors.
 
-The scraper uses Playwright for JavaScript-rendered pages and BeautifulSoup as fallback.
+Performance design:
+  - Tries a fast httpx (HTTP-only) path first; falls back to Playwright only
+    when the page appears to be JavaScript-rendered (thin body text or no
+    price found, or a 403/429/503 response).
+  - Accepts an optional BrowserPool so the caller can share one pool across
+    multiple scrape calls, eliminating per-call browser-startup overhead.
+  - Pre-navigation sleeps removed; a short post-load settle is kept only in
+    Playwright mode to allow dynamic content to render.
 """
 
 import asyncio
+import json
+import random
 import re
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+
+import httpx
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
-import time
-import random
+from playwright.async_api import TimeoutError as PlaywrightTimeout
+
+from scrapers.browser_pool import BrowserPool
 
 
 class GenericWebScraper:
     """
-    A flexible scraper that can extract data from any website using CSS selectors.
+    Flexible scraper that extracts data from any website via CSS selectors.
 
     Usage:
-        scraper = GenericWebScraper()
+        pool = BrowserPool(pool_size=2)
+        scraper = GenericWebScraper(browser_pool=pool)
         result = await scraper.scrape_product(
             url="https://competitor.com/product/123",
             price_selector=".price",
-            title_selector="h1.product-name"
         )
+        await pool.close()
     """
 
-    def __init__(self):
-        self.ua = UserAgent()
+    # Minimum body-text length that indicates a fully server-rendered page.
+    _MIN_STATIC_BODY_LEN = 500
 
+    def __init__(self, browser_pool: Optional[BrowserPool] = None):
+        self.ua = UserAgent()
+        self._pool = browser_pool
+        self._owns_pool = browser_pool is None
+
+    async def _get_pool(self) -> BrowserPool:
+        if self._pool is None:
+            self._pool = BrowserPool(pool_size=1)
+        return self._pool
+
+    # ── Public API ────────────────────────────────────────────────────────────
 
     async def scrape_product(
         self,
@@ -42,39 +64,94 @@ class GenericWebScraper:
         title_selector: Optional[str] = None,
         stock_selector: Optional[str] = None,
         image_selector: Optional[str] = None,
-        use_javascript: bool = True
+        use_javascript: Optional[bool] = None,
     ) -> Dict:
         """
-        Scrape product data from a given URL using CSS selectors.
+        Scrape product data from a given URL.
 
-        Args:
-            url: Full URL to the product page
-            price_selector: CSS selector for price (e.g., ".price", "#product-price")
-            title_selector: CSS selector for product title
-            stock_selector: CSS selector for stock status
-            image_selector: CSS selector for product image
-            use_javascript: Whether to use Playwright (True) or requests+BS4 (False)
-
-        Returns:
-            Dictionary with scraped data:
-            {
-                "url": str,
-                "title": str,
-                "price": float,
-                "currency": str,
-                "in_stock": bool,
-                "image_url": str
-            }
+        use_javascript=None  → auto: try HTTP first, fall back to Playwright
+        use_javascript=True  → always use Playwright
+        use_javascript=False → always use httpx (no fallback)
         """
-        if use_javascript:
+        if use_javascript is True:
             return await self._scrape_with_playwright(
                 url, price_selector, title_selector, stock_selector, image_selector
             )
-        else:
+        if use_javascript is False:
             return await self._scrape_with_requests(
                 url, price_selector, title_selector, stock_selector, image_selector
             )
 
+        # Auto mode: try fast HTTP path; fall back to Playwright if needed
+        result = await self._scrape_with_requests(
+            url, price_selector, title_selector, stock_selector, image_selector
+        )
+        if result.get("_needs_js"):
+            result = await self._scrape_with_playwright(
+                url, price_selector, title_selector, stock_selector, image_selector
+            )
+        result.pop("_needs_js", None)
+        return result
+
+    # ── HTTP (httpx) path ─────────────────────────────────────────────────────
+
+    async def _scrape_with_requests(
+        self,
+        url: str,
+        price_selector: Optional[str],
+        title_selector: Optional[str],
+        stock_selector: Optional[str],
+        image_selector: Optional[str],
+    ) -> Dict:
+        """
+        Fast path: fetch the page with httpx (no browser overhead).
+
+        Sets _needs_js=True in the result when the page looks JS-rendered so
+        the caller can fall back to Playwright automatically.
+        """
+        result = self._empty_result(url)
+
+        try:
+            headers = {
+                "User-Agent": self.ua.random,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "DNT": "1",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+            }
+            async with httpx.AsyncClient(
+                headers=headers,
+                timeout=15.0,
+                follow_redirects=True,
+            ) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Detect JS-rendered page (nearly empty body text)
+            if len(soup.get_text(strip=True)) < self._MIN_STATIC_BODY_LEN:
+                result["_needs_js"] = True
+                return result
+
+            self._populate_result(
+                result, soup, url,
+                price_selector, title_selector, stock_selector, image_selector,
+            )
+
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (403, 429, 503):
+                result["_needs_js"] = True
+            else:
+                result["error"] = str(e)
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    # ── Playwright path ───────────────────────────────────────────────────────
 
     async def _scrape_with_playwright(
         self,
@@ -82,12 +159,108 @@ class GenericWebScraper:
         price_selector: Optional[str],
         title_selector: Optional[str],
         stock_selector: Optional[str],
-        image_selector: Optional[str]
+        image_selector: Optional[str],
     ) -> Dict:
-        """
-        Scrape using Playwright (handles JavaScript-rendered pages).
-        """
-        result = {
+        """Full-browser scrape using a shared BrowserPool context."""
+        result = self._empty_result(url)
+
+        try:
+            pool = await self._get_pool()
+            async with pool.acquire_page(user_agent=self.ua.random) as page:
+                try:
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    # Brief settle for dynamic content
+                    await asyncio.sleep(random.uniform(0.5, 1.0))
+                except PlaywrightTimeout:
+                    result["error"] = "Page load timeout"
+                    return result
+
+                page_html = await page.content()
+
+            soup = BeautifulSoup(page_html, "html.parser")
+            self._populate_result(
+                result, soup, url,
+                price_selector, title_selector, stock_selector, image_selector,
+            )
+
+        except Exception as e:
+            result["error"] = str(e)
+
+        return result
+
+    # ── Shared field extraction ───────────────────────────────────────────────
+
+    def _populate_result(
+        self,
+        result: Dict,
+        soup: BeautifulSoup,
+        url: str,
+        price_selector: Optional[str],
+        title_selector: Optional[str],
+        stock_selector: Optional[str],
+        image_selector: Optional[str],
+    ):
+        # Title
+        if title_selector:
+            result["title"] = self._extract_text(soup, title_selector)
+        else:
+            result["title"] = self._extract_title_fallback(soup)
+
+        # Price
+        if price_selector:
+            price_text = self._extract_text(soup, price_selector)
+            if price_text:
+                result["price"], result["currency"] = self._parse_price(price_text)
+                result["scrape_quality"] = "clean"
+            else:
+                result["scrape_quality"] = "partial"
+        else:
+            result["price"], result["currency"] = self._extract_price_fallback(soup)
+            result["scrape_quality"] = "fallback" if result["price"] else "partial"
+
+        # Was price & discount
+        result["was_price"] = self._extract_was_price_fallback(soup)
+        if result["was_price"] and result["price"] and result["was_price"] > result["price"]:
+            result["discount_pct"] = round(
+                (1 - result["price"] / result["was_price"]) * 100, 1
+            )
+
+        # Stock
+        if stock_selector:
+            result["in_stock"] = self._parse_stock_status(
+                self._extract_text(soup, stock_selector)
+            )
+
+        # Image
+        if image_selector:
+            result["image_url"] = self._extract_image(soup, image_selector, url)
+        else:
+            result["image_url"] = self._extract_image_fallback(soup, url)
+
+        # Shipping & total
+        result["shipping_cost"] = self._extract_shipping_fallback(soup)
+        if result["price"] is not None:
+            result["total_price"] = (
+                round(result["price"] + result["shipping_cost"], 2)
+                if result["shipping_cost"] is not None
+                else result["price"]
+            )
+
+        # Promotions
+        promo_label, promos = self._extract_promotion_fallback(soup)
+        result["promotion_label"] = promo_label
+        result["promotions"] = promos
+
+        # Identifiers
+        result["brand"] = self._extract_brand_fallback(soup)
+        result["description"] = self._extract_description_fallback(soup)
+        result["mpn"], result["upc_ean"] = self._extract_identifiers_fallback(soup)
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _empty_result(url: str) -> Dict:
+        return {
             "url": url,
             "title": None,
             "price": None,
@@ -99,132 +272,16 @@ class GenericWebScraper:
             "shipping_cost": None,
             "total_price": None,
             "promotion_label": None,
-            "promotions": [],           # List of structured promotion dicts
+            "promotions": [],
             "brand": None,
             "description": None,
             "mpn": None,
             "upc_ean": None,
             "scrape_quality": "clean",
-            "error": None
+            "error": None,
         }
 
-        try:
-            async with async_playwright() as p:
-                # Launch browser
-                browser = await p.chromium.launch(
-                    headless=True,  # Run in background
-                    args=['--disable-blink-features=AutomationControlled']
-                )
-
-                # Create a new page
-                context = await browser.new_context(
-                    user_agent=self.ua.random,
-                    viewport={'width': 1920, 'height': 1080}
-                )
-                page = await context.new_page()
-
-                # Add random delay to look more human
-                await asyncio.sleep(random.uniform(1, 3))
-
-                # Navigate to the URL
-                try:
-                    await page.goto(url, wait_until='domcontentloaded', timeout=30000)
-                    await asyncio.sleep(random.uniform(1, 2))  # Wait for dynamic content
-                except PlaywrightTimeout:
-                    result["error"] = "Page load timeout"
-                    await browser.close()
-                    return result
-
-                # Extract data using CSS selectors
-                page_content = await page.content()
-                soup = BeautifulSoup(page_content, 'html.parser')
-
-                # Extract title
-                if title_selector:
-                    result["title"] = self._extract_text(soup, title_selector)
-                else:
-                    result["title"] = self._extract_title_fallback(soup)
-
-                # Extract price
-                if price_selector:
-                    price_text = self._extract_text(soup, price_selector)
-                    if price_text:
-                        result["price"], result["currency"] = self._parse_price(price_text)
-                        result["scrape_quality"] = "clean"
-                    else:
-                        result["scrape_quality"] = "partial"
-                else:
-                    result["price"], result["currency"] = self._extract_price_fallback(soup)
-                    result["scrape_quality"] = "fallback" if result["price"] else "partial"
-
-                # Extract was/original price (strike-through)
-                result["was_price"] = self._extract_was_price_fallback(soup)
-
-                # Compute discount percentage
-                if result["was_price"] and result["price"] and result["was_price"] > result["price"]:
-                    result["discount_pct"] = round((1 - result["price"] / result["was_price"]) * 100, 1)
-
-                # Extract stock status
-                if stock_selector:
-                    stock_text = self._extract_text(soup, stock_selector)
-                    result["in_stock"] = self._parse_stock_status(stock_text)
-                else:
-                    result["in_stock"] = True
-
-                # Extract image
-                if image_selector:
-                    result["image_url"] = self._extract_image(soup, image_selector, url)
-                else:
-                    result["image_url"] = self._extract_image_fallback(soup, url)
-
-                # Extract shipping cost
-                result["shipping_cost"] = self._extract_shipping_fallback(soup)
-
-                # Total landed price
-                if result["price"] is not None and result["shipping_cost"] is not None:
-                    result["total_price"] = round(result["price"] + result["shipping_cost"], 2)
-                elif result["price"] is not None:
-                    result["total_price"] = result["price"]
-
-                # Extract promotion label + structured promotions
-                promo_label, promos = self._extract_promotion_fallback(soup, page_content)
-                result["promotion_label"] = promo_label
-                result["promotions"] = promos
-
-                # Extract match-rate identifiers
-                result["brand"] = self._extract_brand_fallback(soup)
-                result["description"] = self._extract_description_fallback(soup)
-                result["mpn"], result["upc_ean"] = self._extract_identifiers_fallback(soup)
-
-                await browser.close()
-
-        except Exception as e:
-            result["error"] = str(e)
-
-        return result
-
-
-    async def _scrape_with_requests(
-        self,
-        url: str,
-        price_selector: Optional[str],
-        title_selector: Optional[str],
-        stock_selector: Optional[str],
-        image_selector: Optional[str]
-    ) -> Dict:
-        """
-        Scrape using requests + BeautifulSoup (faster, but doesn't handle JavaScript).
-        """
-        # This is a simplified version for static pages
-        # For now, just call the Playwright version
-        # You can implement a pure requests version if needed
-        return await self._scrape_with_playwright(
-            url, price_selector, title_selector, stock_selector, image_selector
-        )
-
-
     def _extract_text(self, soup: BeautifulSoup, selector: str) -> Optional[str]:
-        """Extract text from a CSS selector."""
         try:
             element = soup.select_one(selector)
             if element:
@@ -233,133 +290,81 @@ class GenericWebScraper:
             pass
         return None
 
-
     def _extract_image(self, soup: BeautifulSoup, selector: str, base_url: str) -> Optional[str]:
-        """Extract image URL from a CSS selector."""
         try:
             element = soup.select_one(selector)
             if element:
-                img_url = element.get('src') or element.get('data-src') or element.get('href')
+                img_url = element.get("src") or element.get("data-src") or element.get("href")
                 if img_url:
-                    # Convert relative URL to absolute
                     return urljoin(base_url, img_url)
         except Exception:
             pass
         return None
 
-
-    def _parse_price(self, price_text: str) -> tuple[Optional[float], str]:
-        """
-        Extract numeric price and currency from text.
-
-        Examples:
-            "$99.99" -> (99.99, "USD")
-            "€45,50" -> (45.50, "EUR")
-            "1,299.00 USD" -> (1299.00, "USD")
-        """
+    def _parse_price(self, price_text: str) -> tuple:
         if not price_text:
             return None, "USD"
 
-        # Remove whitespace
         price_text = price_text.strip()
 
-        # Detect currency
         currency = "USD"
-        if "$" in price_text:
-            currency = "USD"
-        elif "€" in price_text or "EUR" in price_text:
+        if "€" in price_text or "EUR" in price_text:
             currency = "EUR"
         elif "£" in price_text or "GBP" in price_text:
             currency = "GBP"
         elif "¥" in price_text or "JPY" in price_text:
             currency = "JPY"
 
-        # Extract numeric value
-        # Remove currency symbols and letters
-        numeric_text = re.sub(r'[^\d,.\s]', '', price_text)
-        # Handle different number formats (1,299.99 vs 1.299,99)
-        numeric_text = numeric_text.replace(',', '').replace(' ', '')
-
+        numeric_text = re.sub(r"[^\d,.\s]", "", price_text)
+        numeric_text = numeric_text.replace(",", "").replace(" ", "")
         try:
-            price = float(numeric_text)
-            return price, currency
+            return float(numeric_text), currency
         except ValueError:
             return None, currency
 
-
-    def _parse_stock_status(self, stock_text: str) -> bool:
-        """
-        Determine if product is in stock from text.
-
-        Returns:
-            True if in stock, False otherwise
-        """
+    def _parse_stock_status(self, stock_text: Optional[str]) -> bool:
         if not stock_text:
-            return True  # Assume in stock if no info
-
+            return True
         stock_text = stock_text.lower()
-
-        # Out of stock indicators
-        out_of_stock_keywords = [
+        out_keywords = [
             "out of stock", "not available", "unavailable",
             "sold out", "coming soon", "pre-order",
-            "backordered", "discontinued"
+            "backordered", "discontinued",
         ]
-
-        for keyword in out_of_stock_keywords:
-            if keyword in stock_text:
-                return False
-
-        return True
-
+        return not any(k in stock_text for k in out_keywords)
 
     def _extract_title_fallback(self, soup: BeautifulSoup) -> Optional[str]:
-        """Try common title patterns if no selector provided."""
-        # Try meta tags first
-        meta_title = soup.find("meta", property="og:title")
-        if meta_title and meta_title.get("content"):
-            return meta_title["content"].strip()
-
-        # Try h1 tags
+        meta = soup.find("meta", property="og:title")
+        if meta and meta.get("content"):
+            return meta["content"].strip()
         h1 = soup.find("h1")
         if h1:
             return h1.get_text(strip=True)
-
-        # Try title tag
         title = soup.find("title")
         if title:
             return title.get_text(strip=True)
-
         return None
 
-
-    def _extract_price_fallback(self, soup: BeautifulSoup) -> tuple[Optional[float], str]:
-        """Try common price patterns if no selector provided."""
-        # Common price class/id patterns
-        price_patterns = [
+    def _extract_price_fallback(self, soup: BeautifulSoup) -> tuple:
+        patterns = [
             {"class": "price"},
             {"class": "product-price"},
             {"class": "sale-price"},
             {"id": "price"},
-            {"itemprop": "price"}
+            {"itemprop": "price"},
         ]
-
-        for pattern in price_patterns:
+        for pattern in patterns:
             element = soup.find(attrs=pattern)
             if element:
-                price_text = element.get_text(strip=True)
-                price, currency = self._parse_price(price_text)
+                price, currency = self._parse_price(element.get_text(strip=True))
                 if price:
                     return price, currency
-
         return None, "USD"
 
-
     def _extract_image_fallback(self, soup: BeautifulSoup, base_url: str) -> Optional[str]:
-        """Try common image patterns if no selector provided."""
-        meta_image = soup.find("meta", property="og:image")
-        if meta_image and meta_image.get("content"):
-            return urljoin(base_url, meta_image["content"])
+        meta = soup.find("meta", property="og:image")
+        if meta and meta.get("content"):
+            return urljoin(base_url, meta["content"])
         for pattern in [{"class": "product-image"}, {"class": "main-image"}, {"id": "main-image"}]:
             img = soup.find("img", attrs=pattern)
             if img:
@@ -368,86 +373,68 @@ class GenericWebScraper:
                     return urljoin(base_url, img_url)
         return None
 
-
     def _extract_was_price_fallback(self, soup: BeautifulSoup) -> Optional[float]:
-        """Look for crossed-out / original prices using common patterns."""
-        # Strikethrough HTML tags
-        for tag in soup.find_all(['del', 's', 'strike']):
-            text = tag.get_text(strip=True)
-            price, _ = self._parse_price(text)
+        for tag in soup.find_all(["del", "s", "strike"]):
+            price, _ = self._parse_price(tag.get_text(strip=True))
             if price and price > 0:
                 return price
-        # Common CSS class names
         for pattern in [
             {"class": "was-price"}, {"class": "original-price"}, {"class": "old-price"},
             {"class": "regular-price"}, {"class": "list-price"}, {"itemprop": "highPrice"},
         ]:
             elem = soup.find(attrs=pattern)
             if elem:
-                text = elem.get_text(strip=True)
-                price, _ = self._parse_price(text)
+                price, _ = self._parse_price(elem.get_text(strip=True))
                 if price and price > 0:
                     return price
-        # JSON-LD structured data
-        for script in soup.find_all('script', type='application/ld+json'):
+        for script in soup.find_all("script", type="application/ld+json"):
             try:
-                import json
-                data = json.loads(script.string or '{}')
+                data = json.loads(script.string or "{}")
                 if isinstance(data, dict):
-                    high = data.get('highPrice') or data.get('offers', {}).get('highPrice')
+                    high = data.get("highPrice") or data.get("offers", {}).get("highPrice")
                     if high:
                         return float(high)
             except Exception:
                 pass
         return None
 
-
     def _extract_shipping_fallback(self, soup: BeautifulSoup) -> Optional[float]:
-        """Attempt to detect shipping cost from page text."""
-        shipping_patterns = [
+        for pattern in [
             {"class": "shipping-cost"}, {"class": "delivery-price"},
             {"id": "shipping-cost"}, {"class": "freight"},
-        ]
-        for pattern in shipping_patterns:
+        ]:
             elem = soup.find(attrs=pattern)
             if elem:
                 text = elem.get_text(strip=True).lower()
-                if 'free' in text:
+                if "free" in text:
                     return 0.0
                 price, _ = self._parse_price(text)
                 if price is not None:
                     return price
-        # Search page text for free shipping keywords
-        page_text = soup.get_text(' ', strip=True).lower()
-        if 'free shipping' in page_text or 'free delivery' in page_text:
+        page_text = soup.get_text(" ", strip=True).lower()
+        if "free shipping" in page_text or "free delivery" in page_text:
             return 0.0
         return None
 
-
     def _extract_brand_fallback(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract brand from meta tags, JSON-LD, or common markup patterns."""
-        # JSON-LD structured data
-        for script in soup.find_all('script', type='application/ld+json'):
+        for script in soup.find_all("script", type="application/ld+json"):
             try:
-                import json
-                data = json.loads(script.string or '{}')
+                data = json.loads(script.string or "{}")
                 if isinstance(data, dict):
-                    brand = data.get('brand')
+                    brand = data.get("brand")
                     if isinstance(brand, dict):
-                        brand = brand.get('name')
+                        brand = brand.get("name")
                     if brand and isinstance(brand, str):
                         return brand.strip()
             except Exception:
                 pass
-        # Meta / itemprop
-        for attr, val in [('itemprop', 'brand'), ('property', 'product:brand')]:
+        for attr, val in [("itemprop", "brand"), ("property", "product:brand")]:
             elem = soup.find(attrs={attr: val})
             if elem:
-                text = elem.get('content') or elem.get_text(strip=True)
+                text = elem.get("content") or elem.get_text(strip=True)
                 if text:
                     return text.strip()
-        # Common class/id patterns
-        for pattern in [{'class': 'brand'}, {'id': 'brand'}, {'class': 'product-brand'}]:
+        for pattern in [{"class": "brand"}, {"id": "brand"}, {"class": "product-brand"}]:
             elem = soup.find(attrs=pattern)
             if elem:
                 text = elem.get_text(strip=True)
@@ -455,98 +442,83 @@ class GenericWebScraper:
                     return text
         return None
 
-
     def _extract_description_fallback(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract product description from meta tags or common markup patterns."""
-        # og:description / meta description
-        for prop in ['og:description', 'description']:
-            meta = soup.find('meta', attrs={'property': prop}) or soup.find('meta', attrs={'name': prop})
-            if meta and meta.get('content'):
-                return meta['content'].strip()[:1000]
-        # JSON-LD description
-        for script in soup.find_all('script', type='application/ld+json'):
+        for prop in ["og:description", "description"]:
+            meta = soup.find("meta", attrs={"property": prop}) or soup.find(
+                "meta", attrs={"name": prop}
+            )
+            if meta and meta.get("content"):
+                return meta["content"].strip()[:1000]
+        for script in soup.find_all("script", type="application/ld+json"):
             try:
-                import json
-                data = json.loads(script.string or '{}')
+                data = json.loads(script.string or "{}")
                 if isinstance(data, dict):
-                    desc = data.get('description')
+                    desc = data.get("description")
                     if desc and isinstance(desc, str):
                         return desc.strip()[:1000]
             except Exception:
                 pass
-        # itemprop=description
-        elem = soup.find(attrs={'itemprop': 'description'})
+        elem = soup.find(attrs={"itemprop": "description"})
         if elem:
             return elem.get_text(strip=True)[:1000]
         return None
 
-
-    def _extract_identifiers_fallback(self, soup: BeautifulSoup) -> tuple[Optional[str], Optional[str]]:
-        """Extract MPN and UPC/EAN from JSON-LD, microdata, or common markup."""
-        import json as _json
+    def _extract_identifiers_fallback(self, soup: BeautifulSoup) -> tuple:
         mpn = None
         upc_ean = None
 
-        # JSON-LD (Schema.org Product)
-        for script in soup.find_all('script', type='application/ld+json'):
+        for script in soup.find_all("script", type="application/ld+json"):
             try:
-                data = _json.loads(script.string or '{}')
+                data = json.loads(script.string or "{}")
                 if isinstance(data, dict):
-                    if not mpn and data.get('mpn'):
-                        mpn = str(data['mpn']).strip()
-                    # gtin13 = EAN, gtin12 = UPC
-                    for key in ('gtin13', 'gtin12', 'gtin8', 'gtin'):
+                    if not mpn and data.get("mpn"):
+                        mpn = str(data["mpn"]).strip()
+                    for key in ("gtin13", "gtin12", "gtin8", "gtin"):
                         if not upc_ean and data.get(key):
-                            upc_ean = re.sub(r'\s+', '', str(data[key]))
+                            upc_ean = re.sub(r"\s+", "", str(data[key]))
                             break
             except Exception:
                 pass
 
-        # Microdata itemprop attributes
         if not mpn:
-            elem = soup.find(attrs={'itemprop': 'mpn'})
+            elem = soup.find(attrs={"itemprop": "mpn"})
             if elem:
-                mpn = (elem.get('content') or elem.get_text(strip=True)).strip()
-        for gtin_prop in ('gtin13', 'gtin12', 'gtin8', 'gtin'):
+                mpn = (elem.get("content") or elem.get_text(strip=True)).strip()
+        for gtin_prop in ("gtin13", "gtin12", "gtin8", "gtin"):
             if not upc_ean:
-                elem = soup.find(attrs={'itemprop': gtin_prop})
+                elem = soup.find(attrs={"itemprop": gtin_prop})
                 if elem:
-                    upc_ean = re.sub(r'\s+', '', elem.get('content') or elem.get_text(strip=True))
+                    upc_ean = re.sub(r"\s+", "", elem.get("content") or elem.get_text(strip=True))
 
         return mpn, upc_ean
 
-
-    def _extract_promotion_fallback(self, soup: BeautifulSoup, page_html: str = "") -> tuple:
-        """
-        Detect promotions using the PromotionDetector.
-
-        Returns (promotion_label: str | None, promotions: list[dict])
-        """
+    def _extract_promotion_fallback(self, soup: BeautifulSoup) -> tuple:
         from scrapers.promotion_detector import detect_promotions
-        page_text = soup.get_text(" ", strip=True) if not page_html else None
+        page_text = soup.get_text(" ", strip=True)
         promos = detect_promotions(soup, page_text)
         label = promos[0]["description"] if promos else None
         return label, promos
 
 
-# Async helper function for easy use
+# ── Convenience function ──────────────────────────────────────────────────────
+
 async def scrape_competitor_product(
     url: str,
     price_selector: Optional[str] = None,
     title_selector: Optional[str] = None,
     stock_selector: Optional[str] = None,
-    image_selector: Optional[str] = None
+    image_selector: Optional[str] = None,
 ) -> Dict:
     """
-    Convenience function to scrape a product without instantiating the class.
-
-    Usage:
-        result = await scrape_competitor_product(
-            url="https://competitor.com/product",
-            price_selector=".price"
-        )
+    One-shot convenience wrapper.  Creates a single-use pool for this call.
+    For scraping multiple URLs, instantiate GenericWebScraper with a shared
+    BrowserPool instead to amortise the browser startup cost.
     """
-    scraper = GenericWebScraper()
-    return await scraper.scrape_product(
-        url, price_selector, title_selector, stock_selector, image_selector
-    )
+    pool = BrowserPool(pool_size=1)
+    try:
+        scraper = GenericWebScraper(browser_pool=pool)
+        return await scraper.scrape_product(
+            url, price_selector, title_selector, stock_selector, image_selector
+        )
+    finally:
+        await pool.close()
