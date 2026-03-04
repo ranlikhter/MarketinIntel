@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import User, UserRole, Workspace, WorkspaceMember
-from api.routes.auth import get_current_user
+from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 

@@ -61,10 +61,10 @@ class TestProductsCRUD:
             assert "id" in data or "title" in data or "product" in data
 
     def test_create_product_missing_required_field(self, client, auth):
-        """Creating a product without a URL should fail validation."""
+        """Creating a product without the required title field should fail validation."""
         resp = client.post(
             "/api/products",
-            json={"title": "No URL Product"},
+            json={"sku": "NO-TITLE-SKU"},
             headers=auth,
         )
         assert resp.status_code in (400, 422)

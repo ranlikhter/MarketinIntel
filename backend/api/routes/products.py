@@ -11,7 +11,7 @@ These endpoints handle all operations related to products:
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from datetime import datetime
 import asyncio
 
@@ -84,8 +84,7 @@ class ProductResponse(BaseModel):
     price_position: str | None = None  # 'cheapest' | 'expensive' | 'mid'
     price_change_pct: float | None = None  # % change vs 7 days ago
 
-    class Config:
-        from_attributes = True  # Allows Pydantic to work with SQLAlchemy models
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CompetitorMatchResponse(BaseModel):
@@ -121,8 +120,7 @@ class CompetitorMatchResponse(BaseModel):
     total_price: float | None = None
     promotion_label: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PriceHistoryResponse(BaseModel):
@@ -143,8 +141,7 @@ class PriceHistoryResponse(BaseModel):
     is_buy_box_winner: bool | None = None
     scrape_quality: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # API ENDPOINTS

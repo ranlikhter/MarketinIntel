@@ -84,7 +84,7 @@ async def save_notification_preferences(
 ):
     """Save the current user's notification preferences"""
     user = _get_user(credentials, db)
-    user.notification_prefs = prefs.dict()
+    user.notification_prefs = prefs.model_dump()
     db.commit()
     return {"success": True, "message": "Preferences saved"}
 

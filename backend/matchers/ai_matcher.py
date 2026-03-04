@@ -3,7 +3,11 @@ AI-Powered Product Matcher
 Uses sentence-transformers for semantic similarity matching
 """
 
-from sentence_transformers import SentenceTransformer, util
+try:
+    from sentence_transformers import SentenceTransformer, util as st_util
+except ImportError:  # pragma: no cover
+    SentenceTransformer = None  # type: ignore[assignment,misc]
+    st_util = None  # type: ignore[assignment]
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import re
@@ -143,7 +147,7 @@ class AIProductMatcher:
         comp_embedding = self.model.encode(comp_clean, convert_to_tensor=True)
 
         # Calculate cosine similarity
-        title_similarity = util.cos_sim(prod_embedding, comp_embedding).item()
+        title_similarity = st_util.cos_sim(prod_embedding, comp_embedding).item()
         title_score = title_similarity * 100  # Convert to 0-100
 
         # If descriptions provided, include them
@@ -155,7 +159,7 @@ class AIProductMatcher:
             prod_desc_emb = self.model.encode(prod_desc_clean, convert_to_tensor=True)
             comp_desc_emb = self.model.encode(comp_desc_clean, convert_to_tensor=True)
 
-            desc_similarity = util.cos_sim(prod_desc_emb, comp_desc_emb).item()
+            desc_similarity = st_util.cos_sim(prod_desc_emb, comp_desc_emb).item()
             description_score = desc_similarity * 100
 
         # Calculate overall score

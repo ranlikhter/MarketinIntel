@@ -6,8 +6,14 @@ Manage price alert rules and notifications
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import ConfigDict, BaseModel, EmailStr
+from typing import Literal, Optional, List
+
+ALERT_TYPE = Literal[
+    "price_drop", "price_increase", "any_change", "out_of_stock",
+    "price_war", "new_competitor", "most_expensive", "competitor_raised",
+    "back_in_stock", "market_trend",
+]
 from datetime import datetime, timedelta
 
 from database.connection import get_db
@@ -22,7 +28,7 @@ router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
 # Pydantic models
 class AlertCreate(BaseModel):
     product_id: int
-    alert_type: str  # See PriceAlert model for all 10 supported types
+    alert_type: ALERT_TYPE
     threshold_pct: float = 5.0
     threshold_amount: Optional[float] = None
 
@@ -112,8 +118,7 @@ class AlertResponse(BaseModel):
     trigger_count: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================

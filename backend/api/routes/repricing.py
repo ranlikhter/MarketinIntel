@@ -5,7 +5,7 @@ Automated pricing and bulk price management
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from typing import List, Dict, Any, Optional
 
 from database.connection import get_db
@@ -70,8 +70,7 @@ class RepricingRuleResponse(BaseModel):
     success_count: int
     created_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Bulk Action Endpoints

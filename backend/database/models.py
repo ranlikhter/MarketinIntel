@@ -7,7 +7,7 @@ Think of this as creating blueprints for our data storage.
 
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, JSON, Index
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 import enum
 
@@ -497,7 +497,7 @@ class RepricingRule(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    user = relationship("User")
+    user = relationship("User", foreign_keys=[user_id])
     product = relationship("ProductMonitored")
     approver = relationship("User", foreign_keys=[approved_by])
 

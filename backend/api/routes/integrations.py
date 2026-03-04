@@ -16,7 +16,7 @@ from database.models import ProductMonitored, StoreConnection, User
 from integrations.xml_parser import XMLProductParser
 from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
-from api.routes.auth import get_current_user
+from api.dependencies import get_current_user
 from services.activity_service import log_activity
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])

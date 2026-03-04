@@ -3,7 +3,11 @@ WooCommerce API Integration
 Connects to WooCommerce stores and imports products
 """
 
-from woocommerce import API
+try:
+    from woocommerce import API
+except ImportError:  # pragma: no cover
+    API = None  # type: ignore[assignment,misc]
+
 from typing import List, Dict, Optional
 import logging
 

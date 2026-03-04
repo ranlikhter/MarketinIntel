@@ -19,12 +19,12 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import ApiKey, User
-from api.routes.auth import get_current_user
+from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth/api-keys", tags=["API Keys"])
 
@@ -43,8 +43,7 @@ class ApiKeyResponse(BaseModel):
     last_used_at: Optional[str] = None
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ApiKeyCreated(ApiKeyResponse):
