@@ -27,6 +27,7 @@ celery_app = Celery(
         'tasks.notification_tasks',
         'tasks.inventory_tasks',
         'tasks.smart_alert_tasks',
+        'tasks.discovery_tasks',
     ]
 )
 
@@ -150,6 +151,7 @@ celery_app.conf.task_routes = {
     'tasks.notification_tasks.*':  {'queue': 'notifications'},
     'tasks.inventory_tasks.*':     {'queue': 'integrations'},
     'tasks.smart_alert_tasks.*':   {'queue': 'alerts'},
+    'tasks.discovery_tasks.*':     {'queue': 'scraping'},
     'check_smart_alerts':          {'queue': 'alerts'},
     'check_user_smart_alerts':     {'queue': 'alerts'},
     'send_daily_digests':          {'queue': 'notifications'},
