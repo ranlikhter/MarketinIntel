@@ -10,6 +10,7 @@ Shared scraper infrastructure for optimal performance.
 
 import asyncio
 import contextlib
+import itertools
 import logging
 import time
 from typing import Dict, List, Optional
@@ -51,7 +52,7 @@ class BrowserPool:
         self._semaphore: Optional[asyncio.Semaphore] = None
         self._lock = asyncio.Lock()
         self._started = False
-        self._rr_index: int = 0   # round-robin pointer for browser selection
+        self._browser_cycle = None   # itertools.cycle — set in start()
 
     async def start(self):
         """Launch all browsers. Called automatically on first acquire_page()."""
@@ -66,6 +67,7 @@ class BrowserPool:
                     args=self._LAUNCH_ARGS,
                 )
                 self._browsers.append(browser)
+            self._browser_cycle = itertools.cycle(self._browsers)
             self._started = True
             logger.info("BrowserPool started with %d browser(s)", self.pool_size)
 
@@ -87,10 +89,7 @@ class BrowserPool:
 
         viewport = viewport or {"width": 1920, "height": 1080}
         async with self._semaphore:
-            # Round-robin distributes load evenly; random.choice could pile
-            # everything onto one browser when pool_size > 1.
-            browser = self._browsers[self._rr_index % len(self._browsers)]
-            self._rr_index += 1
+            browser = next(self._browser_cycle)
             ctx_kwargs: dict = {"viewport": viewport}
             if user_agent:
                 ctx_kwargs["user_agent"] = user_agent
@@ -214,6 +213,7 @@ class ResponseCache:
     def __init__(self, ttl_seconds: int = 300):
         self.ttl = ttl_seconds
         self._store: Dict[str, tuple] = {}   # url -> (result, timestamp)
+        self._last_cleanup: float = 0.0
 
     def get(self, url: str) -> Optional[dict]:
         entry = self._store.get(url)
@@ -225,7 +225,13 @@ class ResponseCache:
         return None
 
     def set(self, url: str, result: dict):
-        self._store[url] = (result, time.time())
+        now = time.time()
+        self._store[url] = (result, now)
+        # Periodic GC: clear stale entries at most once per TTL period so the
+        # dict doesn't grow without bound over hours of operation.
+        if now - self._last_cleanup > self.ttl:
+            self.clear_expired()
+            self._last_cleanup = now
 
     def invalidate(self, url: str):
         self._store.pop(url, None)

@@ -39,10 +39,11 @@ def _fire_notifications(jobs: list):
             logger.error("Notification send failed (%s): %s", fn.__name__, e)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(jobs), 10)) as pool:
-        concurrent.futures.wait(
-            [pool.submit(_run, job) for job in jobs],
-            timeout=30,
-        )
+        futures = [pool.submit(_run, job) for job in jobs]
+        done, not_done = concurrent.futures.wait(futures, timeout=30)
+        for future in not_done:
+            future.cancel()
+            logger.warning("Notification job timed out and was cancelled")
 
 
 @celery_app.task(base=DatabaseTask, bind=True)
@@ -147,28 +148,39 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                     if rule.alert_type == "any_change" and abs(change_pct) < rule.threshold_pct:
                         continue
 
-                    # Queue notification sends
-                    common = dict(
-                        product_title=product.title,
-                        competitor=match.competitor_name,
-                        old_price=previous_price,
-                        new_price=current_price,
-                        change_pct=change_pct,
-                        product_url=product_url,
-                    )
+                    # Build per-channel kwargs explicitly — each service has a
+                    # slightly different signature (email uses "competitor",
+                    # webhooks use "competitor_name").  Explicit dicts are
+                    # easier to trace than the filter-and-spread approach.
                     if rule.notify_email and rule.email:
-                        notifications.append((email_service.send_price_alert, {**common, "to_email": rule.email}))
+                        notifications.append((email_service.send_price_alert, {
+                            "to_email": rule.email,
+                            "product_title": product.title,
+                            "competitor": match.competitor_name,
+                            "old_price": previous_price,
+                            "new_price": current_price,
+                            "change_pct": change_pct,
+                            "product_url": product_url,
+                        }))
                     if rule.notify_slack and rule.slack_webhook_url:
                         notifications.append((send_slack_alert, {
                             "webhook_url": rule.slack_webhook_url,
+                            "product_title": product.title,
                             "competitor_name": match.competitor_name,
-                            **{k: v for k, v in common.items() if k != "competitor"},
+                            "old_price": previous_price,
+                            "new_price": current_price,
+                            "change_pct": change_pct,
+                            "product_url": product_url,
                         }))
                     if rule.notify_discord and rule.discord_webhook_url:
                         notifications.append((send_discord_alert, {
                             "webhook_url": rule.discord_webhook_url,
+                            "product_title": product.title,
                             "competitor_name": match.competitor_name,
-                            **{k: v for k, v in common.items() if k != "competitor"},
+                            "old_price": previous_price,
+                            "new_price": current_price,
+                            "change_pct": change_pct,
+                            "product_url": product_url,
                         }))
                     if rule.notify_sms and rule.phone_number:
                         notifications.append((send_price_alert_sms, {

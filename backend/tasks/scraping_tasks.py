@@ -294,6 +294,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 )
                 self.db.add(match)
                 self.db.flush()
+                # Keep the lookup dict consistent so a duplicate URL in the
+                # same result set doesn't create a second CompetitorMatch row.
+                existing_by_url[item_url] = match
 
             if item.get("price"):
                 # Skip the insert if price hasn't changed — avoids filling

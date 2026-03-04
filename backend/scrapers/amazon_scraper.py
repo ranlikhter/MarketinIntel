@@ -217,17 +217,48 @@ class AmazonScraper:
                 if result["shipping_cost"] is not None
                 else result["price"]
             )
-            # Effective price = best one-time price after applying coupon
-            if result.get("coupon_value"):
-                result["effective_price"] = round(result["price"] - result["coupon_value"], 2)
-            elif result.get("coupon_pct"):
-                result["effective_price"] = round(
-                    result["price"] * (1 - result["coupon_pct"] / 100), 2
-                )
-            else:
-                result["effective_price"] = result["price"]
+            result["effective_price"] = self._calc_effective_price(
+                result["price"], result.get("coupon_value"), result.get("coupon_pct")
+            )
 
         return result
+
+    # ── Shared parsing helpers ─────────────────────────────────────────────────
+
+    @staticmethod
+    def _parse_float(text: str) -> Optional[float]:
+        """Strip common currency/formatting chars and return a float, or None."""
+        try:
+            return float(text.strip().replace("$", "").replace(",", ""))
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _parse_coupon(text: str) -> tuple:
+        """
+        Parse a coupon label into (dollar_value, pct_value).
+        Exactly one of the two will be non-None (or both None if no match).
+        """
+        m = re.search(r"\$(\d+(?:\.\d+)?)\s*(?:off|coupon)", text, re.IGNORECASE)
+        if m:
+            return float(m.group(1)), None
+        m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:off|coupon)", text, re.IGNORECASE)
+        if m:
+            return None, float(m.group(1))
+        return None, None
+
+    @staticmethod
+    def _calc_effective_price(
+        price: float,
+        coupon_value: Optional[float],
+        coupon_pct: Optional[float],
+    ) -> float:
+        """Best one-time price after applying an available coupon."""
+        if coupon_value:
+            return round(price - coupon_value, 2)
+        if coupon_pct:
+            return round(price * (1 - coupon_pct / 100), 2)
+        return price
 
     # ── Anti-detection ────────────────────────────────────────────────────────
 
@@ -303,22 +334,8 @@ class AmazonScraper:
             coupon_value, coupon_pct = None, None
             coupon_elem = card.select_one(".s-coupon-unclipped, .coupon-badge")
             if coupon_elem:
-                ct = coupon_elem.get_text(strip=True)
-                m = re.search(r"\$(\d+(?:\.\d+)?)\s*off", ct, re.IGNORECASE)
-                if m:
-                    coupon_value = float(m.group(1))
-                else:
-                    m = re.search(r"(\d+)%\s*off", ct, re.IGNORECASE)
-                    if m:
-                        coupon_pct = float(m.group(1))
-            effective_price = None
-            if price:
-                if coupon_value:
-                    effective_price = round(price - coupon_value, 2)
-                elif coupon_pct:
-                    effective_price = round(price * (1 - coupon_pct / 100), 2)
-                else:
-                    effective_price = price
+                coupon_value, coupon_pct = self._parse_coupon(coupon_elem.get_text(strip=True))
+            effective_price = self._calc_effective_price(price, coupon_value, coupon_pct) if price else None
 
             # Sponsored flag
             is_sponsored = bool(
@@ -519,21 +536,13 @@ class AmazonScraper:
             "#listPrice",
             ".a-text-strike",
             "[data-a-strike='true'] .a-offscreen",
+            "#basisPrice .a-offscreen",
         ]:
             elem = soup.select_one(sel)
             if elem:
-                try:
-                    val = float(elem.get_text(strip=True).replace("$", "").replace(",", ""))
-                    if val > 0:
-                        return val
-                except (ValueError, TypeError):
-                    pass
-        basis = soup.select_one("#basisPrice .a-offscreen")
-        if basis:
-            try:
-                return float(basis.get_text(strip=True).replace("$", "").replace(",", ""))
-            except (ValueError, TypeError):
-                pass
+                val = self._parse_float(elem.get_text(strip=True))
+                if val and val > 0:
+                    return val
         return None
 
     def _extract_promotion_label(self, soup: BeautifulSoup) -> Optional[str]:
@@ -653,26 +662,18 @@ class AmazonScraper:
         ]:
             elem = soup.select_one(sel)
             if elem:
-                try:
-                    result["subscribe_save_price"] = float(
-                        elem.get_text(strip=True).replace("$", "").replace(",", "")
-                    )
+                val = self._parse_float(elem.get_text(strip=True))
+                if val:
+                    result["subscribe_save_price"] = val
                     break
-                except (ValueError, TypeError):
-                    pass
 
         coupon_elem = soup.select_one(
             "#couponBadge_feature_div, #couponBadge, .coupon-badge-wrapper"
         )
         if coupon_elem:
-            text = coupon_elem.get_text(strip=True)
-            m = re.search(r"\$(\d+(?:\.\d+)?)\s*(?:off|coupon)", text, re.IGNORECASE)
-            if m:
-                result["coupon_value"] = float(m.group(1))
-            else:
-                m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:off|coupon)", text, re.IGNORECASE)
-                if m:
-                    result["coupon_pct"] = float(m.group(1))
+            result["coupon_value"], result["coupon_pct"] = self._parse_coupon(
+                coupon_elem.get_text(strip=True)
+            )
 
         return result
 
@@ -764,45 +765,39 @@ class AmazonScraper:
             "#social-proofing-faceout-title-tk_bought-badge",
             ".social-proofing-faceout-title-section span",
             "[data-csa-c-slot-id*='social-proof'] span",
+            # Wider net: any span/div on the page that mentions the phrase
+            "span.a-color-secondary",
+            "#acrCustomerReviewText",
         ]:
             elem = soup.select_one(sel)
             if elem:
-                m = re.search(
-                    r"([\d,]+)K?\+?\s+bought in past month",
-                    elem.get_text(strip=True), re.IGNORECASE
-                )
+                text = elem.get_text(strip=True)
+                m = re.search(r"([\d,]+)(K)?\+?\s+bought in past month", text, re.IGNORECASE)
                 if m:
                     val = int(m.group(1).replace(",", ""))
-                    if re.search(r"\dK", elem.get_text(strip=True), re.IGNORECASE):
+                    if m.group(2):   # "K" suffix
                         val *= 1000
                     return val
-        # Broader search across the page
-        m = re.search(
-            r"([\d,]+)\+?\s+bought in (?:the )?past month",
-            soup.get_text(), re.IGNORECASE
-        )
-        if m:
-            return int(m.group(1).replace(",", ""))
         return None
 
     def _extract_badges(self, soup: BeautifulSoup) -> dict:
         """Detect Amazon's Choice, Best Seller, and #1 New Release badges."""
+        # Serialize once; reuse for all three text-fallback checks.
+        page_text = soup.get_text()
+
         amazons_choice = bool(
             soup.select_one("#acBadge_feature_div, .ac-badge-wrapper, [id^='ac-badge']")
+            or re.search(r"Amazon's\s+Choice", page_text, re.IGNORECASE)
         )
-        if not amazons_choice:
-            amazons_choice = bool(
-                soup.find(string=re.compile(r"Amazon's\s+Choice", re.IGNORECASE))
-            )
 
         best_seller = bool(
             soup.select_one("#best-seller-badge, .bestseller-badge, .aok-inline-block .a-badge")
-            and soup.find(string=re.compile(r"Best\s+Seller", re.IGNORECASE))
+            and re.search(r"Best\s+Seller", page_text, re.IGNORECASE)
         )
 
         new_release = bool(
             soup.select_one("#NEW-RELEASE, #newReleasesBadge, [id*='new-release']")
-            or soup.find(string=re.compile(r"#1\s+New\s+Release", re.IGNORECASE))
+            or re.search(r"#1\s+New\s+Release", page_text, re.IGNORECASE)
         )
 
         return {

@@ -3,13 +3,11 @@ Analytics Background Tasks
 Handles price analytics and data maintenance
 """
 
-import concurrent.futures
-
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
 from sqlalchemy import func, text
 from database.models import PriceHistory, CompetitorMatch, ProductMonitored
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -117,12 +115,19 @@ def calculate_daily_snapshots(self):
         logger.info("Calculating daily snapshots")
 
         today = datetime.utcnow().date()
+        # Use a timestamp range instead of func.date() so the index on
+        # PriceHistory.timestamp (idx_ph_match_time) can be used.
+        day_start = datetime.combine(today, dt_time.min)
+        day_end = day_start + timedelta(days=1)
 
         # 1 query: all match IDs that already have a record today
         already_snapshotted = {
             row[0]
             for row in self.db.query(PriceHistory.match_id)
-            .filter(func.date(PriceHistory.timestamp) == today)
+            .filter(
+                PriceHistory.timestamp >= day_start,
+                PriceHistory.timestamp < day_end,
+            )
             .all()
         }
 
