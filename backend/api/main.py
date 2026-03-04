@@ -90,11 +90,60 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    """
-    Health check endpoint.
-    Used to verify the API is running properly.
-    """
+    """Shallow liveness probe — always fast, used by load-balancers."""
     return {"status": "healthy"}
+
+
+@app.get("/health/deep")
+async def deep_health_check():
+    """
+    Deep readiness probe — tests every external dependency.
+    Returns HTTP 200 when all checks pass, 503 when any are degraded.
+    Each sub-check has a short timeout so the endpoint never hangs.
+    """
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text as sql_text
+    from database.connection import SessionLocal
+
+    checks: dict = {}
+
+    # Database
+    try:
+        _db = SessionLocal()
+        _db.execute(sql_text("SELECT 1"))
+        _db.close()
+        checks["database"] = "ok"
+    except Exception as exc:
+        checks["database"] = f"error: {exc}"
+
+    # Redis
+    try:
+        import redis as _redis
+        _redis_url = (
+            f"redis://{os.getenv('REDIS_HOST', 'localhost')}"
+            f":{os.getenv('REDIS_PORT', '6379')}"
+            f"/{os.getenv('REDIS_DB', '0')}"
+        )
+        _r = _redis.Redis.from_url(_redis_url, socket_connect_timeout=2)
+        _r.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+
+    # Celery workers
+    try:
+        from celery_app import celery_app as _celery
+        _workers = _celery.control.inspect(timeout=2.0).ping()
+        checks["celery"] = "ok" if _workers else "no_workers"
+    except Exception as exc:
+        checks["celery"] = f"error: {exc}"
+
+    overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=200 if overall == "healthy" else 503,
+        content={"status": overall, "checks": checks},
+    )
 
 
 if __name__ == "__main__":

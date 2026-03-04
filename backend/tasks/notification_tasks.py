@@ -8,7 +8,7 @@ import os
 
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert
+from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert, NotificationLog
 from services.email_service import email_service
 from services.webhook_service import send_slack_alert, send_discord_alert, send_slack_digest
 from services.sms_service import send_price_alert_sms
@@ -22,28 +22,49 @@ logger = logging.getLogger(__name__)
 _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 
-def _fire_notifications(jobs: list):
+def _fire_notifications(jobs: list) -> list:
     """
-    Execute a list of (callable, kwargs) notification jobs in parallel using
-    a thread pool.  Each job is independent I/O (SMTP / HTTP webhook / SMS)
-    so parallelism is safe and effective here.
+    Execute a list of notification jobs in parallel.
+
+    Each job is a 2- or 3-tuple:
+        (callable, kwargs)                       — no logging metadata
+        (callable, kwargs, meta: dict)            — meta has keys:
+            channel   str           e.g. "email", "sms", "slack"
+            alert_id  Optional[int]
+            user_id   Optional[int]
+
+    Returns a list of result dicts (one per job) with keys:
+        channel, alert_id, user_id, status ("sent"|"failed"|"timeout"), error
+    These can be bulk-inserted into notification_logs by the caller.
     """
     if not jobs:
-        return
+        return []
 
-    def _run(job):
-        fn, kwargs = job
+    results: list = [None] * len(jobs)
+
+    def _run(idx, job):
+        fn = job[0]
+        kwargs = job[1]
+        meta = job[2] if len(job) > 2 else {}
         try:
             fn(**kwargs)
+            results[idx] = {**meta, "status": "sent", "error": None}
         except Exception as e:
             logger.error("Notification send failed (%s): %s", fn.__name__, e)
+            results[idx] = {**meta, "status": "failed", "error": str(e)[:500]}
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(jobs), 10)) as pool:
-        futures = [pool.submit(_run, job) for job in jobs]
+        futures = {pool.submit(_run, i, job): i for i, job in enumerate(jobs)}
         done, not_done = concurrent.futures.wait(futures, timeout=30)
         for future in not_done:
+            idx = futures[future]
+            job = jobs[idx]
+            meta = job[2] if len(job) > 2 else {}
+            results[idx] = {**meta, "status": "timeout", "error": "job timed out after 30s"}
             future.cancel()
             logger.warning("Notification job timed out and was cancelled")
+
+    return [r for r in results if r is not None]
 
 
 @celery_app.task(base=DatabaseTask, bind=True)
@@ -156,6 +177,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                     # slightly different signature (email uses "competitor",
                     # webhooks use "competitor_name").  Explicit dicts are
                     # easier to trace than the filter-and-spread approach.
+                    _meta = {"alert_id": rule.id, "user_id": rule.user_id}
                     if rule.notify_email and rule.email:
                         notifications.append((email_service.send_price_alert, {
                             "to_email": rule.email,
@@ -165,7 +187,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                             "new_price": current_price,
                             "change_pct": change_pct,
                             "product_url": product_url,
-                        }))
+                        }, {**_meta, "channel": "email"}))
                     if rule.notify_slack and rule.slack_webhook_url:
                         notifications.append((send_slack_alert, {
                             "webhook_url": rule.slack_webhook_url,
@@ -175,7 +197,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                             "new_price": current_price,
                             "change_pct": change_pct,
                             "product_url": product_url,
-                        }))
+                        }, {**_meta, "channel": "slack"}))
                     if rule.notify_discord and rule.discord_webhook_url:
                         notifications.append((send_discord_alert, {
                             "webhook_url": rule.discord_webhook_url,
@@ -185,7 +207,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                             "new_price": current_price,
                             "change_pct": change_pct,
                             "product_url": product_url,
-                        }))
+                        }, {**_meta, "channel": "discord"}))
                     if rule.notify_sms and rule.phone_number:
                         notifications.append((send_price_alert_sms, {
                             "to_number": rule.phone_number,
@@ -194,16 +216,24 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                             "new_price": current_price,
                             "change_pct": change_pct,
                             "product_url": product_url,
-                        }))
+                        }, {**_meta, "channel": "sms"}))
 
                     rule.last_triggered_at = now
                     rules_to_update.append(rule)
 
         # ── 5. Fire all notifications in parallel ─────────────────────────────
-        _fire_notifications(notifications)
+        delivery_results = _fire_notifications(notifications)
 
-        # ── 6. Single commit for all rule timestamp updates ───────────────────
-        if rules_to_update:
+        # ── 6. Persist delivery log + rule timestamp updates in one commit ────
+        for r in delivery_results:
+            self.db.add(NotificationLog(
+                alert_id=r.get("alert_id"),
+                user_id=r.get("user_id"),
+                channel=r.get("channel", "unknown"),
+                status=r["status"],
+                error_message=r.get("error"),
+            ))
+        if rules_to_update or delivery_results:
             self.db.commit()
 
         logger.info("Price alert check: %d alerts, %d notifications dispatched", len(alerts), len(notifications))

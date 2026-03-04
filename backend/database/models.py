@@ -303,6 +303,7 @@ class PriceAlert(Base):
     # Relationships
     user = relationship("User", back_populates="alerts")
     product = relationship("ProductMonitored")
+    notification_logs = relationship("NotificationLog", back_populates="alert", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<PriceAlert(id={self.id}, product_id={self.product_id}, type='{self.alert_type}', threshold={self.threshold_pct}%)>"
@@ -388,6 +389,7 @@ class User(Base):
     store_connections = relationship("StoreConnection", back_populates="user", cascade="all, delete-orphan")
     activity_logs = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
     push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
+    notification_logs = relationship("NotificationLog", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -677,6 +679,31 @@ class ActivityLog(Base):
 
     def __repr__(self):
         return f"<ActivityLog(id={self.id}, action='{self.action}', user_id={self.user_id})>"
+
+
+class NotificationLog(Base):
+    """
+    Table: notification_logs
+    Records every notification attempt so users can see their alert history and
+    so ops can diagnose delivery failures (e.g. invalid SMS numbers, expired
+    Slack webhooks) without relying solely on server logs.
+    """
+    __tablename__ = "notification_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    alert_id = Column(Integer, ForeignKey("price_alerts.id", ondelete="SET NULL"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    channel = Column(String(20), nullable=False)   # email | sms | slack | discord | push
+    status = Column(String(20), nullable=False)    # sent | failed | timeout
+    error_message = Column(Text, nullable=True)    # populated on failure
+    sent_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    alert = relationship("PriceAlert", back_populates="notification_logs")
+    user = relationship("User", back_populates="notification_logs")
+
+    def __repr__(self):
+        return f"<NotificationLog(id={self.id}, channel='{self.channel}', status='{self.status}')>"
 
 
 class PushSubscription(Base):

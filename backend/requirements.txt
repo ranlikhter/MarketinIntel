@@ -55,3 +55,9 @@ stripe>=7.0.0
 
 # Email
 emails>=0.6
+
+# Database migrations
+alembic>=1.14.0
+
+# Web Push notifications
+pywebpush>=2.0.0

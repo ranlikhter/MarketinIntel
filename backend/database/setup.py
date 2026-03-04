@@ -120,6 +120,18 @@ def run_migrations():
         "ALTER TABLE price_history ADD COLUMN badge_amazons_choice INTEGER",
         "ALTER TABLE price_history ADD COLUMN badge_best_seller INTEGER",
         "ALTER TABLE price_history ADD COLUMN is_sponsored INTEGER",
+        # v11 — notification delivery log
+        """CREATE TABLE IF NOT EXISTS notification_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            alert_id INTEGER REFERENCES price_alerts(id) ON DELETE SET NULL,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            channel TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error_message TEXT,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_nl_alert ON notification_logs(alert_id)",
+        "CREATE INDEX IF NOT EXISTS idx_nl_user_sent ON notification_logs(user_id, sent_at DESC)",
         # v10 — composite indexes (biggest query performance win: eliminates full-table scans)
         # competitor_matches: the two most-queried paths are (product→url) and (product→price)
         "CREATE INDEX IF NOT EXISTS idx_cm_product_url ON competitor_matches(monitored_product_id, competitor_url)",

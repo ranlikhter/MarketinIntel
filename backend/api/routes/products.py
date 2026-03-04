@@ -8,7 +8,7 @@ These endpoints handle all operations related to products:
 - Triggering scrapes
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import ConfigDict, BaseModel
@@ -219,19 +219,20 @@ def create_product(
 @router.get("/", response_model=List[ProductResponse])
 def get_all_products(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200, description="Max products to return"),
+    offset: int = Query(0, ge=0, description="Number of products to skip"),
 ):
     """
     GET /products
 
-    Get all monitored products for the authenticated user.
-    Returns a list of products with their competitor counts.
+    Get monitored products for the authenticated user (paginated).
+    Use `limit` and `offset` for pages; default page size is 50, max is 200.
     Requires authentication.
     """
-    # Only return products that belong to the current user
     products = db.query(ProductMonitored).filter(
         ProductMonitored.user_id == current_user.id
-    ).all()
+    ).order_by(ProductMonitored.created_at.desc()).offset(offset).limit(limit).all()
 
     from datetime import timedelta
 
