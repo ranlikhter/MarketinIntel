@@ -84,6 +84,42 @@ def run_migrations():
         "ALTER TABLE competitor_matches ADD COLUMN match_explanation TEXT",
         # v8 — track which scraper produced each price snapshot
         "ALTER TABLE price_history ADD COLUMN source TEXT",
+        # v9 — Tier 1: effective pricing on competitor_matches
+        "ALTER TABLE competitor_matches ADD COLUMN subscribe_save_price REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN coupon_value REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN coupon_pct REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN effective_price REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN is_lightning_deal INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN deal_end_time TIMESTAMP",
+        "ALTER TABLE competitor_matches ADD COLUMN stock_quantity INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN low_stock_warning INTEGER",
+        # v9 — Tier 1: market position on competitor_matches
+        "ALTER TABLE competitor_matches ADD COLUMN best_seller_rank INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN best_seller_rank_category TEXT",
+        # v9 — Tier 2: demand & visibility on competitor_matches
+        "ALTER TABLE competitor_matches ADD COLUMN units_sold_past_month INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN badge_amazons_choice INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN badge_best_seller INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN badge_new_release INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN is_sponsored INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN rating_distribution TEXT",
+        # v9 — Tier 3: product attributes on competitor_matches
+        "ALTER TABLE competitor_matches ADD COLUMN specifications TEXT",
+        "ALTER TABLE competitor_matches ADD COLUMN variant_options TEXT",
+        "ALTER TABLE competitor_matches ADD COLUMN date_first_available TEXT",
+        # v9 — volatile pricing & demand snapshot on price_history
+        "ALTER TABLE price_history ADD COLUMN subscribe_save_price REAL",
+        "ALTER TABLE price_history ADD COLUMN coupon_value REAL",
+        "ALTER TABLE price_history ADD COLUMN coupon_pct REAL",
+        "ALTER TABLE price_history ADD COLUMN effective_price REAL",
+        "ALTER TABLE price_history ADD COLUMN is_lightning_deal INTEGER",
+        "ALTER TABLE price_history ADD COLUMN deal_end_time TIMESTAMP",
+        "ALTER TABLE price_history ADD COLUMN stock_quantity INTEGER",
+        "ALTER TABLE price_history ADD COLUMN units_sold_past_month INTEGER",
+        "ALTER TABLE price_history ADD COLUMN best_seller_rank INTEGER",
+        "ALTER TABLE price_history ADD COLUMN badge_amazons_choice INTEGER",
+        "ALTER TABLE price_history ADD COLUMN badge_best_seller INTEGER",
+        "ALTER TABLE price_history ADD COLUMN is_sponsored INTEGER",
     ]
     with engine.connect() as conn:
         for sql in migrations:

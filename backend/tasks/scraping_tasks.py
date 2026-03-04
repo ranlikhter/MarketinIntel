@@ -163,7 +163,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 existing.last_scraped_at = now
                 existing.match_score = match_score
                 existing.match_method = match_method
-                existing.title_similarity = match_score  # simple matcher uses combined score as title proxy
+                existing.title_similarity = match_score
                 existing.brand_match = brand_equal
                 existing.external_id = item.get("asin") or existing.external_id
                 existing.rating = item.get("rating")
@@ -180,6 +180,32 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 existing.mpn = existing.mpn or item.get("mpn")
                 existing.upc_ean = existing.upc_ean or item.get("upc_ean")
                 existing.image_url = item.get("image_url") or existing.image_url
+                # Tier 1 — Effective pricing
+                existing.subscribe_save_price = item.get("subscribe_save_price")
+                existing.coupon_value = item.get("coupon_value")
+                existing.coupon_pct = item.get("coupon_pct")
+                existing.effective_price = item.get("effective_price")
+                existing.is_lightning_deal = item.get("is_lightning_deal")
+                existing.deal_end_time = item.get("deal_end_time")
+                existing.stock_quantity = item.get("stock_quantity")
+                existing.low_stock_warning = item.get("low_stock_warning")
+                existing.best_seller_rank = item.get("best_seller_rank")
+                existing.best_seller_rank_category = (
+                    item.get("best_seller_rank_category") or existing.best_seller_rank_category
+                )
+                # Tier 2 — Demand & visibility
+                existing.units_sold_past_month = item.get("units_sold_past_month")
+                existing.badge_amazons_choice = item.get("badge_amazons_choice")
+                existing.badge_best_seller = item.get("badge_best_seller")
+                existing.badge_new_release = item.get("badge_new_release")
+                existing.is_sponsored = item.get("is_sponsored")
+                existing.rating_distribution = item.get("rating_distribution")
+                # Tier 3 — Product attributes (keep existing if scrape didn't return them)
+                existing.specifications = item.get("specifications") or existing.specifications
+                existing.variant_options = item.get("variant_options") or existing.variant_options
+                existing.date_first_available = (
+                    item.get("date_first_available") or existing.date_first_available
+                )
                 match = existing
             else:
                 match = CompetitorMatch(
@@ -210,6 +236,28 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     description=item.get("description"),
                     mpn=item.get("mpn"),
                     upc_ean=item.get("upc_ean"),
+                    # Tier 1
+                    subscribe_save_price=item.get("subscribe_save_price"),
+                    coupon_value=item.get("coupon_value"),
+                    coupon_pct=item.get("coupon_pct"),
+                    effective_price=item.get("effective_price"),
+                    is_lightning_deal=item.get("is_lightning_deal"),
+                    deal_end_time=item.get("deal_end_time"),
+                    stock_quantity=item.get("stock_quantity"),
+                    low_stock_warning=item.get("low_stock_warning"),
+                    best_seller_rank=item.get("best_seller_rank"),
+                    best_seller_rank_category=item.get("best_seller_rank_category"),
+                    # Tier 2
+                    units_sold_past_month=item.get("units_sold_past_month"),
+                    badge_amazons_choice=item.get("badge_amazons_choice"),
+                    badge_best_seller=item.get("badge_best_seller"),
+                    badge_new_release=item.get("badge_new_release"),
+                    is_sponsored=item.get("is_sponsored"),
+                    rating_distribution=item.get("rating_distribution"),
+                    # Tier 3
+                    specifications=item.get("specifications"),
+                    variant_options=item.get("variant_options"),
+                    date_first_available=item.get("date_first_available"),
                 )
                 self.db.add(match)
                 self.db.flush()
@@ -235,6 +283,19 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     is_prime=item.get("is_prime"),
                     fulfillment_type=item.get("fulfillment_type"),
                     product_condition=item.get("product_condition"),
+                    # Volatile pricing & demand snapshot
+                    subscribe_save_price=item.get("subscribe_save_price"),
+                    coupon_value=item.get("coupon_value"),
+                    coupon_pct=item.get("coupon_pct"),
+                    effective_price=item.get("effective_price"),
+                    is_lightning_deal=item.get("is_lightning_deal"),
+                    deal_end_time=item.get("deal_end_time"),
+                    stock_quantity=item.get("stock_quantity"),
+                    units_sold_past_month=item.get("units_sold_past_month"),
+                    best_seller_rank=item.get("best_seller_rank"),
+                    badge_amazons_choice=item.get("badge_amazons_choice"),
+                    badge_best_seller=item.get("badge_best_seller"),
+                    is_sponsored=item.get("is_sponsored"),
                 ))
 
             _upsert_promotions(self.db, match.id, item.get("promotions") or [])

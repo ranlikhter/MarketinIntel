@@ -121,6 +121,19 @@ class AmazonScraper:
             "product_condition": "New",
             "category": None, "variant": None,
             "shipping_cost": None, "total_price": None,
+            # Tier 1 — Effective pricing
+            "subscribe_save_price": None,
+            "coupon_value": None, "coupon_pct": None, "effective_price": None,
+            "is_lightning_deal": False, "deal_end_time": None,
+            "stock_quantity": None, "low_stock_warning": False,
+            "best_seller_rank": None, "best_seller_rank_category": None,
+            # Tier 2 — Demand & visibility
+            "units_sold_past_month": None,
+            "badge_amazons_choice": False, "badge_best_seller": False, "badge_new_release": False,
+            "is_sponsored": False,
+            "rating_distribution": None,
+            # Tier 3 — Product attributes
+            "specifications": None, "variant_options": None, "date_first_available": None,
             "scrape_quality": "clean",
             "error": None,
         }
@@ -170,6 +183,28 @@ class AmazonScraper:
         result["variant"] = self._extract_variant(soup)
         result["shipping_cost"] = self._extract_shipping_cost(soup)
         result["mpn"], result["upc_ean"] = self._extract_product_identifiers(soup)
+
+        # ── Tier 1: Effective pricing ─────────────────────────────────────────
+        coupon_sns = self._extract_coupon_and_sns(soup)
+        result.update(coupon_sns)
+        deal = self._extract_deal_info(soup)
+        result.update(deal)
+        stock_detail = self._extract_stock_detail(soup)
+        result.update(stock_detail)
+        bsr = self._extract_bsr(soup)
+        result.update(bsr)
+
+        # ── Tier 2: Demand & visibility ───────────────────────────────────────
+        result["units_sold_past_month"] = self._extract_demand_signals(soup)
+        result.update(self._extract_badges(soup))
+        result["is_sponsored"] = False  # product pages are not sponsored listings
+        result["rating_distribution"] = self._extract_rating_distribution(soup)
+
+        # ── Tier 3: Product attributes ────────────────────────────────────────
+        result["specifications"] = self._extract_product_specs(soup)
+        result["variant_options"] = self._extract_variant_options(soup)
+        result["date_first_available"] = self._extract_date_first_available(soup)
+
         result["scrape_quality"] = "partial" if not result["price"] else "clean"
 
         if result["was_price"] and result["price"] and result["was_price"] > result["price"]:
@@ -182,6 +217,15 @@ class AmazonScraper:
                 if result["shipping_cost"] is not None
                 else result["price"]
             )
+            # Effective price = best one-time price after applying coupon
+            if result.get("coupon_value"):
+                result["effective_price"] = round(result["price"] - result["coupon_value"], 2)
+            elif result.get("coupon_pct"):
+                result["effective_price"] = round(
+                    result["price"] * (1 - result["coupon_pct"] / 100), 2
+                )
+            else:
+                result["effective_price"] = result["price"]
 
         return result
 
@@ -255,6 +299,52 @@ class AmazonScraper:
             promotion_label = promo_elem.get_text(strip=True)[:100] if promo_elem else None
             is_prime = bool(card.select_one(".a-icon-prime"))
 
+            # Coupon shown in search card (e.g. "Save 15%", "Save $5")
+            coupon_value, coupon_pct = None, None
+            coupon_elem = card.select_one(".s-coupon-unclipped, .coupon-badge")
+            if coupon_elem:
+                ct = coupon_elem.get_text(strip=True)
+                m = re.search(r"\$(\d+(?:\.\d+)?)\s*off", ct, re.IGNORECASE)
+                if m:
+                    coupon_value = float(m.group(1))
+                else:
+                    m = re.search(r"(\d+)%\s*off", ct, re.IGNORECASE)
+                    if m:
+                        coupon_pct = float(m.group(1))
+            effective_price = None
+            if price:
+                if coupon_value:
+                    effective_price = round(price - coupon_value, 2)
+                elif coupon_pct:
+                    effective_price = round(price * (1 - coupon_pct / 100), 2)
+                else:
+                    effective_price = price
+
+            # Sponsored flag
+            is_sponsored = bool(
+                card.select_one(
+                    ".s-sponsored-label-info-icon, .puis-sponsored-label-text, "
+                    "[data-component-type='sp-sponsored-result']"
+                )
+            )
+
+            # Badges visible in search cards
+            badge_amazons_choice = bool(card.select_one("[id*='ac-badge'], .ac-badge-wrapper"))
+            badge_best_seller = bool(card.select_one(
+                ".a-badge-label, [id*='best-seller-badge']"
+            ) and card.find(string=re.compile(r"Best Seller", re.IGNORECASE)))
+
+            # "X bought in past month" sometimes shown in cards
+            units_sold_past_month = None
+            social_elem = card.select_one(".a-row .a-size-base")
+            if social_elem:
+                m = re.search(
+                    r"([\d,]+)\+?\s+bought in past month",
+                    social_elem.get_text(strip=True), re.IGNORECASE
+                )
+                if m:
+                    units_sold_past_month = int(m.group(1).replace(",", ""))
+
             return {
                 "title": title,
                 "asin": asin,
@@ -272,6 +362,13 @@ class AmazonScraper:
                 "review_count": review_count,
                 "promotion_label": promotion_label,
                 "is_prime": is_prime,
+                "coupon_value": coupon_value,
+                "coupon_pct": coupon_pct,
+                "effective_price": effective_price,
+                "is_sponsored": is_sponsored,
+                "badge_amazons_choice": badge_amazons_choice,
+                "badge_best_seller": badge_best_seller,
+                "units_sold_past_month": units_sold_past_month,
                 "scrape_quality": "clean" if price else "partial",
             }
 
@@ -540,6 +637,282 @@ class AmazonScraper:
         ]
         if parts:
             return ", ".join(parts)[:100]
+        return None
+
+    # ── Tier 1 extraction methods ─────────────────────────────────────────────
+
+    def _extract_coupon_and_sns(self, soup: BeautifulSoup) -> dict:
+        """Extract Subscribe & Save price and clippable coupon value/percentage."""
+        result = {"subscribe_save_price": None, "coupon_value": None, "coupon_pct": None}
+
+        for sel in [
+            "#snsAccordionRowMiddle .a-price .a-offscreen",
+            "#subscriptionPrice .a-color-price",
+            "#sns-offer-price .a-offscreen",
+            ".snsOrangeLabel .a-offscreen",
+        ]:
+            elem = soup.select_one(sel)
+            if elem:
+                try:
+                    result["subscribe_save_price"] = float(
+                        elem.get_text(strip=True).replace("$", "").replace(",", "")
+                    )
+                    break
+                except (ValueError, TypeError):
+                    pass
+
+        coupon_elem = soup.select_one(
+            "#couponBadge_feature_div, #couponBadge, .coupon-badge-wrapper"
+        )
+        if coupon_elem:
+            text = coupon_elem.get_text(strip=True)
+            m = re.search(r"\$(\d+(?:\.\d+)?)\s*(?:off|coupon)", text, re.IGNORECASE)
+            if m:
+                result["coupon_value"] = float(m.group(1))
+            else:
+                m = re.search(r"(\d+(?:\.\d+)?)%\s*(?:off|coupon)", text, re.IGNORECASE)
+                if m:
+                    result["coupon_pct"] = float(m.group(1))
+
+        return result
+
+    def _extract_deal_info(self, soup: BeautifulSoup) -> dict:
+        """Detect lightning / limited-time deals and their expiry."""
+        is_lightning_deal = False
+        deal_end_time = None
+
+        deal_selectors = [
+            "#dealBadgeOverlay", "#deal-badge", ".deal-badge",
+            "#priceblock_dealprice_lbl", "#dealsAccordionRow",
+        ]
+        for sel in deal_selectors:
+            elem = soup.select_one(sel)
+            if elem:
+                text = elem.get_text(strip=True).lower()
+                if any(w in text for w in ["deal", "limited time", "lightning", "save"]):
+                    is_lightning_deal = True
+                    break
+
+        if not is_lightning_deal and soup.select_one(".dealEndDate, #dealTimerClock"):
+            is_lightning_deal = True
+
+        timer = soup.select_one("[data-deal-ends-at]")
+        if timer:
+            deal_end_time = timer.get("data-deal-ends-at")
+
+        return {"is_lightning_deal": is_lightning_deal, "deal_end_time": deal_end_time}
+
+    def _extract_stock_detail(self, soup: BeautifulSoup) -> dict:
+        """Parse stock quantity and low-stock warning from the availability block."""
+        stock_quantity = None
+        low_stock_warning = False
+
+        avail = soup.select_one("#availability")
+        if avail:
+            text = avail.get_text(strip=True)
+            m = re.search(r"Only\s+(\d+)\s+left", text, re.IGNORECASE)
+            if m:
+                stock_quantity = int(m.group(1))
+                low_stock_warning = True
+            elif re.search(r"\d+\s+left in stock", text, re.IGNORECASE):
+                low_stock_warning = True
+
+        return {"stock_quantity": stock_quantity, "low_stock_warning": low_stock_warning}
+
+    def _extract_bsr(self, soup: BeautifulSoup) -> dict:
+        """Extract Best Seller Rank and the category it applies to."""
+        bsr, bsr_cat = None, None
+
+        def _parse_bsr(text: str):
+            m = re.search(r"#\s*([\d,]+)\s+in\s+([^\n(#]+)", text)
+            if m:
+                try:
+                    return int(m.group(1).replace(",", "")), m.group(2).strip()
+                except (ValueError, TypeError):
+                    pass
+            return None, None
+
+        for row in soup.select(
+            "#productDetails_detailBullets_sections1 tr, "
+            "#productDetails_techSpec_section_1 tr"
+        ):
+            th = row.select_one("th")
+            td = row.select_one("td")
+            if th and td and "best sellers rank" in th.get_text(strip=True).lower():
+                bsr, bsr_cat = _parse_bsr(td.get_text(" ", strip=True))
+                break
+
+        if not bsr:
+            for li in soup.select("#detailBulletsWrapper_feature_div li"):
+                text = li.get_text(" ", strip=True)
+                if "best sellers rank" in text.lower():
+                    bsr, bsr_cat = _parse_bsr(text)
+                    break
+
+        if not bsr:
+            rank_elem = soup.select_one("#SalesRankDiv, #SalesRank")
+            if rank_elem:
+                bsr, bsr_cat = _parse_bsr(rank_elem.get_text(" ", strip=True))
+
+        return {"best_seller_rank": bsr, "best_seller_rank_category": bsr_cat}
+
+    # ── Tier 2 extraction methods ─────────────────────────────────────────────
+
+    def _extract_demand_signals(self, soup: BeautifulSoup) -> Optional[int]:
+        """Extract 'X+ bought in past month' demand signal."""
+        for sel in [
+            "#social-proofing-faceout-title-tk_bought-badge",
+            ".social-proofing-faceout-title-section span",
+            "[data-csa-c-slot-id*='social-proof'] span",
+        ]:
+            elem = soup.select_one(sel)
+            if elem:
+                m = re.search(
+                    r"([\d,]+)K?\+?\s+bought in past month",
+                    elem.get_text(strip=True), re.IGNORECASE
+                )
+                if m:
+                    val = int(m.group(1).replace(",", ""))
+                    if re.search(r"\dK", elem.get_text(strip=True), re.IGNORECASE):
+                        val *= 1000
+                    return val
+        # Broader search across the page
+        m = re.search(
+            r"([\d,]+)\+?\s+bought in (?:the )?past month",
+            soup.get_text(), re.IGNORECASE
+        )
+        if m:
+            return int(m.group(1).replace(",", ""))
+        return None
+
+    def _extract_badges(self, soup: BeautifulSoup) -> dict:
+        """Detect Amazon's Choice, Best Seller, and #1 New Release badges."""
+        amazons_choice = bool(
+            soup.select_one("#acBadge_feature_div, .ac-badge-wrapper, [id^='ac-badge']")
+        )
+        if not amazons_choice:
+            amazons_choice = bool(
+                soup.find(string=re.compile(r"Amazon's\s+Choice", re.IGNORECASE))
+            )
+
+        best_seller = bool(
+            soup.select_one("#best-seller-badge, .bestseller-badge, .aok-inline-block .a-badge")
+            and soup.find(string=re.compile(r"Best\s+Seller", re.IGNORECASE))
+        )
+
+        new_release = bool(
+            soup.select_one("#NEW-RELEASE, #newReleasesBadge, [id*='new-release']")
+            or soup.find(string=re.compile(r"#1\s+New\s+Release", re.IGNORECASE))
+        )
+
+        return {
+            "badge_amazons_choice": amazons_choice,
+            "badge_best_seller": best_seller,
+            "badge_new_release": new_release,
+        }
+
+    def _extract_rating_distribution(self, soup: BeautifulSoup) -> Optional[dict]:
+        """
+        Extract star rating distribution as {5: 72, 4: 15, 3: 6, 2: 4, 1: 3}
+        where values are percentages.
+        """
+        distribution = {}
+
+        for row in soup.select("table#histogramTable tr"):
+            cells = row.select("td")
+            if len(cells) >= 2:
+                star_m = re.search(r"(\d)\s*star", cells[0].get_text(strip=True), re.IGNORECASE)
+                pct_m = re.search(r"(\d+)", cells[-1].get_text(strip=True))
+                if star_m and pct_m:
+                    distribution[int(star_m.group(1))] = int(pct_m.group(1))
+
+        if not distribution:
+            for elem in soup.select("[data-hook='cr-dp-review-histogram'] .a-histogram-row"):
+                aria = elem.get("aria-label", "")
+                m = re.search(r"(\d)\s+star.*?(\d+)\s*percent", aria, re.IGNORECASE)
+                if m:
+                    distribution[int(m.group(1))] = int(m.group(2))
+
+        return distribution if distribution else None
+
+    # ── Tier 3 extraction methods ─────────────────────────────────────────────
+
+    def _extract_product_specs(self, soup: BeautifulSoup) -> Optional[dict]:
+        """Extract the full technical specifications table as a key→value dict."""
+        specs = {}
+
+        for row in soup.select(
+            "#productDetails_techSpec_section_1 tr, "
+            "#productDetails_techSpec_section_2 tr"
+        ):
+            th, td = row.select_one("th"), row.select_one("td")
+            if th and td:
+                key = th.get_text(strip=True)
+                val = re.sub(r"\s+", " ", td.get_text(strip=True))
+                if key and val:
+                    specs[key] = val
+
+        if not specs:
+            for row in soup.select("#productDetails_detailBullets_sections1 tr"):
+                th, td = row.select_one("th"), row.select_one("td")
+                if th and td:
+                    key = th.get_text(strip=True)
+                    val = re.sub(r"\s+", " ", td.get_text(strip=True))
+                    if key and val:
+                        specs[key] = val
+
+        return specs if specs else None
+
+    def _extract_variant_options(self, soup: BeautifulSoup) -> Optional[dict]:
+        """
+        Extract all variant dimensions and their options.
+        Returns e.g. {"Color": {"selected": "Black", "options": ["Black","Silver"]}}
+        """
+        variants = {}
+
+        for div in soup.select("[id^='variation_']"):
+            dim_id = div.get("id", "").replace("variation_", "")
+            if not dim_id:
+                continue
+
+            label_elem = div.select_one(".a-form-label, label")
+            dimension = label_elem.get_text(strip=True).rstrip(":") if label_elem else dim_id
+
+            selected_elem = div.select_one(".selection, .a-declarative .a-color-base")
+            selected_val = selected_elem.get_text(strip=True) if selected_elem else None
+
+            options = []
+            for opt in div.select("li[id], .swatchAvailable, .swatchSelect"):
+                val = (
+                    opt.get("title")
+                    or opt.get("data-dp-url")
+                    or opt.get_text(strip=True)
+                )
+                if val and val not in options:
+                    options.append(str(val)[:60])
+
+            if dimension:
+                variants[dimension] = {"selected": selected_val, "options": options[:20]}
+
+        return variants if variants else None
+
+    def _extract_date_first_available(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract 'Date First Available' from the product detail section."""
+        for row in soup.select(
+            "#productDetails_detailBullets_sections1 tr, "
+            "#productDetails_techSpec_section_1 tr"
+        ):
+            th, td = row.select_one("th"), row.select_one("td")
+            if th and td and "date first available" in th.get_text(strip=True).lower():
+                return td.get_text(strip=True)
+
+        for li in soup.select("#detailBulletsWrapper_feature_div li"):
+            text = li.get_text(" ", strip=True)
+            if "date first available" in text.lower():
+                m = re.search(r"[:\u200e]\s*(.+)", text)
+                if m:
+                    return m.group(1).strip()
+
         return None
 
     def _extract_shipping_cost(self, soup: BeautifulSoup) -> Optional[float]:

@@ -124,6 +124,29 @@ class CompetitorMatch(Base):
     title_similarity = Column(Float, nullable=True)          # Title-only similarity component 0.0-1.0
     brand_match = Column(Boolean, nullable=True)             # Explicit brand equality flag
     match_explanation = Column(Text, nullable=True)          # Human-readable explanation from AI matcher
+    # Tier 1 — Effective pricing (what the buyer actually pays)
+    subscribe_save_price = Column(Float, nullable=True)      # Price with Subscribe & Save (recurring)
+    coupon_value = Column(Float, nullable=True)              # Clippable coupon savings ($)
+    coupon_pct = Column(Float, nullable=True)                # Clippable coupon savings (%)
+    effective_price = Column(Float, nullable=True)           # Best one-time price after coupon
+    is_lightning_deal = Column(Boolean, nullable=True)       # Active lightning / limited-time deal
+    deal_end_time = Column(DateTime, nullable=True)          # When the current deal expires
+    stock_quantity = Column(Integer, nullable=True)          # Parsed from "Only X left in stock"
+    low_stock_warning = Column(Boolean, nullable=True)       # Amazon is showing a low-stock banner
+    # Tier 1 — Market position
+    best_seller_rank = Column(Integer, nullable=True)        # BSR (lower = more sales)
+    best_seller_rank_category = Column(String(300), nullable=True)  # Category the BSR applies to
+    # Tier 2 — Demand & visibility
+    units_sold_past_month = Column(Integer, nullable=True)   # "X+ bought in past month"
+    badge_amazons_choice = Column(Boolean, nullable=True)    # Amazon's Choice badge present
+    badge_best_seller = Column(Boolean, nullable=True)       # Best Seller badge present
+    badge_new_release = Column(Boolean, nullable=True)       # #1 New Release badge present
+    is_sponsored = Column(Boolean, nullable=True)            # Paid search placement (search results)
+    rating_distribution = Column(JSON, nullable=True)        # {5: 72, 4: 15, 3: 6, 2: 4, 1: 3} (%)
+    # Tier 3 — Product attributes (semi-static, improve matching & analysis)
+    specifications = Column(JSON, nullable=True)             # Full tech spec table {key: value}
+    variant_options = Column(JSON, nullable=True)            # {Color: {selected, options}, Size: ...}
+    date_first_available = Column(String(50), nullable=True) # "January 1, 2023" — product age
 
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
@@ -166,6 +189,19 @@ class PriceHistory(Base):
     fulfillment_type = Column(String(20), nullable=True)     # 'FBA', 'FBM', 'merchant'
     product_condition = Column(String(30), nullable=True)    # 'New', 'Used', 'Refurbished'
     source = Column(String(20), nullable=True)               # 'playwright' or 'apify' — which scraper produced this
+    # Time-series snapshot of volatile pricing & demand fields
+    subscribe_save_price = Column(Float, nullable=True)      # S&S price at this point in time
+    coupon_value = Column(Float, nullable=True)              # Active coupon $ at scrape time
+    coupon_pct = Column(Float, nullable=True)                # Active coupon % at scrape time
+    effective_price = Column(Float, nullable=True)           # Best price buyer could pay at this time
+    is_lightning_deal = Column(Boolean, nullable=True)       # Was there an active deal?
+    deal_end_time = Column(DateTime, nullable=True)          # When did that deal end?
+    stock_quantity = Column(Integer, nullable=True)          # "Only X left" at this moment
+    units_sold_past_month = Column(Integer, nullable=True)   # Demand velocity at scrape time
+    best_seller_rank = Column(Integer, nullable=True)        # BSR at this point in time
+    badge_amazons_choice = Column(Boolean, nullable=True)    # Had badge at scrape time
+    badge_best_seller = Column(Boolean, nullable=True)       # Had badge at scrape time
+    is_sponsored = Column(Boolean, nullable=True)            # Was a paid placement at scrape time
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")
