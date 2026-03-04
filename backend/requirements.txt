@@ -61,3 +61,6 @@ alembic>=1.14.0
 
 # Web Push notifications
 pywebpush>=2.0.0
+
+# Anthropic Claude API (AI pricing recommendations, NL queries, narratives)
+anthropic>=0.40.0
