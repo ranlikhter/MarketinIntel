@@ -184,6 +184,15 @@ def create_product(
 
     db.add(db_product)
     db.flush()
+
+    # Record initial price in history if provided
+    if db_product.my_price is not None:
+        db.add(MyPriceHistory(
+            product_id=db_product.id,
+            old_price=None,
+            new_price=db_product.my_price,
+        ))
+
     log_activity(db, current_user.id, "product.create", "product",
                  f"Added product '{db_product.title}' to monitoring",
                  entity_type="product", entity_id=db_product.id, entity_name=db_product.title,

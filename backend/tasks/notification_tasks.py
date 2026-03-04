@@ -134,6 +134,10 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
                 })
 
                 for rule in rules:
+                    # Quiet hours check — skip if user configured a do-not-disturb window
+                    if rule.is_in_quiet_hours():
+                        continue
+
                     # Cooldown check (pure Python — no extra query)
                     if rule.last_triggered_at:
                         cooldown_end = rule.last_triggered_at + timedelta(hours=rule.cooldown_hours)

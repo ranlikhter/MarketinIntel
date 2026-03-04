@@ -17,9 +17,12 @@ Apify fallback:
   Requires APIFY_API_TOKEN in the environment and `pip install apify-client`.
 """
 
+import logging
 import threading
 from typing import Dict, Optional
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 from scrapers.amazon_scraper import AmazonScraper
 from scrapers.apify_scraper import ApifyScraper

@@ -302,7 +302,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 # Skip the insert if price hasn't changed — avoids filling
                 # price_history with identical rows on every hourly scrape cycle.
                 last_price = existing_latest_price.get(match.id)
-                if last_price is not None and last_price == item["price"]:
+                if last_price is not None and abs(last_price - item["price"]) < 0.01:
                     _upsert_promotions(self.db, match.id, item.get("promotions") or [])
                     matches_found += 1
                     continue
