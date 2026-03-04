@@ -71,6 +71,19 @@ def run_migrations():
         "ALTER TABLE price_history ADD COLUMN is_prime INTEGER",
         "ALTER TABLE price_history ADD COLUMN fulfillment_type TEXT",
         "ALTER TABLE price_history ADD COLUMN product_condition TEXT",
+        # v8 — enriched product identifiers for better competitor discovery
+        "ALTER TABLE products_monitored ADD COLUMN asin TEXT",
+        "ALTER TABLE products_monitored ADD COLUMN model_number TEXT",
+        "ALTER TABLE products_monitored ADD COLUMN keywords TEXT",
+        "ALTER TABLE products_monitored ADD COLUMN category TEXT",
+        # v8 — match diagnostics: record HOW each match was made and how confident
+        "ALTER TABLE competitor_matches ADD COLUMN match_method TEXT",
+        "ALTER TABLE competitor_matches ADD COLUMN ai_match_score REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN title_similarity REAL",
+        "ALTER TABLE competitor_matches ADD COLUMN brand_match INTEGER",
+        "ALTER TABLE competitor_matches ADD COLUMN match_explanation TEXT",
+        # v8 — track which scraper produced each price snapshot
+        "ALTER TABLE price_history ADD COLUMN source TEXT",
     ]
     with engine.connect() as conn:
         for sql in migrations:

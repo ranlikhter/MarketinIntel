@@ -149,6 +149,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             if not item_url:
                 continue
 
+            match_method = _detect_match_method(product_dict, candidate_dict)
+            brand_equal = _brands_match(product_dict, candidate_dict)
+
             existing = self.db.query(CompetitorMatch).filter(
                 CompetitorMatch.monitored_product_id == product_id,
                 CompetitorMatch.competitor_url == item_url,
@@ -159,6 +162,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 existing.stock_status = item.get("stock_status")
                 existing.last_scraped_at = now
                 existing.match_score = match_score
+                existing.match_method = match_method
+                existing.title_similarity = match_score  # simple matcher uses combined score as title proxy
+                existing.brand_match = brand_equal
                 existing.external_id = item.get("asin") or existing.external_id
                 existing.rating = item.get("rating")
                 existing.review_count = item.get("review_count")
@@ -186,6 +192,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     stock_status=item.get("stock_status"),
                     image_url=item.get("image_url"),
                     match_score=match_score,
+                    match_method=match_method,
+                    title_similarity=match_score,
+                    brand_match=brand_equal,
                     last_scraped_at=now,
                     external_id=item.get("asin"),
                     rating=item.get("rating"),
@@ -220,6 +229,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     seller_name=item.get("seller_name"),
                     seller_count=item.get("seller_count"),
                     scrape_quality=item.get("scrape_quality"),
+                    source=item.get("source", "playwright"),
                     rating=item.get("rating"),
                     review_count=item.get("review_count"),
                     is_prime=item.get("is_prime"),
@@ -363,6 +373,36 @@ def retry_failed_scrapes(self):
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _detect_match_method(product_dict: dict, candidate_dict: dict) -> str:
+    """
+    Return which signal produced the match, from most to least authoritative.
+
+    upc_exact  — barcode equality (gold standard, 1.0 confidence)
+    mpn_exact  — manufacturer part number equality (0.95 confidence)
+    text_fuzzy — weighted title/brand/description similarity
+    """
+    p_upc = (product_dict.get("upc_ean") or "").strip()
+    c_upc = (candidate_dict.get("upc_ean") or "").strip()
+    if p_upc and c_upc and p_upc == c_upc:
+        return "upc_exact"
+
+    p_mpn = (product_dict.get("mpn") or "").strip().lower()
+    c_mpn = (candidate_dict.get("mpn") or "").strip().lower()
+    if p_mpn and c_mpn and p_mpn == c_mpn:
+        return "mpn_exact"
+
+    return "text_fuzzy"
+
+
+def _brands_match(product_dict: dict, candidate_dict: dict) -> bool | None:
+    """Return True/False brand equality, or None when either brand is unknown."""
+    p_brand = (product_dict.get("brand") or "").strip().lower()
+    c_brand = (candidate_dict.get("brand") or "").strip().lower()
+    if not p_brand or not c_brand:
+        return None
+    return p_brand == c_brand
+
 
 def _upsert_promotions(db, match_id: int, promotions: list):
     """

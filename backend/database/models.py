@@ -58,6 +58,11 @@ class ProductMonitored(Base):
     description = Column(Text, nullable=True)     # Product description / feature bullets
     mpn = Column(String(100), nullable=True)      # Manufacturer Part Number (e.g., "WH1000XM5/B")
     upc_ean = Column(String(50), nullable=True)   # UPC-12 or EAN-13 barcode
+    # Extended identifiers — enrich search queries and improve match accuracy
+    asin = Column(String(20), nullable=True)          # Known Amazon ASIN (enables direct lookup vs. text search)
+    model_number = Column(String(100), nullable=True) # Manufacturer model number when distinct from MPN
+    keywords = Column(Text, nullable=True)            # User-curated search terms for competitor discovery
+    category = Column(String(200), nullable=True)     # e.g. "Electronics > Headphones" — disambiguates AI matches
     # Margin intelligence
     cost_price = Column(Float, nullable=True)     # User's cost / COGS — enables margin calculation
     # Inventory (synced from connected store)
@@ -113,6 +118,12 @@ class CompetitorMatch(Base):
     description = Column(Text, nullable=True)                # Feature bullets / product description
     mpn = Column(String(100), nullable=True)                 # Manufacturer Part Number
     upc_ean = Column(String(50), nullable=True)              # UPC-12 or EAN-13 barcode
+    # Match diagnostics — explain how and how confidently the match was made
+    match_method = Column(String(20), nullable=True)         # 'upc_exact', 'mpn_exact', 'text_fuzzy', 'ai_semantic'
+    ai_match_score = Column(Float, nullable=True)            # AI semantic score 0-100 (separate from simple match_score)
+    title_similarity = Column(Float, nullable=True)          # Title-only similarity component 0.0-1.0
+    brand_match = Column(Boolean, nullable=True)             # Explicit brand equality flag
+    match_explanation = Column(Text, nullable=True)          # Human-readable explanation from AI matcher
 
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
@@ -154,6 +165,7 @@ class PriceHistory(Base):
     is_prime = Column(Boolean, nullable=True)                # Prime eligibility at scrape time
     fulfillment_type = Column(String(20), nullable=True)     # 'FBA', 'FBM', 'merchant'
     product_condition = Column(String(30), nullable=True)    # 'New', 'Used', 'Refurbished'
+    source = Column(String(20), nullable=True)               # 'playwright' or 'apify' — which scraper produced this
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")
