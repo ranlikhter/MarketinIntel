@@ -14,8 +14,14 @@ actor with proxy rotation built-in.
 """
 
 import asyncio
+import logging
 import os
 from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
+_TIMEOUT_SECONDS = 90   # Apify actor calls can be slow; kill after 90 s
+_MAX_RETRIES = 2        # Retry once on timeout or transient error
 
 
 class ApifyScraper:
@@ -39,22 +45,59 @@ class ApifyScraper:
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def scrape_product(self, url: str) -> Dict:
-        """Scrape an Amazon product page via Apify cloud."""
+        """Scrape an Amazon product page via Apify cloud.
+
+        Retries up to _MAX_RETRIES times with exponential back-off on timeout
+        or transient errors.  Each attempt is capped at _TIMEOUT_SECONDS.
+        """
         if not self.is_configured:
             return {"url": url, "error": "Apify API token not configured (set APIFY_API_TOKEN)"}
-        try:
-            return await asyncio.to_thread(self._scrape_product_sync, url)
-        except Exception as e:
-            return {"url": url, "error": f"Apify scrape failed: {e}"}
+
+        last_error: str = "unknown error"
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(self._scrape_product_sync, url),
+                    timeout=_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                last_error = f"timed out after {_TIMEOUT_SECONDS}s"
+                logger.warning("Apify scrape_product attempt %d/%d timed out for %s", attempt + 1, _MAX_RETRIES, url)
+            except Exception as e:
+                last_error = str(e)
+                logger.warning("Apify scrape_product attempt %d/%d failed for %s: %s", attempt + 1, _MAX_RETRIES, url, e)
+
+            if attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(2 ** attempt)  # 1 s, 2 s, …
+
+        return {"url": url, "error": f"Apify scrape failed after {_MAX_RETRIES} attempts: {last_error}"}
 
     async def search_products(self, query: str, max_results: int = 10) -> List[Dict]:
-        """Search Amazon via Apify cloud."""
+        """Search Amazon via Apify cloud.
+
+        Retries up to _MAX_RETRIES times with exponential back-off.
+        """
         if not self.is_configured:
             return [{"error": "Apify API token not configured (set APIFY_API_TOKEN)"}]
-        try:
-            return await asyncio.to_thread(self._search_products_sync, query, max_results)
-        except Exception as e:
-            return [{"error": f"Apify search failed: {e}"}]
+
+        last_error: str = "unknown error"
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(self._search_products_sync, query, max_results),
+                    timeout=_TIMEOUT_SECONDS,
+                )
+            except asyncio.TimeoutError:
+                last_error = f"timed out after {_TIMEOUT_SECONDS}s"
+                logger.warning("Apify search_products attempt %d/%d timed out for '%s'", attempt + 1, _MAX_RETRIES, query)
+            except Exception as e:
+                last_error = str(e)
+                logger.warning("Apify search_products attempt %d/%d failed for '%s': %s", attempt + 1, _MAX_RETRIES, query, e)
+
+            if attempt < _MAX_RETRIES - 1:
+                await asyncio.sleep(2 ** attempt)
+
+        return [{"error": f"Apify search failed after {_MAX_RETRIES} attempts: {last_error}"}]
 
     # ── Sync helpers (run inside a thread) ───────────────────────────────────
 

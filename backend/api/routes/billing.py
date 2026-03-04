@@ -4,6 +4,9 @@ from pydantic import BaseModel
 from typing import Optional
 import stripe
 import os
+import threading
+import time
+from collections import OrderedDict
 from datetime import datetime, timedelta
 
 from database.connection import get_db
@@ -11,6 +14,36 @@ from database.models import User, SubscriptionTier, SubscriptionStatus
 from api.dependencies import get_current_user
 
 router = APIRouter()
+
+# ── Stripe webhook idempotency cache ──────────────────────────────────────────
+# Stripe retries webhooks on 5xx responses.  We track processed event IDs for
+# 24 h (Stripe's retry window) so we can return 200 without reprocessing.
+# For multi-worker deployments this should move to Redis; this in-process dict
+# is correct for single-worker setups and degrades gracefully (one duplicate
+# per worker restart at worst, which Stripe's retry window makes rare).
+_PROCESSED_EVENTS: OrderedDict = OrderedDict()  # event_id -> timestamp
+_PROCESSED_EVENTS_LOCK = threading.Lock()
+_EVENT_TTL = 86_400   # 24 hours
+_EVENT_MAX_SIZE = 5_000
+
+
+def _is_event_processed(event_id: str) -> bool:
+    """Return True if already processed; False + register if new."""
+    now = time.time()
+    with _PROCESSED_EVENTS_LOCK:
+        # Evict stale entries (OrderedDict keeps insertion order)
+        while _PROCESSED_EVENTS:
+            oldest_id, ts = next(iter(_PROCESSED_EVENTS.items()))
+            if now - ts > _EVENT_TTL:
+                _PROCESSED_EVENTS.popitem(last=False)
+            else:
+                break
+        if event_id in _PROCESSED_EVENTS:
+            return True
+        while len(_PROCESSED_EVENTS) >= _EVENT_MAX_SIZE:
+            _PROCESSED_EVENTS.popitem(last=False)
+        _PROCESSED_EVENTS[event_id] = now
+        return False
 
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -169,6 +202,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Invalid payload")
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Invalid signature")
+
+    # Idempotency guard — Stripe retries on 5xx, so skip already-processed events
+    if _is_event_processed(event["id"]):
+        return {"status": "already_processed"}
 
     # Handle different event types
     if event["type"] == "checkout.session.completed":

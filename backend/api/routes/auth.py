@@ -12,6 +12,7 @@ from pydantic import ConfigDict, BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, timedelta
 
+
 from database.connection import get_db
 from database.models import User, SubscriptionTier, SubscriptionStatus
 from services.auth_service import (

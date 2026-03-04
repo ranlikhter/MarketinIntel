@@ -7,6 +7,9 @@ It handles HTTP requests from the frontend and returns data.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import os
 from dotenv import load_dotenv
 
@@ -15,6 +18,7 @@ load_dotenv()
 
 # Import our API routes
 from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications, events, api_keys, workspaces, activity, promotions
+from api.limiter import limiter, AuthRateLimitMiddleware
 
 # Create the FastAPI application
 app = FastAPI(
@@ -24,6 +28,14 @@ app = FastAPI(
     docs_url="/docs",  # Swagger UI documentation at http://localhost:8000/docs
     redoc_url="/redoc"  # ReDoc documentation at http://localhost:8000/redoc
 )
+
+# Attach limiter to app state so route decorators can access it
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Global 200 req/hr cap (keyed by user or IP)
+app.add_middleware(SlowAPIMiddleware)
+# Strict 10 req/min cap on auth endpoints (brute-force protection)
+app.add_middleware(AuthRateLimitMiddleware)
 
 # Configure CORS (allows frontend to make requests to backend)
 # CORS = Cross-Origin Resource Sharing
