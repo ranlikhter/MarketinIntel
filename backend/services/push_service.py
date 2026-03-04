@@ -141,7 +141,7 @@ def send_push_to_user(
                 vapid_private_key=private_key,
                 vapid_claims={
                     "sub": _vapid_email(),
-                    "aud": sub.endpoint.split("/")[2] if "/" in sub.endpoint else sub.endpoint,
+                    "aud": (sub.endpoint.split("/")[2:3] or [sub.endpoint])[0],
                 },
                 ttl=86400 if not urgent else 3600,
             )

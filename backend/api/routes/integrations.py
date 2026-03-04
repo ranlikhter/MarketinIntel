@@ -48,7 +48,8 @@ class ImportResult(BaseModel):
 async def import_from_xml(
     file: UploadFile = File(...),
     format_type: str = Form('auto'),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Import products from XML file
@@ -354,7 +355,10 @@ async def push_price_woocommerce(
 
 
 @router.post("/push-price/shopify")
-async def push_price_shopify(request: ShopifyPricePushRequest):
+async def push_price_shopify(
+    request: ShopifyPricePushRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Update a product variant's price on a Shopify store.
     Matches variant by SKU first, then first variant of title-matched product.

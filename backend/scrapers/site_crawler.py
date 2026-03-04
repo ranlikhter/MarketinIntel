@@ -205,9 +205,8 @@ class SiteCrawler:
 
                 elif page_type == "category":
                     self.category_urls.add(url)
-                    logger.debug("  → category (%d links)", 0)
-
                     links = self._extract_links(soup, url)
+                    logger.debug("  → category (%d links)", len(links))
                     for link in links:
                         if _PRODUCT_URL_RE.search(link) and link not in self.visited_urls:
                             self.visited_urls.add(link)

@@ -141,15 +141,17 @@ class ScraperManager:
         """Search for products on a specific website."""
         scraper = self.specialized_scrapers.get(website)
         if not scraper:
-            return {"error": f"No specialized scraper for {website}."}
+            logger.warning("No specialized scraper for %s", website)
+            return []
         if isinstance(scraper, AmazonScraper):
             results = await scraper.search_products(query, max_results)
             # Fall back to Apify if local search was blocked by CAPTCHA
             if isinstance(results, dict) and "CAPTCHA" in results.get("error", ""):
                 if self.apify_scraper.is_configured:
                     return await self.apify_scraper.search_products(query, max_results)
-            return results
-        return {"error": "Search not implemented for this website"}
+            return results if isinstance(results, list) else []
+        logger.warning("Search not implemented for %s", website)
+        return []
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 

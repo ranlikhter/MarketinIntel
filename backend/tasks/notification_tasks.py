@@ -332,6 +332,18 @@ def send_price_drop_alert(self, product_id: int, match_id: int):
         }
         logger.info("Price drop alert for %s: $%s", product.title, match.latest_price)
 
+        # Fetch the two most recent price history entries to compute the actual change
+        recent_history = (
+            self.db.query(PriceHistory)
+            .filter(PriceHistory.match_id == match_id)
+            .order_by(PriceHistory.timestamp.desc())
+            .limit(2)
+            .all()
+        )
+        new_price = match.latest_price or 0
+        old_price = recent_history[1].price if len(recent_history) >= 2 else new_price
+        change_pct = round(((new_price - old_price) / old_price) * 100, 1) if old_price else 0
+
         product_url = f"{_FRONTEND_URL}/products/{product_id}"
         alert_rules = (
             self.db.query(PriceAlert)
@@ -348,9 +360,9 @@ def send_price_drop_alert(self, product_id: int, match_id: int):
                 "to_email": rule.email,
                 "product_title": product.title,
                 "competitor": match.competitor_name,
-                "old_price": match.latest_price or 0,
-                "new_price": match.latest_price or 0,
-                "change_pct": 0,
+                "old_price": old_price,
+                "new_price": new_price,
+                "change_pct": change_pct,
                 "product_url": product_url,
             })
             for rule in alert_rules if rule.email
