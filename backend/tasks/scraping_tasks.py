@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 
 from celery import Task
 from celery_app import celery_app
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database.connection import SessionLocal
@@ -132,6 +133,41 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         matches_found = 0
         now = datetime.utcnow()
 
+        # ── Pre-batch DB reads so the item loop makes zero extra queries ──────
+        # 1. All existing competitor matches for this product, keyed by URL
+        existing_by_url = {
+            m.competitor_url: m
+            for m in self.db.query(CompetitorMatch).filter(
+                CompetitorMatch.monitored_product_id == product_id
+            ).all()
+        }
+
+        # 2. Latest recorded price per match (for price-change deduplication).
+        #    Uses a MAX(timestamp) subquery — SQLite-compatible.
+        existing_latest_price: dict[int, float] = {}
+        if existing_by_url:
+            existing_ids = [m.id for m in existing_by_url.values()]
+            subq = (
+                self.db.query(
+                    PriceHistory.match_id,
+                    func.max(PriceHistory.timestamp).label("max_ts"),
+                )
+                .filter(PriceHistory.match_id.in_(existing_ids))
+                .group_by(PriceHistory.match_id)
+                .subquery()
+            )
+            for row in (
+                self.db.query(PriceHistory.match_id, PriceHistory.price)
+                .join(
+                    subq,
+                    (PriceHistory.match_id == subq.c.match_id)
+                    & (PriceHistory.timestamp == subq.c.max_ts),
+                )
+                .all()
+            ):
+                existing_latest_price[row.match_id] = row.price
+        # ─────────────────────────────────────────────────────────────────────
+
         for item in items:
             candidate_dict = {
                 "title": item.get("title", ""),
@@ -152,10 +188,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             match_method = _detect_match_method(product_dict, candidate_dict)
             brand_equal = _brands_match(product_dict, candidate_dict)
 
-            existing = self.db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product_id,
-                CompetitorMatch.competitor_url == item_url,
-            ).first()
+            existing = existing_by_url.get(item_url)
 
             if existing:
                 existing.latest_price = item.get("price")
@@ -263,6 +296,15 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 self.db.flush()
 
             if item.get("price"):
+                # Skip the insert if price hasn't changed — avoids filling
+                # price_history with identical rows on every hourly scrape cycle.
+                last_price = existing_latest_price.get(match.id)
+                if last_price is not None and last_price == item["price"]:
+                    _upsert_promotions(self.db, match.id, item.get("promotions") or [])
+                    matches_found += 1
+                    continue
+                existing_latest_price[match.id] = item["price"]  # keep cache current
+
                 self.db.add(PriceHistory(
                     match_id=match.id,
                     price=item["price"],

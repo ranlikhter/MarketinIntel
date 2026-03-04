@@ -120,6 +120,17 @@ def run_migrations():
         "ALTER TABLE price_history ADD COLUMN badge_amazons_choice INTEGER",
         "ALTER TABLE price_history ADD COLUMN badge_best_seller INTEGER",
         "ALTER TABLE price_history ADD COLUMN is_sponsored INTEGER",
+        # v10 — composite indexes (biggest query performance win: eliminates full-table scans)
+        # competitor_matches: the two most-queried paths are (product→url) and (product→price)
+        "CREATE INDEX IF NOT EXISTS idx_cm_product_url ON competitor_matches(monitored_product_id, competitor_url)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_product_price ON competitor_matches(monitored_product_id, latest_price)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_last_scraped ON competitor_matches(last_scraped_at)",
+        # price_history: every alert/notification check filters on match_id then sorts by timestamp
+        "CREATE INDEX IF NOT EXISTS idx_ph_match_time ON price_history(match_id, timestamp DESC)",
+        # price_alerts: every alert check filters on (product_id, enabled)
+        "CREATE INDEX IF NOT EXISTS idx_pa_product_enabled ON price_alerts(product_id, enabled)",
+        # products_monitored: user owns many products; user_id queries are extremely common
+        "CREATE INDEX IF NOT EXISTS idx_pm_user_created ON products_monitored(user_id, created_at DESC)",
     ]
     with engine.connect() as conn:
         for sql in migrations:

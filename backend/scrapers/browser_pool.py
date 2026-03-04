@@ -11,7 +11,6 @@ Shared scraper infrastructure for optimal performance.
 import asyncio
 import contextlib
 import logging
-import random
 import time
 from typing import Dict, List, Optional
 
@@ -52,6 +51,7 @@ class BrowserPool:
         self._semaphore: Optional[asyncio.Semaphore] = None
         self._lock = asyncio.Lock()
         self._started = False
+        self._rr_index: int = 0   # round-robin pointer for browser selection
 
     async def start(self):
         """Launch all browsers. Called automatically on first acquire_page()."""
@@ -87,7 +87,10 @@ class BrowserPool:
 
         viewport = viewport or {"width": 1920, "height": 1080}
         async with self._semaphore:
-            browser = random.choice(self._browsers)
+            # Round-robin distributes load evenly; random.choice could pile
+            # everything onto one browser when pool_size > 1.
+            browser = self._browsers[self._rr_index % len(self._browsers)]
+            self._rr_index += 1
             ctx_kwargs: dict = {"viewport": viewport}
             if user_agent:
                 ctx_kwargs["user_agent"] = user_agent
@@ -241,4 +244,7 @@ class ResponseCache:
 
 circuit_breaker = CircuitBreaker(failure_threshold=5, recovery_timeout=300)
 rate_limiter = DomainRateLimiter(requests_per_minute=20)
-response_cache = ResponseCache(ttl_seconds=300)
+# 3600 s (1 h) TTL: if the same URL is queued again within an hour we return
+# the cached scrape instead of hitting the live page.  5 min was too short —
+# multiple Celery workers triggered on the same product would both hit Amazon.
+response_cache = ResponseCache(ttl_seconds=3600)

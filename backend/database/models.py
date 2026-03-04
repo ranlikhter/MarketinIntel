@@ -6,7 +6,7 @@ Think of this as creating blueprints for our data storage.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, JSON
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, JSON, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 import enum
@@ -743,3 +743,20 @@ class CompetitorPromotion(Base):
 
     def __repr__(self):
         return f"<CompetitorPromotion(id={self.id}, type='{self.promo_type}', desc='{self.description[:40]}')>"
+
+
+# ── Composite indexes ──────────────────────────────────────────────────────────
+# Defined here (not inside __table_args__) so they work with SQLAlchemy's
+# create_all() on fresh databases.  The same CREATE INDEX statements are also
+# in setup.py migrations so existing databases are upgraded automatically.
+
+# competitor_matches — the two hottest query paths
+Index("idx_cm_product_url",   CompetitorMatch.monitored_product_id, CompetitorMatch.competitor_url)
+Index("idx_cm_product_price", CompetitorMatch.monitored_product_id, CompetitorMatch.latest_price)
+Index("idx_cm_last_scraped",  CompetitorMatch.last_scraped_at)
+
+# price_history — every alert and notification check sorts by (match_id, timestamp DESC)
+Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp)
+
+# products_monitored — user's product list is the most common list view
+Index("idx_pm_user_created", ProductMonitored.user_id, ProductMonitored.created_at)
