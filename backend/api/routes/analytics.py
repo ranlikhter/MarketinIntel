@@ -10,8 +10,14 @@ from datetime import datetime
 
 from database.connection import get_db
 from services.price_analytics import PriceAnalytics
+from services.cache_service import get_cached
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+# Cache TTLs
+_TRENDLINE_TTL = 3600   # 1 hour  — changes only on new scrape
+_COMPARE_TTL   = 3600   # 1 hour
+_ALERTS_TTL    = 300    # 5 min   — alert status is more time-sensitive
 
 
 @router.get("/products/{product_id}/trendline")
@@ -30,10 +36,9 @@ async def get_product_trendline(
     - **start_date**: Optional custom start date (YYYY-MM-DD)
     - **end_date**: Optional custom end date (YYYY-MM-DD)
 
-    Returns daily price trends, insights, and recommendations
+    Returns daily price trends, insights, and recommendations.
+    Results are cached for 1 hour and invalidated on new scrape data.
     """
-    analytics = PriceAnalytics(db)
-
     # If custom dates provided, calculate days between them
     if start_date and end_date:
         try:
@@ -46,8 +51,10 @@ async def get_product_trendline(
                 'error': 'Invalid date format. Use YYYY-MM-DD'
             }
 
-    result = analytics.get_product_trendline(product_id=product_id, days=days)
-    return result
+    cache_key = f"analytics:trendline:{product_id}:{days}"
+    analytics = PriceAnalytics(db)
+    return get_cached(cache_key, _TRENDLINE_TTL,
+                      lambda: analytics.get_product_trendline(product_id=product_id, days=days))
 
 
 @router.get("/products/{product_id}/compare")
@@ -62,11 +69,12 @@ async def compare_competitors(
     - **product_id**: Product to analyze
     - **days**: Number of days to look back (default: 7)
 
-    Returns ranked comparison by average price
+    Returns ranked comparison by average price. Cached for 1 hour.
     """
+    cache_key = f"analytics:compare:{product_id}:{days}"
     analytics = PriceAnalytics(db)
-    result = analytics.get_competitor_comparison(product_id=product_id, days=days)
-    return result
+    return get_cached(cache_key, _COMPARE_TTL,
+                      lambda: analytics.get_competitor_comparison(product_id=product_id, days=days))
 
 
 @router.get("/products/{product_id}/alerts")
@@ -81,11 +89,12 @@ async def get_price_alerts(
     - **product_id**: Product to check
     - **threshold**: Percentage change to trigger alert (default: 5%)
 
-    Returns alerts for significant price changes in last 24h
+    Returns alerts for significant price changes in last 24h. Cached for 5 minutes.
     """
+    cache_key = f"analytics:alerts:{product_id}:{threshold}"
     analytics = PriceAnalytics(db)
-    result = analytics.get_price_alerts(product_id=product_id, threshold_pct=threshold)
-    return result
+    return get_cached(cache_key, _ALERTS_TTL,
+                      lambda: analytics.get_price_alerts(product_id=product_id, threshold_pct=threshold))
 
 
 @router.get("/products/{product_id}/date-range")
@@ -171,3 +180,19 @@ async def get_date_range_comparison(
             'success': False,
             'error': str(e)
         }
+
+
+@router.post("/snapshots")
+async def calculate_daily_snapshots(db: Session = Depends(get_db)):
+    """Calculate daily price snapshots (async background task)"""
+    from tasks.analytics_tasks import calculate_daily_snapshots as task
+    t = task.delay()
+    return {"success": True, "task_id": t.id, "message": "Snapshot calculation queued"}
+
+
+@router.post("/update")
+async def update_analytics(db: Session = Depends(get_db)):
+    """Recalculate all analytics (async background task)"""
+    from tasks.analytics_tasks import update_all_analytics as task
+    t = task.delay()
+    return {"success": True, "task_id": t.id, "message": "Analytics update queued"}

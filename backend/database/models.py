@@ -296,6 +296,9 @@ class PriceAlert(Base):
     last_triggered_at = Column(DateTime, nullable=True)  # When was this alert last sent
     trigger_count = Column(Integer, default=0)  # How many times this alert has fired
 
+    # Snooze — silence an alert temporarily without deleting it
+    snoozed_until = Column(DateTime, nullable=True)  # Null = not snoozed
+
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -324,8 +327,11 @@ class PriceAlert(Base):
             return current_hour >= self.quiet_hours_start or current_hour < self.quiet_hours_end
 
     def can_trigger(self) -> bool:
-        """Check if alert can be triggered (not in cooldown, not in quiet hours)"""
+        """Check if alert can be triggered (not snoozed, not in cooldown, not in quiet hours)"""
         if not self.enabled:
+            return False
+
+        if self.snoozed_until and datetime.utcnow() < self.snoozed_until:
             return False
 
         if self.is_in_quiet_hours():

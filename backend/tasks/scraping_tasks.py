@@ -349,6 +349,15 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         self.db.commit()
         logger.info("Scraped product %d: %d match(es)", product_id, matches_found)
 
+        # Invalidate analytics cache so next request gets fresh data
+        try:
+            from services.cache_service import invalidate_cache
+            invalidate_cache(f"analytics:trendline:{product_id}:*")
+            invalidate_cache(f"analytics:compare:{product_id}:*")
+            invalidate_cache(f"analytics:alerts:{product_id}:*")
+        except Exception:
+            pass  # Cache invalidation is best-effort
+
         return {
             "success": True,
             "product_id": product_id,
