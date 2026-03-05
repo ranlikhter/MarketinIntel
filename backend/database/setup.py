@@ -184,6 +184,30 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_nl_alert_sent ON notification_logs(alert_id, sent_at)",
         "CREATE INDEX IF NOT EXISTS idx_ak_key_active ON api_keys(key, is_active)",
         "CREATE INDEX IF NOT EXISTS idx_cp_match_end ON competitor_promotions(match_id, end_date)",
+
+        # v13 — custom dashboards
+        """CREATE TABLE IF NOT EXISTS dashboards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_db_user ON dashboards(user_id)",
+        """CREATE TABLE IF NOT EXISTS dashboard_widgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dashboard_id INTEGER NOT NULL REFERENCES dashboards(id) ON DELETE CASCADE,
+            widget_type TEXT NOT NULL,
+            title TEXT,
+            position INTEGER NOT NULL DEFAULT 0,
+            size TEXT NOT NULL DEFAULT 'medium',
+            config TEXT NOT NULL DEFAULT '{}',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_dw_dashboard ON dashboard_widgets(dashboard_id, position)",
     ]
     with engine.connect() as conn:
         for sql in migrations:

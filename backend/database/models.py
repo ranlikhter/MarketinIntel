@@ -452,6 +452,7 @@ class User(Base):
     push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
     notification_logs = relationship("NotificationLog", back_populates="user", cascade="all, delete-orphan")
     competitor_websites = relationship("CompetitorWebsite", back_populates="user", cascade="all, delete-orphan")
+    dashboards = relationship("Dashboard", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -935,6 +936,75 @@ class KeywordRank(Base):
 
     def __repr__(self):
         return f"<KeywordRank(product_id={self.product_id}, keyword='{self.keyword}', rank={self.organic_rank})>"
+
+
+class Dashboard(Base):
+    """
+    Table: dashboards
+    A named canvas that holds a collection of chart/KPI widgets.
+    Each user can own multiple dashboards (default one is shown on login).
+    """
+    __tablename__ = "dashboards"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name        = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    is_default  = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user    = relationship("User", back_populates="dashboards")
+    widgets = relationship("DashboardWidget", back_populates="dashboard",
+                           cascade="all, delete-orphan",
+                           order_by="DashboardWidget.position")
+
+    def __repr__(self):
+        return f"<Dashboard(id={self.id}, name='{self.name}')>"
+
+
+class DashboardWidget(Base):
+    """
+    Table: dashboard_widgets
+    A single chart or KPI card placed on a dashboard.
+
+    widget_type options:
+      bubble_chart       — Competitive Positioning (price vs rating, sized by reviews)
+      price_history      — Multi-line price trendlines with event overlays
+      radar              — Listing Quality spider chart
+      calendar_heatmap   — Price-change calendar (GitHub-style intensity grid)
+      momentum_scatter   — Market Momentum (price Δ% vs review velocity)
+      kpi_cards          — Row of KPI summary cards
+      pie_chart          — Market share / distribution pie/doughnut
+      bar_chart          — Price comparison bar chart
+
+    size options: small | medium | large | tall-medium | tall-large
+
+    config JSON schema (all fields optional):
+      product_id      : int     — which product to visualize
+      days            : int     — lookback window (default 30)
+      metric          : str     — price | effective_price | bsr | rating | review_count
+      competitors     : [str]   — filter to specific competitor names (empty = all)
+      color_scheme    : str     — blue | green | purple | orange | rainbow
+      show_legend     : bool
+      pie_metric      : str     — fulfillment_type | price_range | stock_status | badges
+    """
+    __tablename__ = "dashboard_widgets"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False)
+    widget_type  = Column(String(50),  nullable=False)
+    title        = Column(String(200), nullable=True)
+    position     = Column(Integer,     nullable=False, default=0)
+    size         = Column(String(20),  nullable=False, default="medium")
+    config       = Column(JSON,        nullable=False, default=dict)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dashboard = relationship("Dashboard", back_populates="widgets")
+
+    def __repr__(self):
+        return f"<DashboardWidget(type='{self.widget_type}', dashboard_id={self.dashboard_id})>"
 
 
 class PriceDailySnapshot(Base):

@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import our API routes
-from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications, events, api_keys, workspaces, activity, promotions, ai, competitor_dna, product_health, seller_intel, listing_quality, keyword_ranks
+from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications, events, api_keys, workspaces, activity, promotions, ai, competitor_dna, product_health, seller_intel, listing_quality, keyword_ranks, dashboards
 from api.limiter import limiter, AuthRateLimitMiddleware
 
 # Create the FastAPI application
@@ -78,6 +78,7 @@ app.include_router(product_health.router,   prefix="/api", tags=["Product Health
 app.include_router(seller_intel.router,     prefix="/api", tags=["Seller Intelligence"])
 app.include_router(listing_quality.router,  prefix="/api", tags=["Listing Quality Intelligence"])
 app.include_router(keyword_ranks.router,    prefix="/api", tags=["Keyword Rank Tracking"])
+app.include_router(dashboards.router,       prefix="/api", tags=["Custom Dashboards"])
 
 
 @app.get("/")
