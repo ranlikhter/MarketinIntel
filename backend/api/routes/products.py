@@ -8,10 +8,10 @@ These endpoints handle all operations related to products:
 - Triggering scrapes
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from typing import List
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from datetime import datetime
 import asyncio
 
@@ -84,8 +84,7 @@ class ProductResponse(BaseModel):
     price_position: str | None = None  # 'cheapest' | 'expensive' | 'mid'
     price_change_pct: float | None = None  # % change vs 7 days ago
 
-    class Config:
-        from_attributes = True  # Allows Pydantic to work with SQLAlchemy models
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CompetitorMatchResponse(BaseModel):
@@ -121,8 +120,7 @@ class CompetitorMatchResponse(BaseModel):
     total_price: float | None = None
     promotion_label: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PriceHistoryResponse(BaseModel):
@@ -143,8 +141,7 @@ class PriceHistoryResponse(BaseModel):
     is_buy_box_winner: bool | None = None
     scrape_quality: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # API ENDPOINTS
@@ -187,6 +184,15 @@ def create_product(
 
     db.add(db_product)
     db.flush()
+
+    # Record initial price in history if provided
+    if db_product.my_price is not None:
+        db.add(MyPriceHistory(
+            product_id=db_product.id,
+            old_price=None,
+            new_price=db_product.my_price,
+        ))
+
     log_activity(db, current_user.id, "product.create", "product",
                  f"Added product '{db_product.title}' to monitoring",
                  entity_type="product", entity_id=db_product.id, entity_name=db_product.title,
@@ -213,19 +219,20 @@ def create_product(
 @router.get("/", response_model=List[ProductResponse])
 def get_all_products(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200, description="Max products to return"),
+    offset: int = Query(0, ge=0, description="Number of products to skip"),
 ):
     """
     GET /products
 
-    Get all monitored products for the authenticated user.
-    Returns a list of products with their competitor counts.
+    Get monitored products for the authenticated user (paginated).
+    Use `limit` and `offset` for pages; default page size is 50, max is 200.
     Requires authentication.
     """
-    # Only return products that belong to the current user
     products = db.query(ProductMonitored).filter(
         ProductMonitored.user_id == current_user.id
-    ).all()
+    ).order_by(ProductMonitored.created_at.desc()).offset(offset).limit(limit).all()
 
     from datetime import timedelta
 

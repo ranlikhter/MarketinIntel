@@ -1,6 +1,6 @@
 """
 Integration API endpoints for importing products
-Supports XML, WooCommerce, and Shopify imports
+Supports CSV, XML, WooCommerce, and Shopify imports
 """
 
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
@@ -9,6 +9,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 import tempfile
 import os
+import csv
+import io
 from datetime import datetime
 
 from database.connection import get_db
@@ -16,7 +18,7 @@ from database.models import ProductMonitored, StoreConnection, User
 from integrations.xml_parser import XMLProductParser
 from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
-from api.routes.auth import get_current_user
+from api.dependencies import get_current_user
 from services.activity_service import log_activity
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -48,7 +50,8 @@ class ImportResult(BaseModel):
 async def import_from_xml(
     file: UploadFile = File(...),
     format_type: str = Form('auto'),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Import products from XML file
@@ -354,7 +357,10 @@ async def push_price_woocommerce(
 
 
 @router.post("/push-price/shopify")
-async def push_price_shopify(request: ShopifyPricePushRequest):
+async def push_price_shopify(
+    request: ShopifyPricePushRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Update a product variant's price on a Shopify store.
     Matches variant by SKU first, then first variant of title-matched product.
@@ -424,6 +430,172 @@ async def test_shopify_connection(connection: ShopifyConnection):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── CSV Import ───────────────────────────────────────────────────────────────
+
+# Accepted column name aliases (case-insensitive)
+_CSV_FIELD_MAP = {
+    "title": "title", "name": "title", "product_name": "title", "product title": "title",
+    "sku": "sku", "product_sku": "sku",
+    "brand": "brand", "manufacturer": "brand",
+    "my_price": "my_price", "price": "my_price", "selling_price": "my_price", "sale_price": "my_price",
+    "cost_price": "cost_price", "cost": "cost_price", "cogs": "cost_price",
+    "mpn": "mpn", "manufacturer_part_number": "mpn",
+    "upc": "upc_ean", "ean": "upc_ean", "upc_ean": "upc_ean", "barcode": "upc_ean",
+    "asin": "asin",
+    "category": "category",
+    "description": "description",
+    "image_url": "image_url", "image": "image_url", "image_link": "image_url",
+    "model_number": "model_number", "model": "model_number",
+    "keywords": "keywords",
+}
+
+
+@router.post("/import/csv", response_model=ImportResult)
+async def import_from_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Import products from a CSV file.
+
+    **Required column:** `title` (also accepted: `name`, `product_name`)
+
+    **Optional columns:** `sku`, `brand`, `my_price`, `cost_price`, `mpn`,
+    `upc_ean` (or `upc`/`ean`/`barcode`), `asin`, `category`, `description`,
+    `image_url`, `model_number`, `keywords`
+
+    Column names are case-insensitive. Duplicate products (same SKU or title)
+    are skipped rather than overwritten.
+
+    Download a sample template from `GET /integrations/sample/csv`.
+    """
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="File must be a .csv file")
+
+    try:
+        raw = await file.read()
+        text = raw.decode("utf-8-sig")  # strip BOM if present
+        reader = csv.DictReader(io.StringIO(text))
+
+        # Normalise header names
+        if not reader.fieldnames:
+            return ImportResult(success=False, products_imported=0, products_skipped=0,
+                                errors=["CSV file appears to be empty"])
+
+        header_map: dict[str, str] = {}
+        for col in reader.fieldnames:
+            norm = col.strip().lower().replace(" ", "_")
+            if norm in _CSV_FIELD_MAP:
+                header_map[col] = _CSV_FIELD_MAP[norm]
+
+        if "title" not in header_map.values():
+            return ImportResult(
+                success=False, products_imported=0, products_skipped=0,
+                errors=["CSV must contain a 'title' (or 'name' / 'product_name') column"]
+            )
+
+        imported_count = 0
+        skipped_count = 0
+        errors: List[str] = []
+
+        for row in reader:
+            # Map raw CSV row to canonical field names
+            mapped: dict = {}
+            for raw_col, canonical in header_map.items():
+                val = row.get(raw_col, "").strip()
+                if val:
+                    mapped[canonical] = val
+
+            title = mapped.get("title")
+            if not title:
+                skipped_count += 1
+                continue
+
+            try:
+                # Dedup: same SKU or same title
+                existing = None
+                if mapped.get("sku"):
+                    existing = db.query(ProductMonitored).filter(
+                        ProductMonitored.user_id == current_user.id,
+                        ProductMonitored.sku == mapped["sku"]
+                    ).first()
+                if not existing:
+                    existing = db.query(ProductMonitored).filter(
+                        ProductMonitored.user_id == current_user.id,
+                        ProductMonitored.title == title
+                    ).first()
+                if existing:
+                    skipped_count += 1
+                    continue
+
+                def _float(val):
+                    try:
+                        return float(val) if val else None
+                    except ValueError:
+                        return None
+
+                new_product = ProductMonitored(
+                    user_id=current_user.id,
+                    title=title,
+                    sku=mapped.get("sku"),
+                    brand=mapped.get("brand"),
+                    my_price=_float(mapped.get("my_price")),
+                    cost_price=_float(mapped.get("cost_price")),
+                    mpn=mapped.get("mpn"),
+                    upc_ean=mapped.get("upc_ean"),
+                    asin=mapped.get("asin"),
+                    category=mapped.get("category"),
+                    description=mapped.get("description"),
+                    image_url=mapped.get("image_url"),
+                    model_number=mapped.get("model_number"),
+                    keywords=mapped.get("keywords"),
+                )
+                db.add(new_product)
+                imported_count += 1
+
+            except Exception as exc:
+                errors.append(f"Row '{title}': {str(exc)}")
+
+        db.commit()
+        log_activity(
+            db, current_user.id, "import.csv", "product",
+            f"Imported {imported_count} products via CSV ({skipped_count} skipped)",
+            metadata={"imported": imported_count, "skipped": skipped_count, "errors": len(errors)}
+        )
+
+        return ImportResult(
+            success=True,
+            products_imported=imported_count,
+            products_skipped=skipped_count,
+            errors=errors,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return ImportResult(success=False, products_imported=0, products_skipped=0, errors=[str(exc)])
+
+
+@router.get("/sample/csv")
+async def get_sample_csv():
+    """
+    Download a sample CSV template showing all supported columns.
+
+    Use this as a starting point for bulk product imports.
+    """
+    from fastapi.responses import Response
+    header = "title,sku,brand,my_price,cost_price,mpn,upc_ean,asin,category,description,image_url,keywords"
+    row1   = 'Sony WH-1000XM5 Headphones,WH1000XM5,Sony,349.99,180.00,WH1000XM5/B,094922563484,B09XS7JWHH,Electronics > Headphones,Premium noise-canceling wireless headphones,https://example.com/wh1000xm5.jpg,"sony headphones wireless noise canceling"'
+    row2   = 'Apple AirPods Pro (2nd Gen),AIRPODS-PRO-2,Apple,249.99,120.00,MQD83LL/A,194253378297,B0BDHWDR12,Electronics > Earbuds,Active noise cancellation wireless earbuds,https://example.com/airpods-pro.jpg,"apple airpods wireless earbuds"'
+    csv_content = "\n".join([header, row1, row2])
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=marketintel_import_template.csv"},
+    )
 
 
 # Get sample XML format

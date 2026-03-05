@@ -148,7 +148,7 @@ async def rematch_product_with_ai(
         raise HTTPException(status_code=404, detail="Product not found")
 
     matches = db.query(CompetitorMatch).filter(
-        CompetitorMatch.product_id == product_id
+        CompetitorMatch.monitored_product_id == product_id
     ).all()
 
     if not matches:

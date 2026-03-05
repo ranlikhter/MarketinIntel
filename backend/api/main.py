@@ -7,6 +7,9 @@ It handles HTTP requests from the frontend and returns data.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 import os
 from dotenv import load_dotenv
 
@@ -14,7 +17,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import our API routes
-from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications, events, api_keys, workspaces, activity, promotions
+from api.routes import products, competitors, integrations, crawler, analytics, scheduler, alerts, ai_matching, auth, billing, insights, filters, repricing, competitor_intel, forecasting, discovery, notifications, events, api_keys, workspaces, activity, promotions, ai, competitor_dna, product_health, seller_intel, listing_quality, keyword_ranks
+from api.limiter import limiter, AuthRateLimitMiddleware
 
 # Create the FastAPI application
 app = FastAPI(
@@ -24,6 +28,14 @@ app = FastAPI(
     docs_url="/docs",  # Swagger UI documentation at http://localhost:8000/docs
     redoc_url="/redoc"  # ReDoc documentation at http://localhost:8000/redoc
 )
+
+# Attach limiter to app state so route decorators can access it
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Global 200 req/hr cap (keyed by user or IP)
+app.add_middleware(SlowAPIMiddleware)
+# Strict 10 req/min cap on auth endpoints (brute-force protection)
+app.add_middleware(AuthRateLimitMiddleware)
 
 # Configure CORS (allows frontend to make requests to backend)
 # CORS = Cross-Origin Resource Sharing
@@ -46,8 +58,8 @@ app.include_router(repricing.router, prefix="/api", tags=["Repricing & Bulk Acti
 app.include_router(competitor_intel.router, prefix="/api", tags=["Competitor Intelligence"])
 app.include_router(forecasting.router, prefix="/api", tags=["Forecasting & Analytics"])
 app.include_router(discovery.router, prefix="/api", tags=["Auto Discovery"])
-app.include_router(products.router, prefix="/products", tags=["Products"])
-app.include_router(competitors.router, prefix="/competitors", tags=["Competitor Websites"])
+app.include_router(products.router, prefix="/api/products", tags=["Products"])
+app.include_router(competitors.router, prefix="/api/competitors", tags=["Competitor Websites"])
 app.include_router(integrations.router, prefix="/api", tags=["Integrations"])
 app.include_router(crawler.router, prefix="/api", tags=["Site Crawler"])
 app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
@@ -60,6 +72,12 @@ app.include_router(api_keys.router, prefix="/api", tags=["API Keys"])
 app.include_router(workspaces.router, prefix="/api", tags=["Workspaces"])
 app.include_router(activity.router, prefix="/api", tags=["Activity Log"])
 app.include_router(promotions.router, prefix="/api", tags=["Competitor Promotions"])
+app.include_router(ai.router, prefix="/api", tags=["AI Intelligence"])
+app.include_router(competitor_dna.router,   prefix="/api", tags=["Competitor Strategy DNA"])
+app.include_router(product_health.router,   prefix="/api", tags=["Product Health & Review Velocity"])
+app.include_router(seller_intel.router,     prefix="/api", tags=["Seller Intelligence"])
+app.include_router(listing_quality.router,  prefix="/api", tags=["Listing Quality Intelligence"])
+app.include_router(keyword_ranks.router,    prefix="/api", tags=["Keyword Rank Tracking"])
 
 
 @app.get("/")
@@ -78,11 +96,60 @@ def read_root():
 
 @app.get("/health")
 def health_check():
-    """
-    Health check endpoint.
-    Used to verify the API is running properly.
-    """
+    """Shallow liveness probe — always fast, used by load-balancers."""
     return {"status": "healthy"}
+
+
+@app.get("/health/deep")
+async def deep_health_check():
+    """
+    Deep readiness probe — tests every external dependency.
+    Returns HTTP 200 when all checks pass, 503 when any are degraded.
+    Each sub-check has a short timeout so the endpoint never hangs.
+    """
+    from fastapi.responses import JSONResponse
+    from sqlalchemy import text as sql_text
+    from database.connection import SessionLocal
+
+    checks: dict = {}
+
+    # Database
+    try:
+        _db = SessionLocal()
+        _db.execute(sql_text("SELECT 1"))
+        _db.close()
+        checks["database"] = "ok"
+    except Exception as exc:
+        checks["database"] = f"error: {exc}"
+
+    # Redis
+    try:
+        import redis as _redis
+        _redis_url = (
+            f"redis://{os.getenv('REDIS_HOST', 'localhost')}"
+            f":{os.getenv('REDIS_PORT', '6379')}"
+            f"/{os.getenv('REDIS_DB', '0')}"
+        )
+        _r = _redis.Redis.from_url(_redis_url, socket_connect_timeout=2)
+        _r.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+
+    # Celery workers
+    try:
+        from celery_app import celery_app as _celery
+        _workers = _celery.control.inspect(timeout=2.0).ping()
+        checks["celery"] = "ok" if _workers else "no_workers"
+    except Exception as exc:
+        checks["celery"] = f"error: {exc}"
+
+    overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=200 if overall == "healthy" else 503,
+        content={"status": overall, "checks": checks},
+    )
 
 
 if __name__ == "__main__":

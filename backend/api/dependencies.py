@@ -106,9 +106,36 @@ async def get_current_active_verified_user(
     return current_user
 
 
+def _enforce_trial_limits(user: User) -> None:
+    """
+    Downgrade usage limits to FREE-tier values when a trial has expired.
+
+    Called by check_usage_limit so that expired-trial users cannot exceed
+    free-tier quotas even if their DB limits were set to a higher value when
+    the trial was created.  The DB record is intentionally NOT mutated here
+    to keep the function read-only; billing webhooks handle permanent tier
+    changes.
+    """
+    from database.models import SubscriptionStatus
+    from datetime import datetime
+
+    if (
+        user.trial_ends_at is not None
+        and user.trial_ends_at < datetime.utcnow()
+        and user.subscription_status == SubscriptionStatus.TRIALING
+    ):
+        # Temporarily cap limits to free-tier values for this request
+        user.products_limit = min(user.products_limit, 5)
+        user.alerts_limit = min(user.alerts_limit, 1)
+        user.matches_limit = min(user.matches_limit, 10)
+
+
 def check_usage_limit(user: User, resource_type: str, db: Session):
     """
-    Check if user has reached their usage limit for a resource
+    Check if user has reached their usage limit for a resource.
+
+    Also enforces free-tier limits for users whose trial has expired but
+    whose subscription_status hasn't been updated yet by a billing webhook.
 
     Args:
         user: User object
@@ -121,6 +148,8 @@ def check_usage_limit(user: User, resource_type: str, db: Session):
     Example:
         check_usage_limit(current_user, "products", db)
     """
+    _enforce_trial_limits(user)
+
     from database.models import ProductMonitored, PriceAlert
 
     if resource_type == "products":

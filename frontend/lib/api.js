@@ -312,6 +312,70 @@ const api = {
   getPromotionStats: (days = 30) =>
     request(`/api/promotions/stats?days=${days}`),
 
+  // ─── Competitor Strategy DNA ──────────────────────────────────────────────────
+  getDnaProfiles: () =>
+    request('/api/competitor-dna/profiles'),
+  getDnaProfile: (competitorName) =>
+    request(`/api/competitor-dna/profiles/${encodeURIComponent(competitorName)}`),
+  getDnaStrikePredictions: () =>
+    request('/api/competitor-dna/strike-predictions'),
+  classifyPriceChange: (competitorName, productId, oldPrice, newPrice) =>
+    request('/api/competitor-dna/classify', {
+      method: 'POST',
+      body: JSON.stringify({
+        competitor_name: competitorName,
+        product_id: productId,
+        old_price: oldPrice,
+        new_price: newPrice,
+      }),
+    }),
+  simulateReprice: (productId, proposedPrice) =>
+    request('/api/competitor-dna/simulate', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, proposed_price: proposedPrice }),
+    }),
+
+  // ─── Product Health & Review Velocity ─────────────────────────────────────────
+  getPortfolioHealth: () =>
+    request('/api/product-health/portfolio'),
+  getProductHealth: (productId) =>
+    request(`/api/product-health/products/${productId}`),
+  getReviewVelocityTrend: (matchId, days = 30) =>
+    request(`/api/product-health/velocity/${matchId}?days=${days}`),
+
+  // ─── Seller Intelligence ──────────────────────────────────────────────────────
+  getSellerOverview: () =>
+    request('/api/seller-intel/overview'),
+  getAmazonThreats: () =>
+    request('/api/seller-intel/amazon-threats'),
+  getSellerProfile: (sellerName) =>
+    request(`/api/seller-intel/sellers/${encodeURIComponent(sellerName)}`),
+  getBuyboxVolatility: (productId) =>
+    request(`/api/seller-intel/buybox-volatility/${productId}`),
+
+  // ─── Listing Quality ─────────────────────────────────────────────────────────
+  getPortfolioListingGaps: () =>
+    request('/api/listing-quality/portfolio'),
+  getListingComparison: (productId) =>
+    request(`/api/listing-quality/products/${productId}`),
+  getListingTrends: (matchId, days = 60) =>
+    request(`/api/listing-quality/trends/${matchId}?days=${days}`),
+
+  // ─── Keyword Ranks ────────────────────────────────────────────────────────────
+  getPortfolioKeywords: () =>
+    request('/api/keyword-ranks/summary'),
+  getRankMovements: (days = 7) =>
+    request(`/api/keyword-ranks/movements?days=${days}`),
+  getProductKeywords: (productId) =>
+    request(`/api/keyword-ranks/products/${productId}`),
+  getKeywordTrend: (productId, keyword, days = 30) =>
+    request(`/api/keyword-ranks/trends/${productId}?keyword=${encodeURIComponent(keyword)}&days=${days}`),
+  addKeyword: (productId, keyword) =>
+    request(`/api/keyword-ranks/products/${productId}/keywords`, {
+      method: 'POST',
+      body: JSON.stringify({ keyword }),
+    }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

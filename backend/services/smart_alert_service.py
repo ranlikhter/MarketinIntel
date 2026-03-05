@@ -470,40 +470,71 @@ class SmartAlertService:
             logger.error(f"Failed to send Discord notification for alert {alert.id}: {e}")
 
     def _send_push_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send push notification (PWA) via Web Push / VAPID"""
+        """Send Web Push notifications to all of the alert owner's registered devices."""
         vapid_private_key = os.getenv('VAPID_PRIVATE_KEY')
-        vapid_public_key = os.getenv('VAPID_PUBLIC_KEY')
         vapid_claims_email = os.getenv('VAPID_CLAIMS_EMAIL', 'alerts@marketintel.com')
 
-        if not all([vapid_private_key, vapid_public_key]):
-            logger.warning(f"VAPID keys not configured – skipping push notification for alert {alert.id}")
+        if not vapid_private_key:
+            logger.warning("VAPID_PRIVATE_KEY not configured – skipping push for alert %s", alert.id)
             return
 
-        # Push subscription endpoint stored on the alert (or user) record would be needed.
-        # For now we log the intent; the frontend registers a subscription and stores it in the DB.
-        push_subscription = getattr(alert, 'push_subscription', None)
-        if not push_subscription:
-            logger.warning(f"No push subscription registered for alert {alert.id}")
+        if not alert.user_id:
+            logger.warning("Alert %s has no user_id – cannot look up push subscriptions", alert.id)
+            return
+
+        # Load all active push subscriptions for this user from the DB
+        from database.models import PushSubscription
+        subscriptions = (
+            self.db.query(PushSubscription)
+            .filter(
+                PushSubscription.user_id == alert.user_id,
+                PushSubscription.is_active == True,  # noqa: E712
+            )
+            .all()
+        )
+
+        if not subscriptions:
+            logger.debug("No active push subscriptions for user %s (alert %s)", alert.user_id, alert.id)
             return
 
         try:
             from pywebpush import webpush, WebPushException
             import json
-            payload = json.dumps({
-                "title": data['alert_name'],
-                "body": data['product_title'],
-                "url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
-            })
-            webpush(
-                subscription_info=push_subscription,
-                data=payload,
-                vapid_private_key=vapid_private_key,
-                vapid_claims={"sub": f"mailto:{vapid_claims_email}"}
-            )
         except ImportError:
-            logger.warning("pywebpush package not installed – skipping push notification")
-        except Exception as e:
-            logger.error(f"Failed to send push notification for alert {alert.id}: {e}")
+            logger.warning("pywebpush not installed – skipping push notification (pip install pywebpush)")
+            return
+
+        payload = json.dumps({
+            "title": data['alert_name'],
+            "body": data['product_title'],
+            "url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}",
+        })
+        vapid_claims = {"sub": f"mailto:{vapid_claims_email}"}
+
+        for sub in subscriptions:
+            subscription_info = {
+                "endpoint": sub.endpoint,
+                "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+            }
+            try:
+                webpush(
+                    subscription_info=subscription_info,
+                    data=payload,
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims,
+                )
+            except WebPushException as exc:
+                # HTTP 410 Gone means the subscription is no longer valid; deactivate it
+                if exc.response is not None and exc.response.status_code == 410:
+                    sub.is_active = False
+                    self.db.add(sub)
+                    logger.info("Deactivated expired push subscription %s for user %s", sub.id, sub.user_id)
+                else:
+                    logger.error("Push failed for sub %s (alert %s): %s", sub.id, alert.id, exc)
+            except Exception as exc:
+                logger.error("Push failed for sub %s (alert %s): %s", sub.id, alert.id, exc)
+
+        self.db.commit()
 
     # Digest Management
 

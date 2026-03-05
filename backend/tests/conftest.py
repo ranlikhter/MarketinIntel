@@ -19,6 +19,7 @@ os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
 from database.models import Base
@@ -26,10 +27,14 @@ from database.connection import get_db
 from api.main import app
 
 # ── In-memory engine shared by the test session ────────────────────────────────
+# StaticPool forces all engine.connect() calls to reuse the same underlying
+# connection so that tables created by create_tables() are visible to the
+# per-test db fixture (SQLite :memory: databases are per-connection by default).
 
 TEST_ENGINE = create_engine(
     "sqlite:///:memory:",
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=TEST_ENGINE)
 

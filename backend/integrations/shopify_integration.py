@@ -192,7 +192,7 @@ class ShopifyIntegration:
             if main_variant.get('price'):
                 try:
                     price = float(main_variant['price'])
-                except:
+                except (ValueError, TypeError):
                     pass
 
             # Get product type/category
@@ -381,7 +381,7 @@ class ShopifyIntegration:
             data = response.json()
             products_data = data.get('products', [])
 
-            return [self._parse_product(item) for item in products_data if self._parse_product(item)]
+            return [p for p in (self._parse_product(item) for item in products_data) if p]
 
         except Exception as e:
             logger.error(f"Error fetching collection products: {e}")
@@ -415,7 +415,7 @@ class ShopifyIntegration:
             data = response.json()
             products_data = data.get('products', [])
 
-            return [self._parse_product(item) for item in products_data if self._parse_product(item)]
+            return [p for p in (self._parse_product(item) for item in products_data) if p]
 
         except Exception as e:
             logger.error(f"Error searching Shopify products: {e}")
