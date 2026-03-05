@@ -27,6 +27,7 @@ from services.auth_service import (
     verify_password_reset_token
 )
 from services.email_service import email_service
+from services.token_blocklist import blocklist
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer()
@@ -397,7 +398,14 @@ async def change_password(
     user.hashed_password = hash_password(request.new_password)
     db.commit()
 
-    return {"success": True, "message": "Password changed successfully"}
+    # Revoke the current access token so it cannot be reused after a password
+    # change — the caller must log in again to get a fresh token.
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if jti:
+        blocklist.revoke(jti, exp)
+
+    return {"success": True, "message": "Password changed successfully. Please log in again."}
 
 
 @router.post("/verify-email")
@@ -516,13 +524,24 @@ async def reset_password(request: PasswordResetConfirm, db: Session = Depends(ge
 
 
 @router.post("/logout")
-async def logout():
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
     """
-    Logout (client-side token removal)
+    Logout — revokes the supplied access token server-side.
 
-    Server doesn't maintain session state, so logout is handled client-side
-    by removing the JWT token from storage.
+    The token's JTI is added to the Redis blocklist so it is rejected on
+    all future requests, even before its natural expiry.
     """
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    if payload:
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti:
+            blocklist.revoke(jti, exp)
+
     return {
         "success": True,
         "message": "Logged out successfully"

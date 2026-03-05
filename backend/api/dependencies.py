@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from database.connection import get_db
 from database.models import User
 from services.auth_service import verify_token
+from services.token_blocklist import blocklist
 
 security = HTTPBearer()
 
@@ -19,24 +20,11 @@ async def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """
-    Get the current authenticated user from JWT token
+    Get the current authenticated user from JWT token.
 
-    This dependency can be used in any route that requires authentication:
-
-    Example:
-        @router.get("/protected")
-        async def protected_route(current_user: User = Depends(get_current_user)):
-            return {"user_id": current_user.id}
-
-    Args:
-        credentials: JWT token from Authorization header
-        db: Database session
-
-    Returns:
-        User object of authenticated user
-
-    Raises:
-        HTTPException: If token is invalid or user not found
+    Also checks the Redis blocklist so tokens revoked on logout or
+    password-change are rejected immediately instead of remaining valid
+    until their natural expiry.
     """
     token = credentials.credentials
     payload = verify_token(token)
@@ -45,6 +33,15 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Blocklist check — reject revoked tokens
+    jti = payload.get("jti")
+    if jti and blocklist.is_revoked(jti):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

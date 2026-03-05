@@ -1,19 +1,27 @@
 """
 Site Crawler API Endpoints
-Automatically discover and scrape competitor websites
+Automatically discover and scrape competitor websites.
+
+Security:
+- All endpoints require authentication.
+- URLs are validated against SSRF to prevent crawling internal infrastructure.
+- Rate-limited to 10 crawl starts per hour (expensive operation).
 """
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
+from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite, User
 from scrapers.site_crawler import SiteCrawler
+from api.dependencies import get_current_user
+from api.limiter import limiter
+from services.ssrf_validator import validate_external_url
 
 logger = logging.getLogger(__name__)
 
@@ -37,90 +45,94 @@ class CrawlStatus(BaseModel):
     products_imported: int = 0
 
 
-# Global crawl status storage (in production, use Redis or database)
+# In-process crawl status store (use Redis/DB in production for multi-worker envs)
 crawl_status = {}
 
 
 @router.post("/start", response_model=CrawlStatus)
+@limiter.limit("10/hour")
 async def start_site_crawl(
-    request: CrawlRequest,
+    request: Request,
+    crawl_request: CrawlRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Start automatic site crawl to discover all products
+    Start automatic site crawl to discover all products.
 
-    - **base_url**: Competitor website URL
+    - **base_url**: Competitor website URL (must be a public, external host)
     - **max_products**: Maximum products to discover (default: 50)
     - **max_depth**: Crawl depth (default: 3)
     - **auto_import**: Automatically import discovered products (default: true)
-    - **competitor_name**: Name for competitor website
+    - **competitor_name**: Name for the competitor website entry
     """
     try:
-        base_url_str = str(request.base_url)
+        base_url_str = str(crawl_request.base_url)
 
-        # Check if competitor exists
+        # SSRF protection — block private/internal URLs
+        validate_external_url(base_url_str, field_name="base_url")
+
+        # Look up or create the competitor entry scoped to this user
         competitor = None
-        if request.competitor_name:
+        if crawl_request.competitor_name:
             competitor = db.query(CompetitorWebsite).filter(
-                CompetitorWebsite.name == request.competitor_name
+                CompetitorWebsite.name == crawl_request.competitor_name,
+                CompetitorWebsite.user_id == current_user.id,
             ).first()
 
             if not competitor:
-                # Create competitor entry
                 competitor = CompetitorWebsite(
-                    name=request.competitor_name,
+                    user_id=current_user.id,
+                    name=crawl_request.competitor_name,
                     base_url=base_url_str,
-                    website_type='auto_discovered'
+                    website_type="auto_discovered",
                 )
                 db.add(competitor)
                 db.commit()
                 db.refresh(competitor)
 
-        # Initialize crawler
+        # Initialize crawler and run
         crawler = SiteCrawler()
-
-        # Start crawl
         result = await crawler.crawl_site(
             base_url=base_url_str,
-            max_products=request.max_products,
-            max_depth=request.max_depth
+            max_products=crawl_request.max_products,
+            max_depth=crawl_request.max_depth,
         )
 
-        if not result['success']:
-            raise HTTPException(status_code=500, detail=result.get('error', 'Crawl failed'))
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result.get("error", "Crawl failed"))
 
-        # Auto-import products if requested
+        # Auto-import discovered products
         products_imported = 0
-        if request.auto_import and result.get('products'):
-            for product_data in result['products']:
+        if crawl_request.auto_import and result.get("products"):
+            for product_data in result["products"]:
                 try:
-                    # Check if product exists
                     existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.title == product_data['title']
+                        ProductMonitored.title == product_data["title"],
+                        ProductMonitored.user_id == current_user.id,
                     ).first()
 
                     if not existing:
-                        # Create new product
                         new_product = ProductMonitored(
-                            title=product_data['title'],
-                            image_url=product_data.get('image_url')
+                            user_id=current_user.id,
+                            title=product_data["title"],
+                            image_url=product_data.get("image_url"),
                         )
                         db.add(new_product)
                         db.commit()
                         db.refresh(new_product)
 
-                        # Create competitor match
                         if competitor:
                             match = CompetitorMatch(
                                 monitored_product_id=new_product.id,
                                 competitor_website_id=competitor.id,
                                 competitor_name=competitor.name,
-                                competitor_url=product_data['url'],
-                                competitor_product_title=product_data['title'],
-                                latest_price=product_data.get('price'),
-                                stock_status=product_data.get('stock_status'),
-                                image_url=product_data.get('image_url'),
+                                competitor_url=product_data["url"],
+                                competitor_product_title=product_data["title"],
+                                latest_price=product_data.get("price"),
+                                stock_status=product_data.get("stock_status"),
+                                image_url=product_data.get("image_url"),
                                 last_scraped_at=datetime.utcnow(),
                             )
                             db.add(match)
@@ -128,17 +140,17 @@ async def start_site_crawl(
                         products_imported += 1
 
                 except Exception as e:
-                    logger.error(f"Error importing product: {e}")
+                    logger.error("Error importing crawled product: %s", e)
                     continue
 
             db.commit()
 
         return CrawlStatus(
-            status='completed',
-            message=f'Successfully crawled {base_url_str}',
-            categories_found=result['categories_found'],
-            products_found=result['products_found'],
-            products_imported=products_imported
+            status="completed",
+            message=f"Successfully crawled {base_url_str}",
+            categories_found=result["categories_found"],
+            products_found=result["products_found"],
+            products_imported=products_imported,
         )
 
     except HTTPException:
@@ -148,31 +160,43 @@ async def start_site_crawl(
 
 
 @router.post("/discover-categories")
-async def discover_categories(request: CrawlRequest):
+@limiter.limit("20/hour")
+async def discover_categories(
+    request: Request,
+    crawl_request: CrawlRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
-    Quickly discover category pages without scraping products
+    Quickly discover category pages without scraping products.
 
-    - **base_url**: Competitor website URL
+    - **base_url**: Competitor website URL (must be a public, external host)
     """
     try:
-        crawler = SiteCrawler()
+        base_url_str = str(crawl_request.base_url)
+        validate_external_url(base_url_str, field_name="base_url")
 
-        categories = await crawler.discover_categories(str(request.base_url))
+        crawler = SiteCrawler()
+        categories = await crawler.discover_categories(base_url_str)
 
         return {
-            'success': True,
-            'base_url': str(request.base_url),
-            'categories_found': len(categories),
-            'categories': categories
+            "success": True,
+            "base_url": base_url_str,
+            "categories_found": len(categories),
+            "categories": categories,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status/{crawl_id}")
-async def get_crawl_status(crawl_id: str):
-    """Get status of ongoing crawl (for background tasks)"""
+async def get_crawl_status(
+    crawl_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get status of an ongoing crawl job."""
     if crawl_id not in crawl_status:
         raise HTTPException(status_code=404, detail="Crawl not found")
 

@@ -3,15 +3,17 @@ AI Matching API Endpoints
 Manage AI-powered product matching and review
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
+from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite, User
 from matchers.ai_matcher import get_ai_matcher
+from api.dependencies import get_current_user
+from api.limiter import limiter
 
 router = APIRouter(prefix="/ai-matching", tags=["AI Matching"])
 
