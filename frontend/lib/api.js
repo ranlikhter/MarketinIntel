@@ -312,6 +312,29 @@ const api = {
   getPromotionStats: (days = 30) =>
     request(`/api/promotions/stats?days=${days}`),
 
+  // ─── Competitor Strategy DNA ──────────────────────────────────────────────────
+  getDnaProfiles: () =>
+    request('/api/competitor-dna/profiles'),
+  getDnaProfile: (competitorName) =>
+    request(`/api/competitor-dna/profiles/${encodeURIComponent(competitorName)}`),
+  getDnaStrikePredictions: () =>
+    request('/api/competitor-dna/strike-predictions'),
+  classifyPriceChange: (competitorName, productId, oldPrice, newPrice) =>
+    request('/api/competitor-dna/classify', {
+      method: 'POST',
+      body: JSON.stringify({
+        competitor_name: competitorName,
+        product_id: productId,
+        old_price: oldPrice,
+        new_price: newPrice,
+      }),
+    }),
+  simulateReprice: (productId, proposedPrice) =>
+    request('/api/competitor-dna/simulate', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, proposed_price: proposedPrice }),
+    }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

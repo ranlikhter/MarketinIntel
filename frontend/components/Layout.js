@@ -53,6 +53,7 @@ const NAV_ITEMS = [
   { href: '/forecasting',      label: 'Forecasting',    icon: Icon.forecast,  match: (p) => p.startsWith('/forecasting') },
   { href: '/alerts',           label: 'Alerts',         icon: Icon.bell,      match: (p) => p.startsWith('/alerts') },
   { href: '/competitor-intel', label: 'Rival Profiles', icon: Icon.users,     match: (p) => p.startsWith('/competitor-intel') },
+  { href: '/competitor-dna',  label: 'Strategy DNA',   icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>, match: (p) => p.startsWith('/competitor-dna') },
   { href: '/competitors',      label: 'Competitors',    icon: Icon.globe,     match: (p) => p === '/competitors' || p === '/competitors/add' },
   { href: '/integrations',     label: 'Integrations',   icon: Icon.link,      match: (p) => p.startsWith('/integrations') },
   { href: '/scheduler',        label: 'Scheduler',      icon: Icon.clock,     match: (p) => p.startsWith('/scheduler') },
