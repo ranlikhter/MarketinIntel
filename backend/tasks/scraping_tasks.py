@@ -30,6 +30,9 @@ from database.models import (
     PriceHistory,
     CompetitorWebsite,
     CompetitorPromotion,
+    ReviewSnapshot,
+    SellerProfile,
+    ListingQualitySnapshot,
 )
 from scrapers.amazon_scraper import AmazonScraper
 from scrapers.browser_pool import BrowserPool
@@ -239,6 +242,35 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                 existing.date_first_available = (
                     item.get("date_first_available") or existing.date_first_available
                 )
+                # Gap 1 — Seller Intelligence
+                existing.amazon_is_seller = item.get("amazon_is_seller")
+                existing.seller_feedback_count = item.get("seller_feedback_count")
+                existing.seller_positive_feedback_pct = item.get("seller_positive_feedback_pct")
+                existing.lowest_new_offer_price = item.get("lowest_new_offer_price")
+                existing.number_of_used_offers = item.get("number_of_used_offers")
+                # Gap 2 — Listing Quality
+                existing.image_count = item.get("image_count")
+                existing.has_video = item.get("has_video")
+                existing.has_aplus_content = item.get("has_aplus_content")
+                existing.has_brand_story = item.get("has_brand_story")
+                existing.bullet_point_count = item.get("bullet_point_count")
+                existing.title_char_count = item.get("title_char_count")
+                existing.questions_count = item.get("questions_count")
+                existing.listing_quality_score = _compute_listing_score(item)
+                # Gap 3 — Delivery
+                existing.delivery_fastest_days = item.get("delivery_fastest_days")
+                existing.delivery_standard_days = item.get("delivery_standard_days")
+                existing.has_same_day = item.get("has_same_day")
+                existing.ships_from_location = item.get("ships_from_location")
+                existing.has_free_returns = item.get("has_free_returns")
+                existing.return_window_days = item.get("return_window_days")
+                # Gap 4 — Variations
+                existing.parent_asin = item.get("parent_asin") or existing.parent_asin
+                existing.total_variations = item.get("total_variations")
+                existing.is_best_seller_variation = item.get("is_best_seller_variation")
+                # Gap 5 — Extended Badges
+                existing.climate_pledge_friendly = item.get("climate_pledge_friendly")
+                existing.small_business_badge = item.get("small_business_badge")
                 match = existing
             else:
                 match = CompetitorMatch(
@@ -291,6 +323,35 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     specifications=item.get("specifications"),
                     variant_options=item.get("variant_options"),
                     date_first_available=item.get("date_first_available"),
+                    # Gap 1 — Seller Intelligence
+                    amazon_is_seller=item.get("amazon_is_seller"),
+                    seller_feedback_count=item.get("seller_feedback_count"),
+                    seller_positive_feedback_pct=item.get("seller_positive_feedback_pct"),
+                    lowest_new_offer_price=item.get("lowest_new_offer_price"),
+                    number_of_used_offers=item.get("number_of_used_offers"),
+                    # Gap 2 — Listing Quality
+                    image_count=item.get("image_count"),
+                    has_video=item.get("has_video"),
+                    has_aplus_content=item.get("has_aplus_content"),
+                    has_brand_story=item.get("has_brand_story"),
+                    bullet_point_count=item.get("bullet_point_count"),
+                    title_char_count=item.get("title_char_count"),
+                    questions_count=item.get("questions_count"),
+                    listing_quality_score=_compute_listing_score(item),
+                    # Gap 3 — Delivery
+                    delivery_fastest_days=item.get("delivery_fastest_days"),
+                    delivery_standard_days=item.get("delivery_standard_days"),
+                    has_same_day=item.get("has_same_day"),
+                    ships_from_location=item.get("ships_from_location"),
+                    has_free_returns=item.get("has_free_returns"),
+                    return_window_days=item.get("return_window_days"),
+                    # Gap 4 — Variations
+                    parent_asin=item.get("parent_asin"),
+                    total_variations=item.get("total_variations"),
+                    is_best_seller_variation=item.get("is_best_seller_variation"),
+                    # Gap 5 — Extended Badges
+                    climate_pledge_friendly=item.get("climate_pledge_friendly"),
+                    small_business_badge=item.get("small_business_badge"),
                 )
                 self.db.add(match)
                 self.db.flush()
@@ -341,7 +402,41 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     badge_amazons_choice=item.get("badge_amazons_choice"),
                     badge_best_seller=item.get("badge_best_seller"),
                     is_sponsored=item.get("is_sponsored"),
+                    # Gap snapshot fields
+                    amazon_is_seller=item.get("amazon_is_seller"),
+                    seller_name_snapshot=item.get("seller_name"),
+                    delivery_fastest_days=item.get("delivery_fastest_days"),
+                    has_free_returns=item.get("has_free_returns"),
                 ))
+
+            # ── ReviewSnapshot (always insert — enables velocity queries) ──────
+            if item.get("review_count") is not None or item.get("rating") is not None:
+                self.db.add(ReviewSnapshot(
+                    match_id=match.id,
+                    review_count=item.get("review_count"),
+                    rating=item.get("rating"),
+                    rating_distribution=item.get("rating_distribution"),
+                    questions_count=item.get("questions_count"),
+                    scraped_at=now,
+                ))
+
+            # ── ListingQualitySnapshot (insert so listing trends are tracked) ─
+            if item.get("image_count") is not None or item.get("bullet_point_count") is not None:
+                self.db.add(ListingQualitySnapshot(
+                    match_id=match.id,
+                    image_count=item.get("image_count"),
+                    has_video=item.get("has_video"),
+                    has_aplus_content=item.get("has_aplus_content"),
+                    has_brand_story=item.get("has_brand_story"),
+                    bullet_point_count=item.get("bullet_point_count"),
+                    title_char_count=item.get("title_char_count"),
+                    questions_count=item.get("questions_count"),
+                    listing_score=_compute_listing_score(item),
+                    scraped_at=now,
+                ))
+
+            # ── SellerProfile upsert (one row per unique seller name) ─────────
+            _upsert_seller_profile(self.db, item)
 
             _upsert_promotions(self.db, match.id, item.get("promotions") or [])
             matches_found += 1
@@ -517,6 +612,59 @@ def _brands_match(product_dict: dict, candidate_dict: dict) -> bool | None:
     if not p_brand or not c_brand:
         return None
     return p_brand == c_brand
+
+
+def _compute_listing_score(item: dict) -> int:
+    """
+    Compute a 0-100 listing quality score from scraped item fields.
+    Weighting: images(20) + video(15) + aplus(20) + brand_story(10) + bullets(15) + title(10) + qa(10)
+    """
+    score = 0
+    image_count = item.get("image_count") or 0
+    score += min(image_count, 7) / 7 * 20
+    if item.get("has_video"):
+        score += 15
+    if item.get("has_aplus_content"):
+        score += 20
+    if item.get("has_brand_story"):
+        score += 10
+    bullet_count = item.get("bullet_point_count") or 0
+    score += min(bullet_count, 5) / 5 * 15
+    title_len = item.get("title_char_count") or 0
+    if 80 <= title_len <= 200:
+        score += 10
+    elif 50 <= title_len < 80 or 200 < title_len <= 250:
+        score += 5
+    q_count = item.get("questions_count") or 0
+    score += min(q_count, 50) / 50 * 10
+    return round(score)
+
+
+def _upsert_seller_profile(db, item: dict):
+    """
+    Create or update a SellerProfile row for the seller in this scrape result.
+    Only runs when a seller_name is present.
+    """
+    seller_name = (item.get("seller_name") or "").strip()
+    if not seller_name:
+        return
+    from datetime import datetime
+    existing = db.query(SellerProfile).filter_by(seller_name=seller_name).first()
+    is_1p = seller_name.lower() in ("amazon.com", "amazon", "amazon warehouse")
+    if existing:
+        existing.amazon_is_1p = is_1p
+        if item.get("seller_feedback_count") is not None:
+            existing.feedback_count = item["seller_feedback_count"]
+        if item.get("seller_positive_feedback_pct") is not None:
+            existing.positive_feedback_pct = item["seller_positive_feedback_pct"]
+        existing.last_updated_at = datetime.utcnow()
+    else:
+        db.add(SellerProfile(
+            seller_name=seller_name,
+            amazon_is_1p=is_1p,
+            feedback_count=item.get("seller_feedback_count"),
+            positive_feedback_pct=item.get("seller_positive_feedback_pct"),
+        ))
 
 
 def _upsert_promotions(db, match_id: int, promotions: list):

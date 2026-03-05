@@ -148,6 +148,40 @@ class CompetitorMatch(Base):
     variant_options = Column(JSON, nullable=True)            # {Color: {selected, options}, Size: ...}
     date_first_available = Column(String(50), nullable=True) # "January 1, 2023" — product age
 
+    # ── GAP 1: Seller Identity Intelligence ───────────────────────────────────
+    amazon_is_seller = Column(Boolean, nullable=True)             # Is Amazon itself the buy-box seller?
+    seller_feedback_count = Column(Integer, nullable=True)        # Seller lifetime feedback volume
+    seller_positive_feedback_pct = Column(Float, nullable=True)   # % positive feedback (0-100)
+    lowest_new_offer_price = Column(Float, nullable=True)         # Lowest price from "Other sellers"
+    number_of_used_offers = Column(Integer, nullable=True)        # Used/refurb offer count
+
+    # ── GAP 2: Listing Quality ─────────────────────────────────────────────────
+    image_count = Column(Integer, nullable=True)                  # Number of product images in gallery
+    has_video = Column(Boolean, nullable=True)                    # Has product demo/explainer video
+    has_aplus_content = Column(Boolean, nullable=True)            # Has A+ / Enhanced Brand Content
+    has_brand_story = Column(Boolean, nullable=True)              # Has brand story section
+    bullet_point_count = Column(Integer, nullable=True)           # Feature bullet count
+    title_char_count = Column(Integer, nullable=True)             # Title length in characters
+    questions_count = Column(Integer, nullable=True)              # Customer Q&A question count
+    listing_quality_score = Column(Integer, nullable=True)        # Computed 0-100 composite score
+
+    # ── GAP 3: Delivery & Fulfilment Promise ──────────────────────────────────
+    delivery_fastest_days = Column(Integer, nullable=True)        # Fastest delivery option (days)
+    delivery_standard_days = Column(Integer, nullable=True)       # Standard delivery (days)
+    has_same_day = Column(Boolean, nullable=True)                 # Same-day delivery available
+    ships_from_location = Column(String(100), nullable=True)      # "Amazon", "Seller", city, etc.
+    has_free_returns = Column(Boolean, nullable=True)             # Free return shipping offered
+    return_window_days = Column(Integer, nullable=True)           # Return window in days
+
+    # ── GAP 4: Variation Intelligence ─────────────────────────────────────────
+    parent_asin = Column(String(20), nullable=True)               # Parent ASIN for variant family
+    total_variations = Column(Integer, nullable=True)             # Total variant count in family
+    is_best_seller_variation = Column(Boolean, nullable=True)     # Is this the default/popular variant?
+
+    # ── GAP 5: Extended Badges ────────────────────────────────────────────────
+    climate_pledge_friendly = Column(Boolean, nullable=True)      # Amazon sustainability badge
+    small_business_badge = Column(Boolean, nullable=True)         # Amazon Small Business label
+
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
     price_history = relationship("PriceHistory", back_populates="competitor_match", cascade="all, delete-orphan")
@@ -202,6 +236,11 @@ class PriceHistory(Base):
     badge_amazons_choice = Column(Boolean, nullable=True)    # Had badge at scrape time
     badge_best_seller = Column(Boolean, nullable=True)       # Had badge at scrape time
     is_sponsored = Column(Boolean, nullable=True)            # Was a paid placement at scrape time
+    # Gap fields captured at snapshot time
+    amazon_is_seller = Column(Boolean, nullable=True)        # Was Amazon the buy-box holder?
+    seller_name_snapshot = Column(String(200), nullable=True)  # Buy-box holder at this moment
+    delivery_fastest_days = Column(Integer, nullable=True)   # Fastest delivery at this moment
+    has_free_returns = Column(Boolean, nullable=True)        # Free returns at this moment
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")
@@ -778,6 +817,109 @@ class CompetitorPromotion(Base):
         return f"<CompetitorPromotion(id={self.id}, type='{self.promo_type}', desc='{self.description[:40]}')>"
 
 
+class ReviewSnapshot(Base):
+    """
+    Table: review_snapshots
+    Dedicated time-series table for review count + rating — separate from PriceHistory
+    so that review velocity queries don't scan the full price_history table.
+    Populated on every scrape alongside the PriceHistory insert.
+    """
+    __tablename__ = "review_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+
+    review_count = Column(Integer, nullable=True)
+    rating = Column(Float, nullable=True)
+    rating_distribution = Column(JSON, nullable=True)    # {5: 72, 4: 15, ...}
+    questions_count = Column(Integer, nullable=True)
+    scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    competitor_match = relationship("CompetitorMatch")
+
+    def __repr__(self):
+        return f"<ReviewSnapshot(match_id={self.match_id}, reviews={self.review_count}, at={self.scraped_at})>"
+
+
+class SellerProfile(Base):
+    """
+    Table: seller_profiles
+    Aggregated intelligence about each unique seller encountered across all matches.
+    One row per seller name — updated on every scrape where that seller appears.
+    Enables cross-product seller analysis (e.g. which sellers compete on most products).
+    """
+    __tablename__ = "seller_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    seller_name = Column(String(200), nullable=False, unique=True, index=True)
+
+    amazon_is_1p = Column(Boolean, default=False)             # Is this Amazon itself?
+    feedback_rating = Column(Float, nullable=True)            # Seller feedback score (0-5 or 0-100)
+    feedback_count = Column(Integer, nullable=True)           # Lifetime feedback volume
+    positive_feedback_pct = Column(Float, nullable=True)      # % positive feedback
+    storefront_url = Column(Text, nullable=True)              # Link to seller storefront
+
+    first_seen_at = Column(DateTime, default=datetime.utcnow)
+    last_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SellerProfile(name='{self.seller_name}', 1p={self.amazon_is_1p})>"
+
+
+class ListingQualitySnapshot(Base):
+    """
+    Table: listing_quality_snapshots
+    Tracks listing content quality metrics over time per competitor match.
+    Enables detecting when a competitor upgrades their listing (adds video, A+, images).
+    The listing_score (0-100) is a computed composite.
+    """
+    __tablename__ = "listing_quality_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+
+    image_count = Column(Integer, nullable=True)
+    has_video = Column(Boolean, nullable=True)
+    has_aplus_content = Column(Boolean, nullable=True)
+    has_brand_story = Column(Boolean, nullable=True)
+    bullet_point_count = Column(Integer, nullable=True)
+    title_char_count = Column(Integer, nullable=True)
+    questions_count = Column(Integer, nullable=True)
+    listing_score = Column(Integer, nullable=True)            # 0-100 composite
+
+    scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    competitor_match = relationship("CompetitorMatch")
+
+    def __repr__(self):
+        return f"<ListingQualitySnapshot(match_id={self.match_id}, score={self.listing_score})>"
+
+
+class KeywordRank(Base):
+    """
+    Table: keyword_ranks
+    Tracks search-result rank positions for user-defined keywords per product.
+    Populated by a dedicated keyword-rank scraper task (separate from product scraping).
+    One row per (product, keyword, scrape_time) — supports daily rank tracking.
+    """
+    __tablename__ = "keyword_ranks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False, index=True)
+
+    keyword = Column(String(300), nullable=False, index=True)
+    organic_rank = Column(Integer, nullable=True)             # Position in organic results (1-based)
+    sponsored_rank = Column(Integer, nullable=True)           # Position of our sponsored ad (if any)
+    total_results = Column(Integer, nullable=True)            # Total results for this keyword
+
+    scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    product = relationship("ProductMonitored")
+
+    def __repr__(self):
+        return f"<KeywordRank(product_id={self.product_id}, keyword='{self.keyword}', rank={self.organic_rank})>"
+
+
 # ── Composite indexes ──────────────────────────────────────────────────────────
 # Defined here (not inside __table_args__) so they work with SQLAlchemy's
 # create_all() on fresh databases.  The same CREATE INDEX statements are also
@@ -790,6 +932,15 @@ Index("idx_cm_last_scraped",  CompetitorMatch.last_scraped_at)
 
 # price_history — every alert and notification check sorts by (match_id, timestamp DESC)
 Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp)
+
+# review_snapshots — velocity queries always look at recent rows per match
+Index("idx_rs_match_time", ReviewSnapshot.match_id, ReviewSnapshot.scraped_at)
+
+# listing_quality_snapshots — trend queries per match
+Index("idx_lqs_match_time", ListingQualitySnapshot.match_id, ListingQualitySnapshot.scraped_at)
+
+# keyword_ranks — dashboard queries per product + recent rows
+Index("idx_kr_product_keyword_time", KeywordRank.product_id, KeywordRank.keyword, KeywordRank.scraped_at)
 
 # products_monitored — user's product list is the most common list view
 Index("idx_pm_user_created", ProductMonitored.user_id, ProductMonitored.created_at)

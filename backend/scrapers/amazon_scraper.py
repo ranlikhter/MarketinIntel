@@ -134,6 +134,22 @@ class AmazonScraper:
             "rating_distribution": None,
             # Tier 3 — Product attributes
             "specifications": None, "variant_options": None, "date_first_available": None,
+            # Gap 1 — Seller Intelligence
+            "amazon_is_seller": None,
+            "seller_feedback_count": None, "seller_positive_feedback_pct": None,
+            "lowest_new_offer_price": None, "number_of_used_offers": None,
+            # Gap 2 — Listing Quality
+            "image_count": None, "has_video": False, "has_aplus_content": False,
+            "has_brand_story": False, "bullet_point_count": None,
+            "title_char_count": None, "questions_count": None,
+            # Gap 3 — Delivery & Fulfillment
+            "delivery_fastest_days": None, "delivery_standard_days": None,
+            "has_same_day": False, "ships_from_location": None,
+            "has_free_returns": False, "return_window_days": None,
+            # Gap 4 — Variation Intelligence
+            "parent_asin": None, "total_variations": None, "is_best_seller_variation": None,
+            # Gap 5 — Extended Badges
+            "climate_pledge_friendly": False, "small_business_badge": False,
             "scrape_quality": "clean",
             "error": None,
         }
@@ -204,6 +220,26 @@ class AmazonScraper:
         result["specifications"] = self._extract_product_specs(soup)
         result["variant_options"] = self._extract_variant_options(soup)
         result["date_first_available"] = self._extract_date_first_available(soup)
+
+        # ── Gap 1: Seller Intelligence ────────────────────────────────────────
+        seller_intel = self._extract_seller_intelligence(soup, result.get("seller_name"))
+        result.update(seller_intel)
+
+        # ── Gap 2: Listing Quality ────────────────────────────────────────────
+        listing = self._extract_listing_quality(soup, result.get("title"))
+        result.update(listing)
+
+        # ── Gap 3: Delivery & Fulfillment ─────────────────────────────────────
+        delivery = self._extract_delivery_info(soup)
+        result.update(delivery)
+
+        # ── Gap 4: Variation Intelligence ─────────────────────────────────────
+        variation = self._extract_variation_intelligence(soup, result.get("variant_options"))
+        result.update(variation)
+
+        # ── Gap 5: Extended Badges ─────────────────────────────────────────────
+        ext_badges = self._extract_extended_badges(soup)
+        result.update(ext_badges)
 
         result["scrape_quality"] = "partial" if not result["price"] else "clean"
 
@@ -909,6 +945,233 @@ class AmazonScraper:
                     return m.group(1).strip()
 
         return None
+
+    # ── Gap extraction methods ─────────────────────────────────────────────────
+
+    def _extract_seller_intelligence(self, soup: BeautifulSoup, seller_name: Optional[str]) -> dict:
+        """Extract seller identity, feedback, other offers count."""
+        result: dict = {
+            "amazon_is_seller": None,
+            "seller_feedback_count": None,
+            "seller_positive_feedback_pct": None,
+            "lowest_new_offer_price": None,
+            "number_of_used_offers": None,
+        }
+        # Is Amazon 1P?
+        if seller_name:
+            result["amazon_is_seller"] = seller_name.lower().strip() in (
+                "amazon.com", "amazon", "amazon warehouse"
+            )
+
+        # Seller feedback from merchant info block
+        merchant_el = soup.select_one("#merchant-info, #tabular-buybox-container")
+        if merchant_el:
+            text = merchant_el.get_text(" ", strip=True)
+            m = re.search(r"([\d,]+)\s+rating", text, re.I)
+            if m:
+                try:
+                    result["seller_feedback_count"] = int(m.group(1).replace(",", ""))
+                except ValueError:
+                    pass
+            m2 = re.search(r"([\d.]+)%\s+positive", text, re.I)
+            if m2:
+                try:
+                    result["seller_positive_feedback_pct"] = float(m2.group(1))
+                except ValueError:
+                    pass
+
+        # Lowest new offer from "Other sellers" / AOD section
+        aod_price = soup.select_one("#aod-price, #aod-offer-price, .a-price.aod-price .a-offscreen")
+        if aod_price:
+            result["lowest_new_offer_price"] = self._parse_float(aod_price.get_text(strip=True))
+
+        # Used offer count
+        used_link = soup.select_one("#used-and-new, #usedAndNewBuybox")
+        if used_link:
+            text = used_link.get_text(strip=True)
+            m = re.search(r"(\d+)\s+used", text, re.I)
+            if m:
+                try:
+                    result["number_of_used_offers"] = int(m.group(1))
+                except ValueError:
+                    pass
+
+        return result
+
+    def _extract_listing_quality(self, soup: BeautifulSoup, title: Optional[str]) -> dict:
+        """Extract listing content quality signals."""
+        result: dict = {
+            "image_count": None,
+            "has_video": False,
+            "has_aplus_content": False,
+            "has_brand_story": False,
+            "bullet_point_count": None,
+            "title_char_count": None,
+            "questions_count": None,
+        }
+        # Image count from alt-image thumbnails
+        alt_images = soup.select("#altImages li.item, #imageBlock_feature_div li.item")
+        if alt_images:
+            result["image_count"] = len(alt_images)
+        else:
+            # Fallback: count any unique image thumbnails
+            thumbs = soup.select("#altImages img, .a-thumbnail img")
+            result["image_count"] = len(thumbs) if thumbs else None
+
+        # Video presence
+        result["has_video"] = bool(
+            soup.select_one("#video-atf-badge, .a-video-thumb, #videoThumbnailSection")
+        )
+
+        # A+ content
+        result["has_aplus_content"] = bool(
+            soup.select_one("#aplus_feature_div, #aplus, #aplusBody")
+        )
+
+        # Brand story
+        result["has_brand_story"] = bool(
+            soup.select_one("#aplusBrandStory_feature_div, #brandStory_feature_div")
+        )
+
+        # Bullet points
+        bullets = soup.select("#feature-bullets li:not(.aok-hidden)")
+        result["bullet_point_count"] = len(bullets) if bullets else None
+
+        # Title char count
+        if title:
+            result["title_char_count"] = len(title)
+
+        # Q&A count
+        qa_el = soup.select_one("#askSectionWidget, #questions-and-answers")
+        if qa_el:
+            text = qa_el.get_text(strip=True)
+            m = re.search(r"(\d+)\s+answer", text, re.I)
+            if not m:
+                m = re.search(r"(\d+)\s+question", text, re.I)
+            if m:
+                try:
+                    result["questions_count"] = int(m.group(1))
+                except ValueError:
+                    pass
+
+        return result
+
+    def _extract_delivery_info(self, soup: BeautifulSoup) -> dict:
+        """Extract delivery promise, fulfillment location, returns info."""
+        result: dict = {
+            "delivery_fastest_days": None,
+            "delivery_standard_days": None,
+            "has_same_day": False,
+            "ships_from_location": None,
+            "has_free_returns": False,
+            "return_window_days": None,
+        }
+        # Delivery block — check for same-day and estimate days
+        for sel in ["#mir-layout-DELIVERY_BLOCK-slot-PRIMARY_DELIVERY_MESSAGE_LARGE",
+                    "#deliveryBlockMessage", "#ddmDeliveryMessage",
+                    "#fast-track-message", "#delivery-message"]:
+            el = soup.select_one(sel)
+            if not el:
+                continue
+            text = el.get_text(" ", strip=True).lower()
+            if "same-day" in text or "same day" in text or "today" in text:
+                result["has_same_day"] = True
+                result["delivery_fastest_days"] = 0
+            elif "tomorrow" in text:
+                result["delivery_fastest_days"] = 1
+            else:
+                # Try to parse "Get it Mon, Mar 10" → rough days estimate
+                m = re.search(r"get it\s+\w+,?\s+\w+\s+(\d+)", text, re.I)
+                if m:
+                    from datetime import datetime
+                    try:
+                        day = int(m.group(1))
+                        today = datetime.utcnow().day
+                        diff = day - today
+                        if diff < 0:
+                            diff += 30  # cross-month
+                        result["delivery_fastest_days"] = max(0, diff)
+                    except Exception:
+                        pass
+            break
+
+        # Ships from
+        for sel in ["#tabular-buybox-container #tabular-buybox-text",
+                    "#merchant-info", "#buybox-tabular-attribute-shipper"]:
+            el = soup.select_one(sel)
+            if el:
+                text = el.get_text(" ", strip=True)
+                if "ships from" in text.lower():
+                    m = re.search(r"ships from\s+(.+?)(?:\s{2,}|$)", text, re.I)
+                    if m:
+                        result["ships_from_location"] = m.group(1).strip()[:100]
+                    break
+
+        # Free returns
+        result["has_free_returns"] = bool(
+            soup.select_one("#free-returns-label, #returnsLabel, #returnPolicySummary")
+        )
+        if not result["has_free_returns"]:
+            return_el = soup.select_one("#returnPolicySummary, #returns_policy_feature_div")
+            if return_el and "free" in return_el.get_text(strip=True).lower():
+                result["has_free_returns"] = True
+
+        # Return window — look for "30 days" / "90 days" in returns section
+        ret_text_el = soup.select_one("#returnPolicySummary, #returns_policy_feature_div")
+        if ret_text_el:
+            text = ret_text_el.get_text(strip=True)
+            m = re.search(r"(\d+)\s*days?", text, re.I)
+            if m:
+                try:
+                    result["return_window_days"] = int(m.group(1))
+                except ValueError:
+                    pass
+
+        return result
+
+    def _extract_variation_intelligence(self, soup: BeautifulSoup, variant_options: Optional[dict]) -> dict:
+        """Extract parent ASIN, variation count, and bestseller flag."""
+        result: dict = {
+            "parent_asin": None,
+            "total_variations": None,
+            "is_best_seller_variation": None,
+        }
+        # Parent ASIN sometimes appears in page source JSON
+        page_text = str(soup)
+        m = re.search(r'"parentAsin"\s*:\s*"([A-Z0-9]{10})"', page_text)
+        if m:
+            result["parent_asin"] = m.group(1)
+
+        # Total variations — count from twister / variant selector
+        if variant_options:
+            counts = [
+                len(v.get("options", [])) if isinstance(v, dict) else 0
+                for v in variant_options.values()
+            ]
+            if counts:
+                result["total_variations"] = max(counts)
+        else:
+            selects = soup.select("#twister select option, .a-dropdown-container option")
+            if selects:
+                result["total_variations"] = len(selects)
+
+        # Is bestseller variation — Amazon sometimes marks this
+        best_el = soup.select_one(".best-seller-badge-ribbon, #bestSellerVariation_feature_div")
+        if best_el:
+            result["is_best_seller_variation"] = True
+
+        return result
+
+    def _extract_extended_badges(self, soup: BeautifulSoup) -> dict:
+        """Extract Climate Pledge Friendly and Small Business badges."""
+        return {
+            "climate_pledge_friendly": bool(
+                soup.select_one("#climatePledgeFriendly, #cpf-feature, [data-feature-name='climatePledgeFriendly']")
+            ),
+            "small_business_badge": bool(
+                soup.select_one(".small-business-label, #smallBusiness_feature_div, [aria-label*='Small Business']")
+            ),
+        }
 
     def _extract_shipping_cost(self, soup: BeautifulSoup) -> Optional[float]:
         for sel in ["#deliveryMessageMirId", "#ddmDeliveryMessage", "#fast-track-message"]:
