@@ -133,16 +133,57 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_nl_alert ON notification_logs(alert_id)",
         "CREATE INDEX IF NOT EXISTS idx_nl_user_sent ON notification_logs(user_id, sent_at DESC)",
         # v10 — composite indexes (biggest query performance win: eliminates full-table scans)
-        # competitor_matches: the two most-queried paths are (product→url) and (product→price)
         "CREATE INDEX IF NOT EXISTS idx_cm_product_url ON competitor_matches(monitored_product_id, competitor_url)",
         "CREATE INDEX IF NOT EXISTS idx_cm_product_price ON competitor_matches(monitored_product_id, latest_price)",
         "CREATE INDEX IF NOT EXISTS idx_cm_last_scraped ON competitor_matches(last_scraped_at)",
-        # price_history: every alert/notification check filters on match_id then sorts by timestamp
         "CREATE INDEX IF NOT EXISTS idx_ph_match_time ON price_history(match_id, timestamp DESC)",
-        # price_alerts: every alert check filters on (product_id, enabled)
         "CREATE INDEX IF NOT EXISTS idx_pa_product_enabled ON price_alerts(product_id, enabled)",
-        # products_monitored: user owns many products; user_id queries are extremely common
         "CREATE INDEX IF NOT EXISTS idx_pm_user_created ON products_monitored(user_id, created_at DESC)",
+
+        # v12 — multi-tenant: user_id on competitor_websites
+        "ALTER TABLE competitor_websites ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "CREATE INDEX IF NOT EXISTS idx_cw_user_active ON competitor_websites(user_id, is_active)",
+
+        # v12 — pre-aggregated daily price snapshot table (replaces expensive GROUP BY)
+        """CREATE TABLE IF NOT EXISTS price_daily_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_id INTEGER NOT NULL REFERENCES competitor_matches(id) ON DELETE CASCADE,
+            snapshot_date DATE NOT NULL,
+            open_price REAL,
+            close_price REAL,
+            avg_price REAL,
+            min_price REAL,
+            max_price REAL,
+            avg_effective_price REAL,
+            min_effective_price REAL,
+            sample_count INTEGER NOT NULL DEFAULT 0,
+            in_stock_pct REAL,
+            avg_seller_count REAL,
+            avg_bsr REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(match_id, snapshot_date)
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_pds_match_date ON price_daily_snapshots(match_id, snapshot_date DESC)",
+
+        # v12 — covering + supporting indexes (index-only scans, eliminates heap fetches)
+        "CREATE INDEX IF NOT EXISTS idx_ph_match_time_cov ON price_history(match_id, timestamp DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_ph_match_source ON price_history(match_id, source, timestamp)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_product_cover ON competitor_matches(monitored_product_id, latest_price, match_score)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_competitor_name ON competitor_matches(competitor_name)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_match_score ON competitor_matches(monitored_product_id, match_score)",
+        "CREATE INDEX IF NOT EXISTS idx_cm_scraped_active ON competitor_matches(last_scraped_at, monitored_product_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pa_user_product_enabled ON price_alerts(enabled, user_id, product_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pa_snoozed_until ON price_alerts(snoozed_until)",
+        "CREATE INDEX IF NOT EXISTS idx_al_user_created ON activity_logs(user_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_al_action_created ON activity_logs(action, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_mph_product_changed ON my_price_history(product_id, changed_at)",
+        "CREATE INDEX IF NOT EXISTS idx_kr_product_scraped ON keyword_ranks(product_id, scraped_at)",
+        "CREATE INDEX IF NOT EXISTS idx_sc_user_platform ON store_connections(user_id, platform, is_active)",
+        "CREATE INDEX IF NOT EXISTS idx_wm_user_workspace ON workspace_members(user_id, workspace_id)",
+        "CREATE INDEX IF NOT EXISTS idx_nl_alert_sent ON notification_logs(alert_id, sent_at)",
+        "CREATE INDEX IF NOT EXISTS idx_ak_key_active ON api_keys(key, is_active)",
+        "CREATE INDEX IF NOT EXISTS idx_cp_match_end ON competitor_promotions(match_id, end_date)",
     ]
     with engine.connect() as conn:
         for sql in migrations:
