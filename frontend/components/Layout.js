@@ -167,11 +167,11 @@ function SidebarUser({ user, logout }) {
     item.exact ? router.pathname === item.href : router.pathname.startsWith(item.href);
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0A0A0F' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6' }}>
 
       {/* ── Sidebar ── */}
       <aside style={{
-        width: W, background: '#111118', borderRight: '1px solid #1E1E2E',
+        width: W, background: '#FFFFFF', borderRight: '1px solid #E5E7EB',
         transition: 'width 0.25s ease', flexShrink: 0, display: 'flex',
         flexDirection: 'column', position: 'fixed', top: 0, left: 0,
         height: '100vh', zIndex: 50, overflow: 'hidden',
@@ -180,17 +180,17 @@ function SidebarUser({ user, logout }) {
         {/* Logo */}
         <div style={{
           padding: collapsed ? '16px 0' : '16px 16px',
-          borderBottom: '1px solid #1E1E2E',
+          borderBottom: '1px solid #E5E7EB',
           display: 'flex', alignItems: 'center', gap: '10px',
           minHeight: '58px', justifyContent: collapsed ? 'center' : 'flex-start',
         }}>
           <div style={{
-            width: '28px', height: '28px', background: '#F59E0B',
+            width: '28px', height: '28px', background: '#2563EB',
             borderRadius: '6px', display: 'flex', alignItems: 'center',
             justifyContent: 'center', flexShrink: 0,
           }}>
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-              <path d="M2 11L6 6.5l3 3L14 3" stroke="#0A0A0F" strokeWidth="2.2"
+              <path d="M2 11L6 6.5l3 3L14 3" stroke="#FFFFFF" strokeWidth="2.2"
                 strokeLinecap="round" strokeLinejoin="round" />
             </svg>
     <div className="relative" ref={ref}>
@@ -235,8 +235,8 @@ function SidebarUser({ user, logout }) {
           </div>
           {!collapsed && (
             <span style={{
-              fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '15px',
-              color: '#F0F0FA', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
+              fontWeight: 700, fontSize: '15px',
+              color: '#111827', letterSpacing: '-0.02em', whiteSpace: 'nowrap',
             }}>
               MarketIntel
             </span>
@@ -256,9 +256,9 @@ function SidebarUser({ user, logout }) {
                     padding: collapsed ? '10px 0' : '9px 14px',
                     margin: '2px 8px', borderRadius: '8px', textDecoration: 'none',
                     justifyContent: collapsed ? 'center' : 'flex-start',
-                    background: on ? 'rgba(245,158,11,0.1)' : 'transparent',
-                    color: on ? '#F59E0B' : '#606080',
-                    borderLeft: on ? '2px solid #F59E0B' : '2px solid transparent',
+                    background: on ? '#EFF6FF' : 'transparent',
+                    color: on ? '#2563EB' : '#6B7280',
+                    borderLeft: on ? '2px solid #2563EB' : '2px solid transparent',
                     transition: 'all 0.15s ease', whiteSpace: 'nowrap',
                   }}
                 >
@@ -275,14 +275,14 @@ function SidebarUser({ user, logout }) {
         </nav>
 
         {/* Bottom */}
-        <div style={{ borderTop: '1px solid #1E1E2E', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {!collapsed && (
             <Link href="/products/add" legacyBehavior>
               <a style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                padding: '9px 12px', borderRadius: '8px', background: '#F59E0B',
-                color: '#0A0A0F', textDecoration: 'none', fontSize: '13px', fontWeight: 700,
-                fontFamily: 'Syne, sans-serif', letterSpacing: '0.01em',
+                padding: '9px 12px', borderRadius: '8px', background: '#2563EB',
+                color: '#FFFFFF', textDecoration: 'none', fontSize: '13px', fontWeight: 700,
+                letterSpacing: '0.01em',
               }}>
                 <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>
                 {' '}Add Product
@@ -341,8 +341,8 @@ function TopbarAvatar({ user, logout }) {
             onClick={() => setCollapsed((c) => !c)}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              padding: '8px', borderRadius: '8px', border: '1px solid #1E1E2E',
-              background: 'transparent', color: '#606080', cursor: 'pointer',
+              padding: '8px', borderRadius: '8px', border: '1px solid #E5E7EB',
+              background: 'transparent', color: '#6B7280', cursor: 'pointer',
               width: '100%', transition: 'all 0.15s',
             }}
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -364,7 +364,7 @@ function TopbarAvatar({ user, logout }) {
 
         {/* Topbar with live ticker */}
         <header style={{
-          height: '46px', borderBottom: '1px solid #1E1E2E', background: '#111118',
+          height: '46px', borderBottom: '1px solid #E5E7EB', background: '#FFFFFF',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '0 20px', position: 'sticky', top: 0, zIndex: 40,
           gap: '16px', overflow: 'hidden',
@@ -378,11 +378,11 @@ function TopbarAvatar({ user, logout }) {
                 <span key={i} style={{
                   display: 'inline-flex', alignItems: 'center', gap: '6px',
                   padding: '0 18px', fontSize: '11px',
-                  fontFamily: 'IBM Plex Mono, monospace',
-                  borderRight: '1px solid #1E1E2E', whiteSpace: 'nowrap',
+                  fontFamily: 'monospace',
+                  borderRight: '1px solid #E5E7EB', whiteSpace: 'nowrap',
                 }}>
-                  <span style={{ color: '#606080' }}>{t.s}</span>
-                  <span style={{ color: '#F0F0FA', fontWeight: 500 }}>${t.p}</span>
+                  <span style={{ color: '#9CA3AF' }}>{t.s}</span>
+                  <span style={{ color: '#111827', fontWeight: 500 }}>${t.p}</span>
                   <span style={{ color: t.up ? '#10B981' : '#EF4444' }}>{t.c}</span>
                 </span>
               ))}
@@ -393,7 +393,7 @@ function TopbarAvatar({ user, logout }) {
               width: '6px', height: '6px', borderRadius: '50%', background: '#10B981',
               display: 'inline-block', animation: 'mi-pulse 2s ease-in-out infinite',
             }} />
-            <span style={{ fontSize: '11px', color: '#606080', fontFamily: 'IBM Plex Mono, monospace' }}>
+            <span style={{ fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace' }}>
               LIVE
             </span>
           </div>
@@ -404,13 +404,14 @@ function TopbarAvatar({ user, logout }) {
         </main>
 
         <footer style={{
-          borderTop: '1px solid #1E1E2E', padding: '14px 28px',
+          borderTop: '1px solid #E5E7EB', padding: '14px 28px',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#FFFFFF',
         }}>
-          <span style={{ fontSize: '11px', color: '#3A3A58', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace' }}>
             MARKETINTEL · COMPETITIVE INTELLIGENCE PLATFORM
           </span>
-          <span style={{ fontSize: '11px', color: '#3A3A58', fontFamily: 'IBM Plex Mono, monospace' }}>
+          <span style={{ fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace' }}>
             FastAPI + Next.js
           </span>
         </footer>
@@ -425,13 +426,9 @@ function TopbarAvatar({ user, logout }) {
           0%, 100% { opacity: 1; transform: scale(1); }
           50%       { opacity: 0.3; transform: scale(0.7); }
         }
-        @keyframes mi-fade-up {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
         nav a:hover {
-          background: rgba(255,255,255,0.04) !important;
-          color: #C8C8E0 !important;
+          background: #F9FAFB !important;
+          color: #374151 !important;
         }
       `}</style>
           <div className="py-1" style={{ borderTop: '1px solid var(--border)' }}>
