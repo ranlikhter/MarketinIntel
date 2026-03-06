@@ -1,6 +1,8 @@
+
+import { createContext, useContext, useState, useCallback } from 'react';
 import { createContext, useContext, useState, useCallback, useRef } from 'react';
 
-const ToastContext = createContext();
+const ToastCtx = createContext();
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -17,12 +19,14 @@ export function ToastProvider({ children }) {
   const removeToast = useCallback((id) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
-
+  const remove = useCallback((id) => setToasts(p => p.filter(t => t.id !== id)), []);
   return (
-    <ToastContext.Provider value={{ addToast }}>
+    <ToastCtx.Provider value={{ addToast }}>
       {children}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
-    </ToastContext.Provider>
+      <div style={{ position: 'fixed', top: '16px', right: '16px', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '360px', width: '100%' }}>
+        {toasts.map(t => <ToastItem key={t.id} {...t} onClose={() => remove(t.id)} />)}
+      </div>
+    </ToastCtx.Provider>
   );
 }
 
