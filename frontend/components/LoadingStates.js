@@ -1,125 +1,88 @@
-export function LoadingSpinner({ size = 'md', color = 'primary' }) {
-  const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
-    xl: 'h-16 w-16'
-  };
 
-  const colorClasses = {
-    primary: 'border-primary-600',
-    white: 'border-white',
-    gray: 'border-gray-600'
-  };
+import { Spinner } from './UI';
 
-  return (
-    <div className={`animate-spin rounded-full border-b-2 ${sizeClasses[size]} ${colorClasses[color]}`} />
-  );
+const pulse = { animation: 'skel-pulse 1.6s ease-in-out infinite', background: 'linear-gradient(90deg, #16161E 25%, #1E1E2E 50%, #16161E 75%)', backgroundSize: '200% 100%' };
+
+export function LoadingSpinner({ size = 'md' }) {
+  const sz = { sm: 16, md: 28, lg: 44, xl: 60 }[size] || 28;
+  return <Spinner size={sz} />;
 }
 
 export function LoadingScreen({ message = 'Loading...' }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-      <LoadingSpinner size="xl" />
-      <p className="mt-4 text-lg text-gray-600">{message}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '16px', background: '#0A0A0F' }}>
+      <Spinner size={40} />
+      <p style={{ fontSize: '13px', color: '#606080', fontFamily: 'IBM Plex Mono, monospace' }}>{message}</p>
+      <style jsx global>{`@keyframes skel-pulse { 0%,100%{background-position:200% 0} 50%{background-position:-200% 0} }`}</style>
     </div>
   );
 }
 
-export function SkeletonLine({ width = 'full' }) {
-  const widthClasses = {
-    full: 'w-full',
-    '3/4': 'w-3/4',
-    '1/2': 'w-1/2',
-    '1/4': 'w-1/4',
-    '1/3': 'w-1/3'
-  };
+function Skel({ w = '100%', h = '14px', r = '6px', style: s = {} }) {
+  return <div style={{ width: w, height: h, borderRadius: r, flexShrink: 0, ...pulse, ...s }} />;
+}
 
+export function SkeletonStats() {
   return (
-    <div className={`h-4 bg-gray-200 rounded animate-pulse ${widthClasses[width]}`} />
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '16px' }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', padding: '24px 28px' }}>
+            <Skel w="60%" h="10px" style={{ marginBottom: '16px' }} />
+            <Skel w="40%" h="40px" r="8px" style={{ marginBottom: '12px' }} />
+            <Skel w="30%" h="10px" />
+          </div>
+        ))}
+      </div>
+      <style jsx global>{`@keyframes skel-pulse { 0%,100%{background-position:200% 0} 50%{background-position:-200% 0} }`}</style>
+    </>
   );
 }
 
 export function SkeletonCard() {
   return (
-    <div className="bg-white rounded-lg shadow p-6 space-y-4 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="h-6 bg-gray-200 rounded w-1/3" />
-        <div className="h-5 bg-gray-200 rounded w-16" />
-      </div>
-      <div className="h-32 bg-gray-200 rounded" />
-      <div className="space-y-2">
-        <div className="h-4 bg-gray-200 rounded w-full" />
-        <div className="h-4 bg-gray-200 rounded w-3/4" />
-      </div>
-      <div className="flex justify-between items-center pt-4 border-t">
-        <div className="h-8 bg-gray-200 rounded w-20" />
-        <div className="h-8 bg-gray-200 rounded w-24" />
-      </div>
-    </div>
-  );
-}
-
-export function SkeletonTable({ rows = 5 }) {
-  return (
-    <div className="bg-white shadow rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-        <div className="flex gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-4 bg-gray-200 rounded flex-1 animate-pulse" />
-          ))}
-        </div>
-      </div>
-      {/* Rows */}
-      <div className="divide-y divide-gray-200">
-        {[...Array(rows)].map((_, i) => (
-          <div key={i} className="px-6 py-4">
-            <div className="flex gap-4">
-              {[...Array(4)].map((_, j) => (
-                <div key={j} className="h-4 bg-gray-200 rounded flex-1 animate-pulse" />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function SkeletonStats() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
-          <div className="flex items-center justify-between mb-4">
-            <div className="h-12 w-12 bg-gray-200 rounded-lg" />
-            <div className="h-6 w-16 bg-gray-200 rounded" />
-          </div>
-          <div className="h-8 bg-gray-200 rounded w-20 mb-2" />
-          <div className="h-4 bg-gray-200 rounded w-32" />
-        </div>
-      ))}
+    <div style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', padding: '24px' }}>
+      <Skel w="50%" h="14px" style={{ marginBottom: '20px' }} />
+      <Skel h="120px" r="8px" style={{ marginBottom: '16px' }} />
+      <Skel w="80%" h="12px" style={{ marginBottom: '8px' }} />
+      <Skel w="60%" h="12px" />
+      <style jsx global>{`@keyframes skel-pulse { 0%,100%{background-position:200% 0} 50%{background-position:-200% 0} }`}</style>
     </div>
   );
 }
 
 export function SkeletonChart() {
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="h-6 bg-gray-200 rounded w-1/4 mb-6 animate-pulse" />
-      <div className="h-64 bg-gray-200 rounded animate-pulse" />
+    <div style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', padding: '24px' }}>
+      <Skel w="30%" h="14px" style={{ marginBottom: '24px' }} />
+      <Skel h="200px" r="8px" />
+      <style jsx global>{`@keyframes skel-pulse { 0%,100%{background-position:200% 0} 50%{background-position:-200% 0} }`}</style>
+    </div>
+  );
+}
+
+export function SkeletonTable({ rows = 5 }) {
+  return (
+    <div style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid #1E1E2E', display: 'flex', gap: '24px' }}>
+        {[40,20,20,20].map((w, i) => <Skel key={i} w={w+'%'} h="10px" />)}
+      </div>
+      {Array(rows).fill(0).map((_, i) => (
+        <div key={i} style={{ padding: '16px 20px', borderBottom: i < rows-1 ? '1px solid #1E1E2E' : 'none', display: 'flex', gap: '24px', alignItems: 'center' }}>
+          {[40,20,20,20].map((w, j) => <Skel key={j} w={w+'%'} h="12px" />)}
+        </div>
+      ))}
+      <style jsx global>{`@keyframes skel-pulse { 0%,100%{background-position:200% 0} 50%{background-position:-200% 0} }`}</style>
     </div>
   );
 }
 
 export function PageLoadingState() {
   return (
-    <div className="space-y-6">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <SkeletonStats />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SkeletonChart />
-        <SkeletonChart />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <SkeletonChart /><SkeletonChart />
       </div>
       <SkeletonTable />
     </div>

@@ -1,232 +1,111 @@
+
 import { useState, useMemo } from 'react';
+import { Input } from './UI';
 
-export default function DataTable({
-  columns,
-  data,
-  searchable = true,
-  sortable = true,
-  pagination = true,
-  pageSize = 10,
-  emptyMessage = 'No data available'
-}) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortColumn, setSortColumn] = useState(null);
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [currentPage, setCurrentPage] = useState(1);
+export default function DataTable({ columns, data, searchable = true, sortable = true, pagination = true, pageSize = 10, emptyMessage = 'No data' }) {
+  const [search, setSearch] = useState('');
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const [page, setPage] = useState(1);
 
-  // Filtering
-  const filteredData = useMemo(() => {
-    if (!searchTerm) return data;
+  const filtered = useMemo(() => {
+    if (!search) return data;
+    return data.filter(row => columns.some(c => c.accessor(row)?.toString().toLowerCase().includes(search.toLowerCase())));
+  }, [data, search, columns]);
 
-    return data.filter(row =>
-      columns.some(col => {
-        const value = col.accessor(row);
-        return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
-      })
-    );
-  }, [data, searchTerm, columns]);
-
-  // Sorting
-  const sortedData = useMemo(() => {
-    if (!sortColumn) return filteredData;
-
-    return [...filteredData].sort((a, b) => {
-      const aVal = sortColumn.accessor(a);
-      const bVal = sortColumn.accessor(b);
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
+  const sorted = useMemo(() => {
+    if (!sortCol) return filtered;
+    return [...filtered].sort((a, b) => {
+      const av = sortCol.accessor(a), bv = sortCol.accessor(b);
+      return av < bv ? (sortDir === 'asc' ? -1 : 1) : av > bv ? (sortDir === 'asc' ? 1 : -1) : 0;
     });
-  }, [filteredData, sortColumn, sortDirection]);
+  }, [filtered, sortCol, sortDir]);
 
-  // Pagination
-  const totalPages = Math.ceil(sortedData.length / pageSize);
-  const paginatedData = useMemo(() => {
-    if (!pagination) return sortedData;
+  const totalPages = Math.ceil(sorted.length / pageSize);
+  const paged = useMemo(() => pagination ? sorted.slice((page-1)*pageSize, page*pageSize) : sorted, [sorted, page, pageSize, pagination]);
 
-    const start = (currentPage - 1) * pageSize;
-    return sortedData.slice(start, start + pageSize);
-  }, [sortedData, currentPage, pageSize, pagination]);
-
-  const handleSort = (column) => {
-    if (!sortable || !column.sortable) return;
-
-    if (sortColumn === column) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
+  const handleSort = col => {
+    if (!sortable || !col.sortable) return;
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
   };
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {searchable && (
-        <div className="flex items-center gap-4">
-          <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Search..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-            />
-          </div>
-          <div className="text-sm text-gray-500">
-            Showing {paginatedData.length} of {filteredData.length} results
-          </div>
+        <div style={{ position: 'relative', maxWidth: '320px' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#606080" strokeWidth="2"
+            style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <Input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search..." style={{ paddingLeft: '36px' }} />
         </div>
       )}
 
-      {/* Table */}
-      <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
-        <table className="min-w-full divide-y divide-gray-300">
-          <thead className="bg-gray-50">
-            <tr>
-              {columns.map((column, idx) => (
-                <th
-                  key={idx}
-                  scope="col"
-                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
-                    sortable && column.sortable !== false ? 'cursor-pointer hover:bg-gray-100 select-none' : ''
-                  }`}
-                  onClick={() => handleSort(column)}
-                >
-                  <div className="flex items-center gap-2">
-                    <span>{column.header}</span>
-                    {sortable && column.sortable !== false && sortColumn === column && (
-                      <svg
-                        className={`w-4 h-4 transition-transform ${
-                          sortDirection === 'desc' ? 'transform rotate-180' : ''
-                        }`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="px-6 py-12 text-center text-sm text-gray-500">
-                  <div className="flex flex-col items-center">
-                    <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                    </svg>
-                    {emptyMessage}
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedData.map((row, rowIdx) => (
-                <tr key={rowIdx} className="hover:bg-gray-50 transition-colors">
-                  {columns.map((column, colIdx) => (
-                    <td key={colIdx} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {column.render ? column.render(row) : column.accessor(row)}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', overflow: 'hidden' }}>
+        {/* Head */}
+        <div style={{ display: 'grid', gridTemplateColumns: columns.map(() => '1fr').join(' '), padding: '10px 20px', borderBottom: '1px solid #1E1E2E', gap: '16px' }}>
+          {columns.map((col, i) => (
+            <div key={i} onClick={() => handleSort(col)} style={{
+              fontSize: '10px', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.1em',
+              color: sortCol === col ? '#F59E0B' : '#606080', textTransform: 'uppercase',
+              cursor: sortable && col.sortable ? 'pointer' : 'default',
+              display: 'flex', alignItems: 'center', gap: '4px', userSelect: 'none',
+            }}>
+              {col.header}
+              {sortable && col.sortable && sortCol === col && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d={sortDir === 'asc' ? 'M18 15l-6-6-6 6' : 'M6 9l6 6 6-6'} />
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Rows */}
+        {paged.length === 0 ? (
+          <div style={{ padding: '48px', textAlign: 'center', color: '#3A3A58', fontSize: '13px', fontFamily: 'IBM Plex Mono, monospace' }}>{emptyMessage}</div>
+        ) : paged.map((row, ri) => (
+          <div key={ri} style={{
+            display: 'grid', gridTemplateColumns: columns.map(() => '1fr').join(' '),
+            padding: '14px 20px', borderBottom: ri < paged.length-1 ? '1px solid #1E1E2E' : 'none',
+            gap: '16px', alignItems: 'center', transition: 'background 0.1s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.03)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            {columns.map((col, ci) => (
+              <div key={ci} style={{ fontSize: '13px', color: '#F0F0FA', minWidth: 0 }}>
+                {col.render ? col.render(row) : <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{col.accessor(row)}</span>}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
 
       {/* Pagination */}
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-lg">
-          <div className="flex flex-1 justify-between sm:hidden">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{(currentPage - 1) * pageSize + 1}</span> to{' '}
-                <span className="font-medium">{Math.min(currentPage * pageSize, sortedData.length)}</span> of{' '}
-                <span className="font-medium">{sortedData.length}</span> results
-              </p>
-            </div>
-            <div>
-              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="sr-only">Previous</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-                  </svg>
-                </button>
-
-                {[...Array(totalPages)].map((_, idx) => {
-                  const page = idx + 1;
-                  // Show first, last, current, and adjacent pages
-                  if (
-                    page === 1 ||
-                    page === totalPages ||
-                    (page >= currentPage - 1 && page <= currentPage + 1)
-                  ) {
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                          currentPage === page
-                            ? 'z-10 bg-primary-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600'
-                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  } else if (page === currentPage - 2 || page === currentPage + 2) {
-                    return <span key={page} className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>;
-                  }
-                  return null;
-                })}
-
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="sr-only">Next</span>
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </nav>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: '11px', color: '#606080', fontFamily: 'IBM Plex Mono, monospace' }}>
+            {(page-1)*pageSize+1}–{Math.min(page*pageSize, sorted.length)} of {sorted.length}
+          </span>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            {[...Array(totalPages)].map((_, i) => {
+              const p = i+1;
+              const show = p === 1 || p === totalPages || Math.abs(p - page) <= 1;
+              const ellipsis = Math.abs(p - page) === 2 && p !== 1 && p !== totalPages;
+              if (ellipsis) return <span key={p} style={{ padding: '6px 4px', color: '#3A3A58', fontSize: '12px' }}>…</span>;
+              if (!show) return null;
+              return (
+                <button key={p} onClick={() => setPage(p)} style={{
+                  width: '32px', height: '32px', borderRadius: '6px', border: 'none',
+                  background: p === page ? '#F59E0B' : 'transparent',
+                  color: p === page ? '#0A0A0F' : '#9090B8',
+                  fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px', cursor: 'pointer',
+                  transition: 'background 0.15s',
+                }}>{p}</button>
+              );
+            })}
           </div>
         </div>
       )}

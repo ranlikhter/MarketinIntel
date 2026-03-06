@@ -1,343 +1,253 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Layout from '../components/Layout';
 import { SkeletonStats } from '../components/LoadingStates';
 import api from '../lib/api';
 
+function useCountUp(target, duration, start) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!start || target === 0) return;
+    let startTime = null;
+    const step = (ts) => {
+      if (!startTime) startTime = ts;
+      const p = Math.min((ts - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setValue(Math.floor(eased * target));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }, [target, start, duration]);
+  return value;
+}
+
+const FEATURES = [
+  { tag: '01 — SCRAPING',   title: 'Amazon & Custom Sites',      body: 'Playwright-powered scraper with anti-bot fingerprinting. Add any website using CSS selectors — no limits.',                             accent: '#F59E0B' },
+  { tag: '02 — MATCHING',   title: 'AI Product Matching',        body: 'Claude-powered semantic matching across retailers. ASIN, model number, and keyword correlation at scale.',                            accent: '#10B981' },
+  { tag: '03 — STRATEGY',   title: 'Competitor DNA',             body: 'Predict competitor price strikes. Extract behavioral patterns, reprice simulation, and MAP violation tracking.',                     accent: '#818CF8' },
+  { tag: '04 — ALERTS',     title: 'Smart Notifications',        body: 'Multi-channel alerts with quiet hours, snooze, and escalation. Price wars and OOS detection built in.',                              accent: '#F472B6' },
+  { tag: '05 — ANALYTICS',  title: 'Forecasting Engine',         body: 'Historical trend analysis, price forecasting, and Redis-cached dashboards. CSV import for bulk data.',                               accent: '#34D399' },
+  { tag: '06 — AUTOMATION', title: 'Bulk Repricing',             body: 'Rule-based repricing automation with Shopify + WooCommerce sync. Set floors, ceilings, and margins.',                               accent: '#FB923C' },
+];
+
 export default function Home() {
-  const [stats, setStats] = useState({
-    products: 0,
-    competitors: 0,
-    matches: 0,
-  });
+  const [stats, setStats] = useState({ products: 0, competitors: 0, matches: 0 });
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
+  const [visible, setVisible] = useState(false);
+
+  const products    = useCountUp(stats.products,    1000, visible);
+  const competitors = useCountUp(stats.competitors, 1000, visible);
+  const matches     = useCountUp(stats.matches,     1200, visible);
 
   useEffect(() => {
-    loadData();
+    const t = setTimeout(() => setVisible(true), 300);
+    return () => clearTimeout(t);
   }, []);
 
-  const loadData = async () => {
-    try {
-      const [products, competitors] = await Promise.all([
-        api.getProducts(),
-        api.getCompetitors(),
-      ]);
-
-      const totalMatches = products.reduce((sum, p) => sum + (p.competitor_count || 0), 0);
-
-      setStats({
-        products: products.length,
-        competitors: competitors.length,
-        matches: totalMatches,
-      });
-
-      // Get 5 most recent products
-      setRecentActivity(products.slice(0, 5));
-    } catch (error) {
-      console.error('Failed to load data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    (async () => {
+      try {
+        const [prods, comps] = await Promise.all([api.getProducts(), api.getCompetitors()]);
+        const totalMatches = prods.reduce((s, p) => s + (p.competitor_count || 0), 0);
+        setStats({ products: prods.length, competitors: comps.length, matches: totalMatches });
+        setRecentActivity(prods.slice(0, 6));
+      } catch { /* ignore */ } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   return (
     <Layout>
-      <div className="space-y-8">
-        {/* Mega Hero Section */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 rounded-2xl shadow-2xl">
-          <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
-          <div className="relative px-8 py-16 sm:px-12 sm:py-20 lg:py-24">
-            <div className="mx-auto max-w-4xl text-center">
-              <div className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-sm px-4 py-2 text-sm font-medium text-white mb-6 animate-fade-in-down">
-                <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                <span>Real-time competitive intelligence</span>
-              </div>
+        {/* Hero */}
+        <section style={{
+          position: 'relative', overflow: 'hidden',
+          background: '#111118', border: '1px solid #1E1E2E', borderRadius: '12px',
+          padding: '56px 48px',
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }}>
+          <div style={{ position: 'absolute', top: '-80px', right: '-80px', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 animate-fade-in-up">
-                Monitor Competitor Prices
-                <br />
-                <span className="bg-gradient-to-r from-blue-200 to-cyan-200 bg-clip-text text-transparent">
-                  Across ANY Website
-                </span>
-              </h1>
-
-              <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto animate-fade-in-up animation-delay-200">
-                Track pricing intelligence across Amazon, custom competitors, and more.
-                Make data-driven decisions with automated scraping and beautiful analytics.
-              </p>
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up animation-delay-400">
-                <Link
-                  href="/products/add"
-                  className="inline-flex items-center justify-center px-8 py-4 border border-transparent text-base font-medium rounded-lg text-primary-700 bg-white hover:bg-blue-50 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Your First Product
-                </Link>
-                <Link
-                  href="/products"
-                  className="inline-flex items-center justify-center px-8 py-4 border-2 border-white/30 text-base font-medium rounded-lg text-white hover:bg-white/10 transition-all duration-200 backdrop-blur-sm"
-                >
-                  View Dashboard
-                  <svg className="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </div>
+          <div style={{ position: 'relative', zIndex: 1, maxWidth: '680px' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              padding: '5px 12px', borderRadius: '20px',
+              border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.08)',
+              marginBottom: '28px', animation: 'mi-fade-up 0.5s ease-out both',
+            }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981', animation: 'mi-pulse 2s ease-in-out infinite', display: 'inline-block' }} />
+              <span style={{ fontSize: '11px', color: '#F59E0B', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em' }}>
+                REAL-TIME COMPETITIVE INTELLIGENCE
+              </span>
             </div>
 
-            {/* Animated background elements */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-              <div className="absolute -top-1/2 -left-1/4 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl animate-blob" />
-              <div className="absolute -bottom-1/2 -right-1/4 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-blob animation-delay-2000" />
-              <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl animate-blob animation-delay-4000" />
+            <h1 style={{
+              fontFamily: 'Syne, sans-serif', fontWeight: 800,
+              fontSize: 'clamp(30px, 4vw, 52px)', lineHeight: 1.05,
+              letterSpacing: '-0.03em', color: '#F0F0FA', marginBottom: '20px',
+              animation: 'mi-fade-up 0.5s ease-out 0.1s both',
+            }}>
+              Know Every Move<br />
+              <span style={{ background: 'linear-gradient(90deg, #F59E0B, #FCD34D)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Your Competitors Make.
+              </span>
+            </h1>
+
+            <p style={{
+              fontSize: '16px', color: '#9090B8', lineHeight: 1.7,
+              marginBottom: '36px', maxWidth: '520px',
+              animation: 'mi-fade-up 0.5s ease-out 0.2s both',
+            }}>
+              Track pricing across Amazon, Walmart, and any custom website.
+              AI-powered matching, predictive strike analysis, and automated repricing — in one platform.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', animation: 'mi-fade-up 0.5s ease-out 0.3s both' }}>
+              <Link href="/products/add" legacyBehavior>
+                <a style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '8px', background: '#F59E0B', color: '#0A0A0F', textDecoration: 'none', fontWeight: 700, fontSize: '14px', fontFamily: 'Syne, sans-serif', boxShadow: '0 0 24px rgba(245,158,11,0.3)' }}>
+                  + Track a Product
+                </a>
+              </Link>
+              <Link href="/dashboard" legacyBehavior>
+                <a style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '8px', border: '1px solid #2A2A3E', color: '#9090B8', textDecoration: 'none', fontWeight: 500, fontSize: '14px' }}>
+                  View Intelligence
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                </a>
+              </Link>
             </div>
           </div>
-        </div>
 
-        {/* Stats Section */}
+          <div style={{ position: 'absolute', bottom: '20px', right: '24px', fontFamily: 'IBM Plex Mono, monospace', fontSize: '10px', color: '#3A3A58', letterSpacing: '0.1em' }}>
+            v2.0 · INTELLIGENCE SUITE
+          </div>
+        </section>
+
+        {/* Stats */}
         {loading ? (
           <SkeletonStats />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatCard
-              title="Products Monitored"
-              value={stats.products}
-              icon={
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                </svg>
-              }
-              color="blue"
-              link="/products"
-            />
-            <StatCard
-              title="Competitor Matches"
-              value={stats.matches}
-              icon={
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              }
-              color="green"
-            />
-            <StatCard
-              title="Tracked Websites"
-              value={stats.competitors}
-              icon={
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                </svg>
-              }
-              color="purple"
-              link="/competitors"
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }} className="stats-grid">
+            {[
+              { label: 'Products Monitored', value: products,    href: '/products',    color: '#F59E0B' },
+              { label: 'Competitor Matches', value: matches,     href: '/dashboard',   color: '#10B981' },
+              { label: 'Tracked Websites',   value: competitors, href: '/competitors', color: '#818CF8' },
+            ].map((s, i) => (
+              <Link key={s.label} href={s.href} legacyBehavior>
+                <a
+                  style={{ display: 'block', textDecoration: 'none', background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', padding: '24px 28px', transition: 'border-color 0.2s, box-shadow 0.2s', animation: `mi-fade-up 0.5s ease-out ${0.1 * i}s both` }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = s.color + '55'; e.currentTarget.style.boxShadow = `0 0 24px ${s.color}18`; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E1E2E'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <div style={{ fontSize: '11px', color: '#606080', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.08em', marginBottom: '12px' }}>{s.label.toUpperCase()}</div>
+                  <div style={{ fontSize: '44px', fontFamily: 'Syne, sans-serif', fontWeight: 800, color: s.color, letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                    {s.value.toLocaleString()}
+                  </div>
+                  <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '4px', color: '#3A3A58', fontSize: '11px' }}>
+                    View all
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  </div>
+                </a>
+              </Link>
+            ))}
           </div>
         )}
 
-        {/* Features Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            }
-            title="Amazon Integration"
-            description="Specialized scraper with anti-bot detection. Search products and monitor pricing automatically."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-            }
-            title="Custom Competitors"
-            description="Add ANY website with custom CSS selectors. Works with any e-commerce platform."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            }
-            title="Price Analytics"
-            description="Beautiful charts and historical data. Track trends and make informed pricing decisions."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            }
-            title="Real-time Scraping"
-            description="On-demand scraping with Playwright. Get fresh data whenever you need it."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-            title="Automated Monitoring"
-            description="Set it and forget it. Schedule automatic scrapes and get alerts on price changes."
-          />
-          <FeatureCard
-            icon={
-              <svg className="w-12 h-12 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            }
-            title="Reliable & Secure"
-            description="Built with FastAPI and Next.js. Your data is safe and always available."
-          />
-        </div>
+        {/* Features */}
+        <section>
+          <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+            <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '20px', color: '#F0F0FA', letterSpacing: '-0.02em', margin: 0 }}>Intelligence Suite</h2>
+            <span style={{ fontSize: '11px', color: '#606080', fontFamily: 'IBM Plex Mono, monospace' }}>06 MODULES</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+            {FEATURES.map((f, i) => (
+              <div key={i}
+                style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', padding: '24px', transition: 'border-color 0.2s, transform 0.2s', animation: `mi-fade-up 0.5s ease-out ${0.05 * i}s both` }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = f.accent + '44'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#1E1E2E'; e.currentTarget.style.transform = 'none'; }}
+              >
+                <div style={{ fontSize: '10px', color: f.accent, fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.1em', marginBottom: '12px' }}>{f.tag}</div>
+                <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '15px', color: '#F0F0FA', letterSpacing: '-0.01em', marginBottom: '8px' }}>{f.title}</h3>
+                <p style={{ fontSize: '13px', color: '#606080', lineHeight: 1.65, margin: 0 }}>{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        {/* Recent Activity */}
+        {/* Recent Products */}
         {!loading && recentActivity.length > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Recent Products</h2>
-              <Link href="/products" className="text-primary-600 hover:text-primary-700 font-medium text-sm flex items-center gap-1">
-                View all
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
+          <section>
+            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '20px', color: '#F0F0FA', letterSpacing: '-0.02em', margin: 0 }}>Recent Products</h2>
+              <Link href="/products" legacyBehavior>
+                <a style={{ fontSize: '11px', color: '#F59E0B', textDecoration: 'none', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  VIEW ALL <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                </a>
               </Link>
             </div>
-            <div className="space-y-3">
-              {recentActivity.map((product) => (
-                <Link
-                  key={product.id}
-                  href={`/products/${product.id}`}
-                  className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
-                >
-                  <div className="flex-1">
-                    <h3 className="font-medium text-gray-900 group-hover:text-primary-600 transition-colors">
-                      {product.title}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {product.brand && <span className="mr-3">Brand: {product.brand}</span>}
-                      <span>{product.competitor_count || 0} matches</span>
-                    </p>
-                  </div>
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-primary-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+            <div style={{ background: '#111118', border: '1px solid #1E1E2E', borderRadius: '10px', overflow: 'hidden' }}>
+              {recentActivity.map((product, i) => (
+                <Link key={product.id} href={`/products/${product.id}`} legacyBehavior>
+                  <a
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', textDecoration: 'none', borderBottom: i < recentActivity.length - 1 ? '1px solid #1E1E2E' : 'none', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(245,158,11,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: 0 }}>
+                      <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#1E1E2E', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '11px', fontFamily: 'IBM Plex Mono, monospace', color: '#606080' }}>
+                        {String(i + 1).padStart(2, '0')}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '13.5px', fontWeight: 500, color: '#F0F0FA', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.title}</div>
+                        <div style={{ fontSize: '11px', color: '#606080', marginTop: '2px', fontFamily: 'IBM Plex Mono, monospace' }}>
+                          {product.brand ? `${product.brand} · ` : ''}{product.competitor_count || 0} matches
+                        </div>
+                      </div>
+                    </div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3A3A58" strokeWidth="2"><path d="M9 18l6-6-6-6" /></svg>
+                  </a>
                 </Link>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Getting Started CTA */}
+        {/* Empty state */}
         {stats.products === 0 && !loading && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-lg p-8 border border-blue-100">
-            <div className="text-center">
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Ready to Get Started?</h3>
-              <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                Add your first product to start monitoring competitor prices. It only takes a few seconds!
-              </p>
-              <Link
-                href="/products/add"
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 transition-colors shadow-lg"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Product Now
-              </Link>
-            </div>
-          </div>
+          <section style={{
+            background: '#111118', border: '1px solid #1E1E2E', borderRadius: '12px',
+            padding: '56px 48px', textAlign: 'center',
+            backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }}>
+            <div style={{ fontSize: '10px', color: '#3A3A58', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.12em', marginBottom: '16px' }}>NO PRODUCTS TRACKED YET</div>
+            <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '28px', color: '#F0F0FA', letterSpacing: '-0.02em', marginBottom: '12px' }}>Start Your Intelligence Feed</h3>
+            <p style={{ color: '#606080', fontSize: '14px', lineHeight: 1.7, maxWidth: '400px', margin: '0 auto 28px' }}>
+              Add your first product and MarketIntel will begin tracking competitor prices across every platform automatically.
+            </p>
+            <Link href="/products/add" legacyBehavior>
+              <a style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '13px 28px', borderRadius: '8px', background: '#F59E0B', color: '#0A0A0F', textDecoration: 'none', fontWeight: 700, fontSize: '14px', fontFamily: 'Syne, sans-serif', boxShadow: '0 0 28px rgba(245,158,11,0.25)' }}>
+                + Add First Product
+              </a>
+            </Link>
+          </section>
         )}
       </div>
 
-      <style jsx>{`
-        @keyframes fade-in-down {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+      <style jsx global>{`
+        @media (max-width: 768px) { .stats-grid { grid-template-columns: 1fr !important; } }
+        @keyframes mi-fade-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-
-        @keyframes fade-in-up {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes blob {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(20px, -20px) scale(1.1); }
-          50% { transform: translate(-20px, 20px) scale(0.9); }
-          75% { transform: translate(20px, 20px) scale(1.05); }
-        }
-
-        .animate-fade-in-down { animation: fade-in-down 0.6s ease-out; }
-        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out; }
-        .animate-blob { animation: blob 7s infinite; }
-        .animation-delay-200 { animation-delay: 0.2s; }
-        .animation-delay-400 { animation-delay: 0.4s; }
-        .animation-delay-2000 { animation-delay: 2s; }
-        .animation-delay-4000 { animation-delay: 4s; }
-
-        .bg-grid-white {
-          background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+        @keyframes mi-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%       { opacity: 0.3; transform: scale(0.7); }
         }
       `}</style>
     </Layout>
-  );
-}
-
-function StatCard({ title, value, icon, color, link }) {
-  const colorClasses = {
-    blue: 'from-blue-500 to-blue-600 shadow-blue-500/50',
-    green: 'from-green-500 to-green-600 shadow-green-500/50',
-    purple: 'from-purple-500 to-purple-600 shadow-purple-500/50'
-  };
-
-  const content = (
-    <div className={`relative overflow-hidden bg-gradient-to-br ${colorClasses[color]} rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 p-6`}>
-      <div className="relative z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-white/80">{icon}</div>
-          <div className="text-white/80">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-            </svg>
-          </div>
-        </div>
-        <div className="text-4xl font-bold text-white mb-2">{value.toLocaleString()}</div>
-        <div className="text-white/90 font-medium">{title}</div>
-      </div>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full -ml-12 -mb-12" />
-    </div>
-  );
-
-  return link ? <Link href={link}>{content}</Link> : content;
-}
-
-function FeatureCard({ icon, title, description }) {
-  return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105 p-6 border border-gray-100">
-      <div className="mb-4">{icon}</div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
-      <p className="text-gray-600 text-sm">{description}</p>
-    </div>
   );
 }
