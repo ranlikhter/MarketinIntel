@@ -52,7 +52,6 @@ class CompetitorIntelService:
 
         # Get competitor website info
         competitor_site = self.db.query(CompetitorWebsite).filter(
-            CompetitorWebsite.user_id == self.user.id,
             func.lower(CompetitorWebsite.name) == competitor_name.lower()
         ).first()
 
@@ -140,7 +139,7 @@ class CompetitorIntelService:
 
         return {
             "competitor_name": competitor_name,
-            "competitor_website": competitor_site.website_url if competitor_site else None,
+            "competitor_website": competitor_site.base_url if competitor_site else None,
             "total_products_tracked": total_products,
             "pricing_profile": {
                 "products_cheaper_than_market": total_cheaper,
@@ -531,12 +530,13 @@ class CompetitorIntelService:
                             "timestamp": price_history[i].timestamp.isoformat()
                         })
 
-            # Check if newly added
-            if match.created_at >= since:
+            # Check if newly added (use created_at if available, fall back to last_scraped_at)
+            match_created = match.created_at or match.last_scraped_at
+            if match_created and match_created >= since:
                 activity.append({
                     "type": "new_product",
                     "product_title": match.monitored_product.title,
-                    "timestamp": match.created_at.isoformat()
+                    "timestamp": match_created.isoformat()
                 })
 
         # Sort by timestamp, most recent first
@@ -674,7 +674,11 @@ class CompetitorIntelService:
         if total == 0:
             return ["Add competitor tracking to get recommendations"]
 
-        expensive_ratio = positioning["expensive"] / total
+        total_with_competition = total - positioning.get("no_competition", 0)
+        if total_with_competition == 0:
+            return ["All products have no competition - add competitor tracking"]
+
+        expensive_ratio = positioning["expensive"] / total_with_competition
 
         if expensive_ratio > 0.5:
             recommendations.append(

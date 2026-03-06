@@ -8,7 +8,7 @@
 export default function PriceChart({ data }) {
   if (!data || data.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
         No price history data available yet
       </div>
     );
@@ -36,7 +36,7 @@ export default function PriceChart({ data }) {
   const chartHeight = height - padding.top - padding.bottom;
 
   // Colors for different competitors
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+  const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6'];
 
   // Scale functions
   const scaleX = (index, total) => {
@@ -48,7 +48,7 @@ export default function PriceChart({ data }) {
   };
 
   return (
-    <div className="bg-white p-6">
+    <div className="p-6" style={{ background: 'var(--bg-surface)' }}>
       <svg width={width} height={height} className="mx-auto">
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
@@ -61,14 +61,15 @@ export default function PriceChart({ data }) {
                 y1={y}
                 x2={width - padding.right}
                 y2={y}
-                stroke="#e5e7eb"
+                stroke="rgba(255,255,255,0.07)"
                 strokeWidth="1"
               />
               <text
                 x={padding.left - 10}
                 y={y + 4}
                 textAnchor="end"
-                className="text-xs fill-gray-600"
+                className="text-xs"
+                fill="rgba(255,255,255,0.4)"
               >
                 ${price.toFixed(2)}
               </text>
@@ -82,7 +83,7 @@ export default function PriceChart({ data }) {
           y1={height - padding.bottom}
           x2={width - padding.right}
           y2={height - padding.bottom}
-          stroke="#9ca3af"
+          stroke="rgba(255,255,255,0.2)"
           strokeWidth="2"
         />
 
@@ -92,7 +93,7 @@ export default function PriceChart({ data }) {
           y1={padding.top}
           x2={padding.left}
           y2={height - padding.bottom}
-          stroke="#9ca3af"
+          stroke="rgba(255,255,255,0.2)"
           strokeWidth="2"
         />
 
@@ -141,7 +142,8 @@ export default function PriceChart({ data }) {
           x={width / 2}
           y={height - 5}
           textAnchor="middle"
-          className="text-sm fill-gray-700 font-medium"
+          className="text-sm font-medium"
+          fill="rgba(255,255,255,0.5)"
         >
           Time
         </text>
@@ -150,7 +152,8 @@ export default function PriceChart({ data }) {
           y={15}
           textAnchor="middle"
           transform={`rotate(-90 0 0)`}
-          className="text-sm fill-gray-700 font-medium"
+          className="text-sm font-medium"
+          fill="rgba(255,255,255,0.5)"
         >
           Price (USD)
         </text>
@@ -164,7 +167,7 @@ export default function PriceChart({ data }) {
               className="w-4 h-4 rounded mr-2"
               style={{ backgroundColor: colors[index % colors.length] }}
             />
-            <span className="text-sm text-gray-700">{name}</span>
+            <span className="text-sm text-white/70">{name}</span>
           </div>
         ))}
       </div>

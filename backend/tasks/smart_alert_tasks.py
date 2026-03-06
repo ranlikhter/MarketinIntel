@@ -3,11 +3,15 @@ Smart Alert Celery Tasks
 Periodic tasks for checking and triggering smart alerts
 """
 
+import logging
+
 from celery_app import celery_app
 from database.connection import SessionLocal
 from services.smart_alert_service import get_smart_alert_service
 from database.models import User
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 @celery_app.task(name="check_smart_alerts")
@@ -98,7 +102,7 @@ def send_daily_digests():
                 alert_service.send_daily_digest(user.id)
                 sent_count += 1
             except Exception as e:
-                print(f"Failed to send daily digest to user {user.id}: {e}")
+                logger.error("Failed to send daily digest to user %s: %s", user.id, e)
 
         return {
             "status": "success",
@@ -142,7 +146,7 @@ def send_weekly_digests():
                 alert_service.send_weekly_digest(user.id)
                 sent_count += 1
             except Exception as e:
-                print(f"Failed to send weekly digest to user {user.id}: {e}")
+                logger.error("Failed to send weekly digest to user %s: %s", user.id, e)
 
         return {
             "status": "success",
@@ -159,23 +163,7 @@ def send_weekly_digests():
         db.close()
 
 
-# Celery Beat Schedule Configuration
-# Add this to celery_app.py:
-"""
-from celery.schedules import crontab
-
-app.conf.beat_schedule = {
-    'check-smart-alerts-every-5-minutes': {
-        'task': 'check_smart_alerts',
-        'schedule': 300.0,  # Every 5 minutes
-    },
-    'send-daily-digests-8am': {
-        'task': 'send_daily_digests',
-        'schedule': crontab(hour=8, minute=0),  # Daily at 8 AM
-    },
-    'send-weekly-digests-monday-8am': {
-        'task': 'send_weekly_digests',
-        'schedule': crontab(day_of_week=1, hour=8, minute=0),  # Monday at 8 AM
-    },
-}
-"""
+# Beat schedule for these tasks is defined in celery_app.py:
+#   check-smart-alerts-5min     → every 5 minutes
+#   send-daily-digests-8am      → daily at 08:00 UTC
+#   send-weekly-digests-monday  → Monday at 08:00 UTC

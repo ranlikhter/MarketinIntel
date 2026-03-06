@@ -320,10 +320,11 @@ class InsightsService:
             score += 15  # High activity = opportunity
 
         # Factor 4: Competitors out of stock (+25 bonus)
-        out_of_stock = sum(
-            1 for m in product.competitor_matches
-            if self._get_latest_price(m.id) and not self._get_latest_price(m.id).in_stock
-        )
+        out_of_stock = 0
+        for m in product.competitor_matches:
+            lp = self._get_latest_price(m.id)
+            if lp and not lp.in_stock:
+                out_of_stock += 1
         if out_of_stock > 0:
             score += 25
 
@@ -412,7 +413,7 @@ class InsightsService:
 
         new_comps = []
         for product in products:
-            new_matches = [m for m in product.competitor_matches if m.created_at >= week_ago]
+            new_matches = [m for m in product.competitor_matches if m.created_at and m.created_at >= week_ago]
             if new_matches:
                 new_comps.append({
                     "product_id": product.id,
@@ -434,7 +435,15 @@ class InsightsService:
         for product in products:
             # Check last crawl time
             if product.competitor_matches:
-                last_crawl = max(m.last_crawled_at for m in product.competitor_matches if m.last_crawled_at)
+                crawl_times = [m.last_scraped_at for m in product.competitor_matches if m.last_scraped_at]
+                if not crawl_times:
+                    stale.append({
+                        "product_id": product.id,
+                        "title": product.title,
+                        "last_update": None
+                    })
+                    continue
+                last_crawl = max(crawl_times)
                 if last_crawl < threshold:
                     stale.append({
                         "product_id": product.id,
@@ -454,8 +463,8 @@ class InsightsService:
         for product in products:
             if self._get_price_position(product) == "cheapest":
                 # Calculate potential gain
-                prices = [self._get_latest_price(m.id).price for m in product.competitor_matches
-                         if self._get_latest_price(m.id)]
+                latest_prices = [(m, self._get_latest_price(m.id)) for m in product.competitor_matches]
+                prices = [lp.price for m, lp in latest_prices if lp]
                 if prices:
                     second_lowest = sorted(prices)[1] if len(prices) > 1 else prices[0]
                     # Assume current price is in prices (simplified)
@@ -650,16 +659,20 @@ class InsightsService:
         if not prices:
             return "no_data"
 
-        # Simplified - assumes user has a price (would need user's actual price in real implementation)
         min_price = min(prices)
         max_price = max(prices)
 
-        # This is a placeholder - in reality you'd compare user's price
-        if len(prices) == 1:
-            return "mid_range"
+        # Compare user's own price against competitor prices
+        if product.my_price is not None:
+            if product.my_price <= min_price:
+                return "cheapest"
+            elif product.my_price >= max_price:
+                return "most_expensive"
+            else:
+                return "mid_range"
 
-        # Return based on price distribution
-        return "cheapest" if prices[0] == min_price else "most_expensive" if prices[0] == max_price else "mid_range"
+        # Fallback when my_price is not set
+        return "mid_range"
 
     def _get_latest_price(self, match_id: int) -> PriceHistory:
         """Get the most recent price for a competitor match"""

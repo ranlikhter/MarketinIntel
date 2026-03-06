@@ -1,274 +1,258 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
+import { ConfirmModal } from '../../components/Modal';
+import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
+const Ico = {
+  globe:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" /></svg>,
+  check:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  pause:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  plus:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
+  ext:    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>,
+  trash:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  edit:   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>,
+};
+
+const TABS = ['All', 'Active', 'Inactive'];
+
+function StatCard({ label, value, color, icon }) {
+  const bg = {
+    amber:   { background: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
+    emerald: { background: 'rgba(16,185,129,0.15)', color: '#10b981' },
+    gray:    { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' },
+  }[color];
+  return (
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} className="rounded-2xl shadow-sm p-5 flex items-center gap-4">
+      <div style={{ background: bg.background, color: bg.color }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">{icon}</div>
+      <div>
+        <p className="text-2xl font-bold text-white leading-none">{value}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function CompetitorCard({ competitor, onToggle, onDelete }) {
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    onDelete(competitor.id);
+  };
+
+  return (
+    <div
+      style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+      className={`rounded-2xl shadow-sm overflow-hidden transition-opacity ${deleting ? 'opacity-50' : ''} ${competitor.is_active ? '' : 'opacity-75'}`}
+    >
+      {/* Top stripe */}
+      <div className={`h-1 ${competitor.is_active ? 'bg-emerald-400' : 'bg-white/10'}`} />
+
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-white truncate">{competitor.name}</h3>
+            <a
+              href={competitor.base_url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 mt-0.5 truncate max-w-full"
+            >
+              {competitor.base_url} {Ico.ext}
+            </a>
+          </div>
+          <span
+            style={competitor.is_active
+              ? { background: 'rgba(16,185,129,0.15)', color: '#10b981' }
+              : { background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }
+            }
+            className="shrink-0 px-2.5 py-0.5 rounded-full text-xs font-medium"
+          >
+            {competitor.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        {/* Type + date */}
+        <div className="flex items-center gap-3 mb-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span className="capitalize">{competitor.website_type || 'Custom'}</span>
+          <span>·</span>
+          <span>Added {new Date(competitor.created_at).toLocaleDateString()}</span>
+        </div>
+
+        {/* Selectors */}
+        {(competitor.price_selector || competitor.title_selector) && (
+          <div className="space-y-1.5 mb-4">
+            {competitor.price_selector && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-8 shrink-0" style={{ color: 'var(--text-muted)' }}>Price</span>
+                <code style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.6)' }} className="px-2 py-0.5 rounded-lg truncate">{competitor.price_selector}</code>
+              </div>
+            )}
+            {competitor.title_selector && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-8 shrink-0" style={{ color: 'var(--text-muted)' }}>Title</span>
+                <code style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.6)' }} className="px-2 py-0.5 rounded-lg truncate">{competitor.title_selector}</code>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notes */}
+        {competitor.notes && (
+          <p className="text-xs line-clamp-2 mb-4" style={{ color: 'var(--text-muted)' }}>{competitor.notes}</p>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={() => onToggle(competitor.id, competitor.is_active)}
+            className={`text-xs font-medium transition-colors ${competitor.is_active ? 'hover:text-white' : 'text-emerald-500 hover:text-emerald-400'}`}
+            style={competitor.is_active ? { color: 'var(--text-muted)' } : {}}
+          >
+            {competitor.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+          <div className="flex items-center gap-3">
+            <Link href={`/competitors/${competitor.id}/edit`} className="transition-colors hover:text-white/60" style={{ color: 'var(--text-muted)' }}>{Ico.edit}</Link>
+            <button onClick={handleDelete} disabled={deleting} className="transition-colors hover:text-red-500 disabled:opacity-50" style={{ color: 'var(--text-muted)' }}>{Ico.trash}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CompetitorsPage() {
+  const { addToast } = useToast();
   const [competitors, setCompetitors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [tab, setTab] = useState('All');
+  const [deleteModal, setDeleteModal] = useState({ open: false, competitor: null });
 
-  useEffect(() => {
-    loadCompetitors();
-  }, [filter]);
+  useEffect(() => { loadCompetitors(); }, []);
 
   const loadCompetitors = async () => {
     try {
       setLoading(true);
-      const activeOnly = filter === 'active' ? true : (filter === 'inactive' ? false : undefined);
-      const data = await api.getCompetitors(activeOnly);
+      const data = await api.getCompetitors();
       setCompetitors(data);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load competitors. Make sure the backend is running.');
-      console.error(err);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggleActive = async (id, currentStatus) => {
+  const handleToggle = async (id, currentStatus) => {
     try {
       await api.toggleCompetitorStatus(id);
-      // Update local state
-      setCompetitors(competitors.map(c =>
-        c.id === id ? { ...c, is_active: !currentStatus } : c
-      ));
-    } catch (err) {
-      alert('Failed to update competitor status');
-      console.error(err);
-    }
+      setCompetitors(cs => cs.map(c => c.id === id ? { ...c, is_active: !currentStatus } : c));
+    } catch { addToast('Failed to update competitor status', 'error'); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this competitor? This will remove all associated data.')) {
-      return;
-    }
-
     try {
       await api.deleteCompetitor(id);
-      setCompetitors(competitors.filter(c => c.id !== id));
-    } catch (err) {
-      alert('Failed to delete competitor');
-      console.error(err);
-    }
+      setCompetitors(cs => cs.filter(c => c.id !== id));
+      addToast('Competitor removed', 'success');
+    } catch { addToast('Failed to delete competitor', 'error'); }
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading competitors...</p>
-        </div>
-      </Layout>
-    );
-  }
+  const active = competitors.filter(c => c.is_active);
+  const inactive = competitors.filter(c => !c.is_active);
+  const filtered = tab === 'Active' ? active : tab === 'Inactive' ? inactive : competitors;
 
-  if (error) {
-    return (
-      <Layout>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-red-800">{error}</p>
-          <p className="text-red-600 text-sm mt-2">
-            Start the backend server: <code className="bg-red-100 px-2 py-1 rounded">start-backend.bat</code>
-          </p>
+  if (loading) return (
+    <Layout>
+      <div className="p-4 lg:p-6 space-y-5">
+        <div className="grid grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
         </div>
-      </Layout>
-    );
-  }
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-48 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
+        </div>
+      </div>
+    </Layout>
+  );
 
   return (
     <Layout>
-      <div className="px-4 sm:px-6 lg:px-8">
+      <div className="p-4 lg:p-6 space-y-5">
+
         {/* Header */}
-        <div className="sm:flex sm:items-center">
-          <div className="sm:flex-auto">
-            <h1 className="text-3xl font-bold text-gray-900">Competitor Websites</h1>
-            <p className="mt-2 text-sm text-gray-700">
-              Manage custom competitor websites and configure scraping selectors
-            </p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-white">Competitors</h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text-muted)' }}>Custom websites to monitor with CSS selectors</p>
           </div>
-          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-            <Link
-              href="/competitors/add"
-              className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-            >
-              Add Competitor
-            </Link>
-          </div>
+          <Link
+            href="/competitors/add"
+            className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90"
+          >
+            {Ico.plus} Add Competitor
+          </Link>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="mt-6 border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setFilter('all')}
-              className={`${
-                filter === 'all'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              All ({competitors.length})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`${
-                filter === 'active'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setFilter('inactive')}
-              className={`${
-                filter === 'inactive'
-                  ? 'border-primary-500 text-primary-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Inactive
-            </button>
-          </nav>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard label="Total" value={competitors.length} color="amber" icon={Ico.globe} />
+          <StatCard label="Active" value={active.length} color="emerald" icon={Ico.check} />
+          <StatCard label="Inactive" value={inactive.length} color="gray" icon={Ico.pause} />
         </div>
 
-        {/* Competitors Grid */}
-        {competitors.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow mt-6">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
+        {/* Filter tabs */}
+        <div className="flex items-center gap-2">
+          {TABS.map(t => (
+            <button
+              key={t} onClick={() => setTab(t)}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                tab === t ? 'bg-white/10 text-white' : 'hover:bg-white/5'
+              }`}
+              style={tab !== t ? { color: 'var(--text-muted)' } : {}}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No competitors</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Get started by adding your first competitor website.
+              {t}
+              {t !== 'All' && (
+                <span className={`ml-1.5 text-xs ${tab === t ? 'opacity-70' : ''}`} style={tab !== t ? { color: 'var(--text-muted)' } : {}}>
+                  ({t === 'Active' ? active.length : inactive.length})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Grid */}
+        {filtered.length === 0 ? (
+          <div className="rounded-2xl shadow-sm p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.2)' }}>{Ico.globe}</div>
+            <p className="text-sm font-medium text-white">
+              {tab === 'All' ? 'No competitors yet' : `No ${tab.toLowerCase()} competitors`}
             </p>
-            <div className="mt-6">
-              <Link
-                href="/competitors/add"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700"
-              >
-                + Add Competitor
+            <p className="text-xs mt-1 mb-5" style={{ color: 'var(--text-muted)' }}>
+              {tab === 'All' ? 'Add a competitor website to start tracking prices' : 'Change the filter to see other competitors'}
+            </p>
+            {tab === 'All' && (
+              <Link href="/competitors/add" className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90">
+                {Ico.plus} Add Competitor
               </Link>
-            </div>
+            )}
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {competitors.map((competitor) => (
-              <div
-                key={competitor.id}
-                className="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-lg transition-shadow"
-              >
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 truncate">
-                      {competitor.name}
-                    </h3>
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        competitor.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {competitor.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-
-                  {/* Base URL */}
-                  <a
-                    href={competitor.base_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary-600 hover:text-primary-900 break-all block mb-4"
-                  >
-                    {competitor.base_url}
-                  </a>
-
-                  {/* Type */}
-                  <div className="mb-4">
-                    <span className="text-xs text-gray-500">Type: </span>
-                    <span className="text-xs font-medium text-gray-700 capitalize">
-                      {competitor.website_type || 'custom'}
-                    </span>
-                  </div>
-
-                  {/* Selectors */}
-                  <div className="space-y-2 mb-4">
-                    <div className="text-xs">
-                      <span className="text-gray-500">Price: </span>
-                      <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                        {competitor.price_selector || 'Not set'}
-                      </code>
-                    </div>
-                    <div className="text-xs">
-                      <span className="text-gray-500">Title: </span>
-                      <code className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                        {competitor.title_selector || 'Not set'}
-                      </code>
-                    </div>
-                  </div>
-
-                  {/* Notes */}
-                  {competitor.notes && (
-                    <p className="text-xs text-gray-600 mb-4 line-clamp-2">
-                      {competitor.notes}
-                    </p>
-                  )}
-
-                  {/* Date */}
-                  <p className="text-xs text-gray-500 mb-4">
-                    Added: {new Date(competitor.created_at).toLocaleDateString()}
-                  </p>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => handleToggleActive(competitor.id, competitor.is_active)}
-                      className={`text-sm font-medium ${
-                        competitor.is_active
-                          ? 'text-gray-600 hover:text-gray-900'
-                          : 'text-green-600 hover:text-green-900'
-                      }`}
-                    >
-                      {competitor.is_active ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <div className="space-x-3">
-                      <Link
-                        href={`/competitors/${competitor.id}/edit`}
-                        className="text-sm font-medium text-primary-600 hover:text-primary-900"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(competitor.id)}
-                        className="text-sm font-medium text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filtered.map(c => (
+              <CompetitorCard key={c.id} competitor={c} onToggle={handleToggle} onDelete={() => setDeleteModal({ open: true, competitor: c })} />
             ))}
           </div>
         )}
       </div>
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, competitor: null })}
+        onConfirm={() => handleDelete(deleteModal.competitor?.id)}
+        title="Delete Competitor"
+        message={`Delete "${deleteModal.competitor?.name}"? This will remove all associated data.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+      />
     </Layout>
   );
 }

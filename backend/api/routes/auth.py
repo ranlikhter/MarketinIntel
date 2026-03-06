@@ -8,9 +8,10 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import ConfigDict, BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, timedelta
+
 
 from database.connection import get_db
 from database.models import User, SubscriptionTier, SubscriptionStatus
@@ -62,8 +63,7 @@ class UserResponse(BaseModel):
     alerts_limit: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PasswordResetRequest(BaseModel):
@@ -89,6 +89,7 @@ class ChangePasswordRequest(BaseModel):
 # ============================================
 
 @router.post("/signup", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse)
 async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     """
     Register a new user account

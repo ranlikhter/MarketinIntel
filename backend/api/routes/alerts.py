@@ -6,13 +6,20 @@ Manage price alert rules and notifications
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from pydantic import ConfigDict, BaseModel, EmailStr
+from typing import Literal, Optional, List
+
+ALERT_TYPE = Literal[
+    "price_drop", "price_increase", "any_change", "out_of_stock",
+    "price_war", "new_competitor", "most_expensive", "competitor_raised",
+    "back_in_stock", "market_trend",
+]
 from datetime import datetime, timedelta
 
 from database.connection import get_db
 from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
 from services.email_service import email_service
+from services.activity_service import log_activity
 from api.dependencies import get_current_user, check_usage_limit
 
 router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
@@ -21,7 +28,7 @@ router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
 # Pydantic models
 class AlertCreate(BaseModel):
     product_id: int
-    alert_type: str  # See PriceAlert model for all 10 supported types
+    alert_type: ALERT_TYPE
     threshold_pct: float = 5.0
     threshold_amount: Optional[float] = None
 
@@ -109,10 +116,10 @@ class AlertResponse(BaseModel):
     cooldown_hours: int
     last_triggered_at: Optional[datetime]
     trigger_count: int
+    snoozed_until: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ============================================
@@ -183,6 +190,9 @@ async def create_alert(
     )
 
     db.add(new_alert)
+    db.flush()
+    product_title = product.title
+    log_activity(db, current_user.id, "alert.create", "alert", f"Created price alert for '{product_title}'", entity_type="alert", entity_id=new_alert.id, entity_name=product_title, metadata={"alert_type": new_alert.alert_type, "product_id": new_alert.product_id})
     db.commit()
     db.refresh(new_alert)
 
@@ -328,6 +338,11 @@ async def delete_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == alert.product_id
+    ).first()
+    product_title = product.title if product else "Unknown"
+    log_activity(db, current_user.id, "alert.delete", "alert", f"Deleted price alert for '{product_title}'", entity_type="alert", entity_id=alert_id, entity_name=product_title)
     db.delete(alert)
     db.commit()
 
@@ -355,6 +370,11 @@ async def toggle_alert(
     alert.enabled = not alert.enabled
     alert.updated_at = datetime.utcnow()
 
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == alert.product_id
+    ).first()
+    product_title = product.title if product else "Unknown"
+    log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert for '{product_title}'", entity_type="alert", entity_id=alert.id, entity_name=product_title, metadata={"enabled": alert.enabled})
     db.commit()
     db.refresh(alert)
 
@@ -667,4 +687,82 @@ async def check_all_user_alerts(
         "success": True,
         "message": "Alert check queued",
         "task_id": task.id
+    }
+
+
+# ============================================================
+# Alert Snooze / Unsnooze
+# ============================================================
+
+@router.post("/{alert_id}/snooze")
+async def snooze_alert(
+    alert_id: int,
+    hours: int = 24,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Temporarily silence an alert without deleting it.
+
+    The alert will resume firing normally once the snooze period expires.
+
+    - **hours**: How long to snooze (default 24 h). Common values: 24, 48, 168 (1 week).
+    """
+    if hours < 1 or hours > 8760:  # max 1 year
+        raise HTTPException(status_code=422, detail="hours must be between 1 and 8760")
+
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id,
+    ).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    alert.snoozed_until = datetime.utcnow() + timedelta(hours=hours)
+    alert.updated_at = datetime.utcnow()
+
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == alert.product_id
+    ).first()
+    product_title = product.title if product else "Unknown"
+    log_activity(
+        db, current_user.id, "alert.snooze", "alert",
+        f"Snoozed alert for '{product_title}' for {hours}h",
+        entity_type="alert", entity_id=alert_id, entity_name=product_title,
+        metadata={"hours": hours, "snoozed_until": alert.snoozed_until.isoformat()},
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "alert_id": alert_id,
+        "snoozed_until": alert.snoozed_until.isoformat(),
+        "message": f"Alert snoozed for {hours} hour(s)",
+    }
+
+
+@router.post("/{alert_id}/unsnooze")
+async def unsnooze_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Cancel an active snooze and resume the alert immediately.
+    """
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id,
+    ).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    alert.snoozed_until = None
+    alert.updated_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "success": True,
+        "alert_id": alert_id,
+        "message": "Alert snooze cancelled — alert is now active",
     }

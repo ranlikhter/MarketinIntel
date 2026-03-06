@@ -5,7 +5,7 @@ Advanced product filtering and saved filter combinations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from typing import List, Dict, Any, Optional
 
 from sqlalchemy import or_
@@ -62,8 +62,7 @@ class SavedViewResponse(BaseModel):
     last_used_at: Optional[Any]
     created_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FilterOptionsResponse(BaseModel):

@@ -1,11 +1,445 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Layout from '../../components/Layout';
-import { PriceHistoryChart, TrendIndicator } from '../../components/Charts';
+import { PriceTimelineChart } from '../../components/Charts';
 import { useToast } from '../../components/Toast';
-import { LoadingSpinner, SkeletonCard, SkeletonChart } from '../../components/LoadingStates';
 import api from '../../lib/api';
+
+// ─── INLINE ICONS ─────────────────────────────────────────────────────────────
+const Ico = {
+  back:    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>,
+  search:  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
+  refresh: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>,
+  users:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+  dollar:  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  avg:     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+  range:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+  external:<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>,
+  image:   <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1} style={{ color: 'var(--text-muted)' }}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+  link:    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>,
+  close:   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>,
+  pin:     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>,
+};
+
+// ─── MANUAL URL MODAL ─────────────────────────────────────────────────────────
+function AddUrlModal({ productId, onClose, onSuccess }) {
+  const { addToast } = useToast();
+  const [url, setUrl]   = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [phase, setPhase]       = useState('idle'); // idle | scraping | done | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const [previewTitle, setPreviewTitle] = useState('');
+
+  // Close on Escape
+  const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
+
+  const isValidUrl = (s) => {
+    try { return ['http:', 'https:'].includes(new URL(s).protocol); } catch { return false; }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValidUrl(url)) { setErrorMsg('Enter a valid URL starting with https://'); return; }
+    setLoading(true);
+    setPhase('scraping');
+    setErrorMsg('');
+    try {
+      const res = await api.scrapeProductUrl(productId, url.trim(), name.trim() || null);
+      if (res.status === 'error') {
+        setPhase('error');
+        setErrorMsg(res.error || 'Scraping failed — the page may require a login or block bots.');
+      } else {
+        setPhase('done');
+        setPreviewTitle(res.match?.competitor_product_title || url);
+        addToast('Competitor URL added and scraped', 'success');
+        onSuccess(res.match);
+      }
+    } catch (err) {
+      setPhase('error');
+      setErrorMsg(err.message || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onKeyDown={handleKey}
+    >
+      <div className="rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-5 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <h2 className="text-base font-semibold text-white">Add competitor URL manually</h2>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Paste a product page URL you already know is the same item. We'll scrape it and link it here.
+            </p>
+          </div>
+          <button onClick={onClose} className="ml-3 mt-0.5 hover:text-white/70 transition-colors shrink-0" style={{ color: 'var(--text-muted)' }}>
+            {Ico.close}
+          </button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* URL input */}
+          <div>
+            <label className="block text-xs font-medium text-white/70 mb-1.5">
+              Competitor product URL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              autoFocus
+              value={url}
+              onChange={e => { setUrl(e.target.value); setErrorMsg(''); setPhase('idle'); }}
+              placeholder="https://www.amazon.com/dp/B09XYZ..."
+              className="glass-input w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition-shadow font-mono text-white placeholder-white/30"
+              disabled={loading}
+              required
+            />
+            {errorMsg && (
+              <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                {errorMsg}
+              </p>
+            )}
+          </div>
+
+          {/* Optional competitor name */}
+          <div>
+            <label className="block text-xs font-medium text-white/70 mb-1.5">
+              Competitor name <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(optional — auto-detected from URL)</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Amazon, Walmart, Argos…"
+              className="glass-input w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition-shadow text-white placeholder-white/30"
+              disabled={loading}
+            />
+          </div>
+
+          {/* What happens info box */}
+          {phase === 'idle' && (
+            <div className="rounded-xl p-3 flex gap-2.5 text-xs text-amber-400" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>We'll open this URL, extract the price, stock status, images, and all available product data, then pin it to this product with a 100% match score.</span>
+            </div>
+          )}
+
+          {/* Scraping progress */}
+          {phase === 'scraping' && (
+            <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)' }}>
+              <span className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-400">Scraping page…</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Extracting price, stock, images and product details</p>
+              </div>
+            </div>
+          )}
+
+          {/* Success state */}
+          {phase === 'done' && (
+            <div className="rounded-xl p-3 flex items-start gap-2.5 text-xs text-emerald-400" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <svg className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+              <div>
+                <p className="font-semibold">Linked successfully</p>
+                <p className="mt-0.5 line-clamp-2" style={{ color: 'var(--text-muted)' }}>{previewTitle}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Footer buttons */}
+          <div className="flex gap-2 pt-1">
+            {phase === 'done' ? (
+              <button
+                type="button" onClick={onClose}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Done
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button" onClick={onClose}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70"
+                  style={{ border: '1px solid var(--border)' }}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || !url.trim()}
+                  className="flex-1 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scraping…</>
+                  ) : (
+                    <>{Ico.link} Scrape &amp; Link</>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── ADD-URL CARD (shown in matches grid) ─────────────────────────────────────
+function AddUrlCard({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 py-10 px-4 text-center transition-all hover:bg-white/5"
+      style={{ borderColor: 'var(--border)' }}
+    >
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center transition-colors" style={{ background: 'var(--bg-elevated)' }}>
+        <svg className="w-6 h-6 transition-colors text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-white/70">Add from URL</p>
+        <p className="text-xs mt-0.5 leading-snug max-w-[160px]" style={{ color: 'var(--text-muted)' }}>
+          Know the exact product page? Paste the URL and we'll scrape it.
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function StatCard({ label, sub, value, color, icon }) {
+  const bg = {
+    blue:    'rgba(59,130,246,0.12)',
+    emerald: 'rgba(16,185,129,0.12)',
+    violet:  'rgba(139,92,246,0.12)',
+    amber:   'rgba(245,158,11,0.12)',
+  }[color];
+  const textColor = {
+    blue:    '#60a5fa',
+    emerald: '#34d399',
+    violet:  '#a78bfa',
+    amber:   '#f59e0b',
+  }[color];
+  return (
+    <div className="rounded-2xl shadow-sm p-5 flex items-center gap-4" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: bg, color: textColor }}>{icon}</div>
+      <div>
+        <p className="text-2xl font-bold text-white leading-none">{value}</p>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+        {sub && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+function StockBadge({ status }) {
+  if (status === 'In Stock')     return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>In Stock</span>;
+  if (status === 'Out of Stock') return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>Out of Stock</span>;
+  if (!status)                   return null;
+  return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>Low Stock</span>;
+}
+
+function StarRating({ rating }) {
+  if (!rating) return null;
+  const full = Math.floor(rating);
+  const half = rating % 1 >= 0.5;
+  return (
+    <span className="flex items-center gap-0.5">
+      {[...Array(5)].map((_, i) => (
+        <svg key={i} className={`w-3 h-3 ${i < full ? 'text-amber-400' : i === full && half ? 'text-amber-300' : 'text-white/20'}`} fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ))}
+    </span>
+  );
+}
+
+function OpportunityBadge({ match, allMatches, myPrice }) {
+  if (!match.latest_price) return null;
+
+  // Out of stock = green opportunity
+  if (match.stock_status === 'Out of Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+        Opportunity — Out of Stock
+      </div>
+    );
+  }
+
+  // Most expensive and you're cheapest = safe
+  const inStockPriced = allMatches.filter(m => m.latest_price != null && m.stock_status !== 'Out of Stock');
+  if (inStockPriced.length === 0) return null;
+
+  const maxPrice = Math.max(...inStockPriced.map(m => m.latest_price));
+  const minPrice = Math.min(...inStockPriced.map(m => m.latest_price));
+
+  // You're the most expensive
+  if (myPrice != null && myPrice > maxPrice && match.latest_price === minPrice && match.stock_status === 'In Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(248,113,113,0.12)', color: '#f87171' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
+        Undercuts you — cheapest in-stock
+      </div>
+    );
+  }
+
+  // Competitor has a promotion running
+  if (match.promotion_label && match.stock_status === 'In Stock') {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-semibold" style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+        Running promo — watch price
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function MatchCard({ match, myPrice, allMatches }) {
+  const [imgErr, setImgErr] = useState(false);
+  const priceDiff = myPrice != null && match.latest_price != null ? match.latest_price - myPrice : null;
+  const priceDiffPct = priceDiff != null && myPrice ? ((priceDiff / myPrice) * 100).toFixed(1) : null;
+
+  return (
+    <div className="rounded-2xl shadow-sm overflow-hidden flex flex-col" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      {/* Opportunity flag */}
+      {allMatches && (
+        <div className="px-3 pt-2">
+          <OpportunityBadge match={match} allMatches={allMatches} myPrice={myPrice} />
+        </div>
+      )}
+
+      {/* Image with badge overlay */}
+      <div className="relative h-36 flex items-center justify-center overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
+        {!imgErr && match.image_url ? (
+          <img src={match.image_url} alt={match.competitor_product_title} className="w-full h-full object-contain p-2" onError={() => setImgErr(true)} />
+        ) : (
+          <div>{Ico.image}</div>
+        )}
+        <div className="absolute top-2 left-2 flex flex-wrap gap-1">
+          {match.is_prime && (
+            <span className="px-1.5 py-0.5 bg-blue-600 text-white text-xs font-bold rounded">Prime</span>
+          )}
+          {match.promotion_label && (
+            <span className="px-1.5 py-0.5 bg-red-500 text-white text-xs font-semibold rounded truncate max-w-[120px]" title={match.promotion_label}>
+              {match.promotion_label}
+            </span>
+          )}
+          {match.product_condition && match.product_condition !== 'New' && (
+            <span className="px-1.5 py-0.5 text-xs font-semibold rounded" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>{match.product_condition}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 flex-1 flex flex-col">
+        {/* Source + match score */}
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{match.competitor_name}</span>
+          {match.match_score != null && (
+            match.match_score === 100 ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full" style={{ color: '#a78bfa', background: 'rgba(139,92,246,0.12)' }} title="Manually pinned by you">
+                {Ico.pin} Pinned
+              </span>
+            ) : (
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }} title="Auto match confidence">{match.match_score.toFixed(0)}% match</span>
+            )
+          )}
+        </div>
+
+        {/* Title */}
+        <p className="text-sm font-medium text-white line-clamp-2 mb-1">{match.competitor_product_title}</p>
+
+        {/* Variant */}
+        {match.variant && (
+          <p className="text-xs mb-2 truncate" style={{ color: 'var(--text-muted)' }} title={match.variant}>{match.variant}</p>
+        )}
+
+        {/* Rating */}
+        {(match.rating != null || match.review_count != null) && (
+          <div className="flex items-center gap-1.5 mb-3">
+            {match.rating != null && <StarRating rating={match.rating} />}
+            {match.rating != null && <span className="text-xs font-semibold text-white/70">{match.rating.toFixed(1)}</span>}
+            {match.review_count != null && <span className="text-xs" style={{ color: 'var(--text-muted)' }}>({match.review_count.toLocaleString()})</span>}
+          </div>
+        )}
+
+        {/* Price block */}
+        <div className="rounded-xl p-3 mb-3 space-y-1.5" style={{ background: 'var(--bg-elevated)' }}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Price</span>
+            <div className="flex items-center gap-2">
+              {match.was_price && (
+                <span className="text-xs line-through" style={{ color: 'var(--text-muted)' }}>${match.was_price.toFixed(2)}</span>
+              )}
+              <span className="text-base font-bold text-amber-400">
+                {match.latest_price != null ? `$${match.latest_price.toFixed(2)}` : '—'}
+              </span>
+              {match.discount_pct != null && (
+                <span className="text-xs font-bold text-red-400">-{match.discount_pct.toFixed(0)}%</span>
+              )}
+            </div>
+          </div>
+          {match.shipping_cost != null && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Shipping</span>
+              <span className={`text-xs font-medium ${match.shipping_cost === 0 ? 'text-emerald-400' : 'text-white/70'}`}>
+                {match.shipping_cost === 0 ? '✓ Free' : `+$${match.shipping_cost.toFixed(2)}`}
+              </span>
+            </div>
+          )}
+          {match.total_price != null && match.shipping_cost > 0 && (
+            <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+              <span className="text-xs font-semibold text-white/70">Total landed</span>
+              <span className="text-sm font-bold text-white">${match.total_price.toFixed(2)}</span>
+            </div>
+          )}
+          {priceDiff != null && (
+            <div className="flex items-center justify-between pt-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>vs My Price</span>
+              <span className={`text-xs font-bold ${priceDiff < 0 ? 'text-red-400' : priceDiff > 0 ? 'text-emerald-400' : 'text-white/50'}`}>
+                {priceDiff > 0 ? `+$${priceDiff.toFixed(2)} (+${priceDiffPct}%)` : priceDiff < 0 ? `-$${Math.abs(priceDiff).toFixed(2)} (${Math.abs(priceDiffPct)}%)` : 'Same'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Meta row: stock + fulfillment + seller */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <StockBadge status={match.stock_status} />
+          {match.fulfillment_type && <span>{match.fulfillment_type}</span>}
+          {match.seller_name && <span className="truncate max-w-[90px]" title={match.seller_name}>by {match.seller_name}</span>}
+        </div>
+
+        {/* Category */}
+        {match.category && (
+          <p className="text-xs mb-2 truncate" style={{ color: 'var(--text-muted)' }} title={match.category}>{match.category}</p>
+        )}
+
+        <a
+          href={match.competitor_url} target="_blank" rel="noopener noreferrer"
+          className="mt-auto flex items-center justify-center gap-1.5 w-full py-2 gradient-brand text-white rounded-xl text-xs font-medium transition-colors"
+        >
+          View Product {Ico.external}
+        </a>
+        <p className="text-center text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+          Updated {match.last_checked ? new Date(match.last_checked).toLocaleDateString() : '—'}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function ProductDetailPage() {
   const router = useRouter();
@@ -15,312 +449,950 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState(null);
   const [matches, setMatches] = useState([]);
   const [priceHistory, setPriceHistory] = useState([]);
+  const [myPriceHistory, setMyPriceHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [scraping, setScraping] = useState(false);
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceInput, setPriceInput] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
+  const [storeConn, setStoreConn] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(false);
+  const [productInput, setProductInput] = useState({ title: '', brand: '', sku: '', image_url: '' });
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [showSitePicker, setShowSitePicker] = useState(false);
+  const [scrapeTarget, setScrapeTarget] = useState('amazon.com');
+  const [customSite, setCustomSite] = useState('');
+  const [showAddUrl, setShowAddUrl] = useState(false);
+  const cancelPriceRef = useRef(false);
 
   useEffect(() => {
-    if (id) {
-      loadProductData();
-    }
-  }, [id]);
+    try {
+      const stored = JSON.parse(localStorage.getItem('marketintel_store_connection') || 'null');
+      if (stored) setStoreConn(stored);
+    } catch {}
+  }, []);
 
-  const loadProductData = async () => {
+  const handleSavePrice = async () => {
+    const parsed = parseFloat(priceInput);
+    if (isNaN(parsed) || parsed < 0) { setEditingPrice(false); return; }
+    setSavingPrice(true);
+    try {
+      const updated = await api.updateProduct(product.id, { my_price: parsed });
+      setProduct(p => ({ ...p, my_price: parsed }));
+      addToast('Price updated', 'success');
+
+      // Push to connected store
+      const conn = storeConn;
+      if (conn) {
+        try {
+          if (conn.type === 'woocommerce') {
+            await api.pushPriceToWooCommerce(conn.credentials.store_url, conn.credentials.consumer_key, conn.credentials.consumer_secret, product.sku || '', product.title, parsed);
+          } else {
+            await api.pushPriceToShopify(conn.credentials.shop_url, conn.credentials.access_token, product.sku || '', product.title, parsed);
+          }
+          addToast(`Synced to ${conn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+        } catch (e) {
+          addToast(`Store sync failed: ${e.message}`, 'error');
+        }
+      }
+    } catch {
+      addToast('Failed to update price', 'error');
+    } finally {
+      setSavingPrice(false);
+      setEditingPrice(false);
+    }
+  };
+
+  const startEditProduct = () => {
+    setProductInput({ title: product.title || '', brand: product.brand || '', sku: product.sku || '', image_url: product.image_url || '', cost_price: product.cost_price != null ? String(product.cost_price) : '' });
+    setEditingProduct(true);
+  };
+
+  const handleSaveProduct = async () => {
+    if (!productInput.title.trim()) { addToast('Title is required', 'error'); return; }
+    const costPriceVal = productInput.cost_price.trim() ? parseFloat(productInput.cost_price) : null;
+    if (productInput.cost_price.trim() && (isNaN(costPriceVal) || costPriceVal < 0)) { addToast('Cost price must be a positive number', 'error'); return; }
+    setSavingProduct(true);
+    try {
+      await api.updateProduct(product.id, { title: productInput.title.trim(), brand: productInput.brand.trim(), sku: productInput.sku.trim(), image_url: productInput.image_url.trim(), cost_price: costPriceVal });
+      setProduct(p => ({ ...p, ...productInput, cost_price: costPriceVal }));
+      setEditingProduct(false);
+      addToast('Product updated', 'success');
+    } catch {
+      addToast('Failed to update product', 'error');
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  useEffect(() => { if (id) loadData(); }, [id]);
+
+  const loadData = async () => {
     try {
       setLoading(true);
-      const [productData, matchesData, historyData] = await Promise.all([
+      const [p, m, h, mph] = await Promise.all([
         api.getProduct(id),
         api.getProductMatches(id),
-        api.getProductPriceHistory(id)
+        api.getProductPriceHistory(id),
+        api.getMyPriceHistory(id).catch(() => []),
       ]);
-
-      setProduct(productData);
-      setMatches(matchesData);
-      setPriceHistory(historyData);
-    } catch (error) {
-      console.error('Failed to load product:', error);
-      addToast('Failed to load product data', 'error');
-    } finally {
-      setLoading(false);
-    }
+      setProduct(p); setMatches(m); setPriceHistory(h); setMyPriceHistory(mph || []);
+    } catch { addToast('Failed to load product', 'error'); }
+    finally { setLoading(false); }
   };
 
-  const handleScrapeAmazon = async () => {
+  const PRESET_SITES = [
+    { label: 'Amazon', value: 'amazon.com' },
+    { label: 'eBay', value: 'ebay.com' },
+    { label: 'Walmart', value: 'walmart.com' },
+    { label: 'Target', value: 'target.com' },
+  ];
+
+  const handleUrlMatchSuccess = (newMatch) => {
+    if (!newMatch) return;
+    setMatches(prev => {
+      // If it's an update to an existing match, replace it; otherwise prepend
+      const exists = prev.find(m => m.id === newMatch.id);
+      if (exists) return prev.map(m => m.id === newMatch.id ? { ...m, ...newMatch } : m);
+      return [newMatch, ...prev];
+    });
+  };
+
+  const handleScrape = async (site) => {
+    const target = site || scrapeTarget;
     setScraping(true);
-    addToast('Starting Amazon scrape...', 'info');
-
+    setShowSitePicker(false);
+    addToast(`Searching ${target}…`, 'info');
     try {
-      await api.scrapeProduct(id, 'amazon.com', 5);
-      addToast('Amazon scrape completed!', 'success');
-      await loadProductData();
-    } catch (error) {
-      console.error('Scrape failed:', error);
-      addToast('Scrape failed. Please try again.', 'error');
-    } finally {
-      setScraping(false);
-    }
+      await api.scrapeProduct(id, target, 5);
+      addToast('Scrape complete!', 'success');
+      loadData();
+    } catch { addToast('Scrape failed. Try again.', 'error'); }
+    finally { setScraping(false); }
   };
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="space-y-6">
-          <div className="h-32 bg-gray-200 rounded-lg animate-pulse" />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </div>
-          <SkeletonChart />
+  if (loading) return (
+    <Layout>
+      <div className="p-4 lg:p-6 space-y-5">
+        <div className="h-36 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />)}
         </div>
-      </Layout>
-    );
-  }
+        <div className="h-56 rounded-2xl animate-pulse" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
+      </div>
+    </Layout>
+  );
 
-  if (!product) {
-    return (
-      <Layout>
-        <div className="text-center py-12">
-          <p className="text-gray-500">Product not found</p>
-          <Link href="/products" className="text-primary-600 hover:text-primary-700 mt-4 inline-block">
-            Back to Products
-          </Link>
+  if (!product) return (
+    <Layout>
+      <div className="p-4 lg:p-6">
+        <div className="rounded-2xl p-12 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <p className="mb-3" style={{ color: 'var(--text-muted)' }}>Product not found</p>
+          <Link href="/products" className="text-sm text-amber-400 hover:text-amber-300 hover:underline">Back to Products</Link>
         </div>
-      </Layout>
-    );
-  }
+      </div>
+    </Layout>
+  );
 
-  const latestPrice = matches.length > 0 ? Math.min(...matches.map(m => m.latest_price)) : null;
-  const avgPrice = matches.length > 0
-    ? matches.reduce((sum, m) => sum + m.latest_price, 0) / matches.length
-    : null;
+  const pricedMatches = matches.filter(m => m.latest_price != null);
+  const lowestPrice = pricedMatches.length ? Math.min(...pricedMatches.map(m => m.latest_price)) : null;
+  const avgPrice = pricedMatches.length ? pricedMatches.reduce((s, m) => s + m.latest_price, 0) / pricedMatches.length : null;
+  const priceRange = pricedMatches.length > 1 ? (Math.max(...pricedMatches.map(m => m.latest_price)) - lowestPrice) : null;
 
   return (
     <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-2xl shadow-xl p-8 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <Link href="/products" className="text-primary-100 hover:text-white text-sm font-medium inline-flex items-center gap-1 mb-4">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Products
-              </Link>
-              <h1 className="text-3xl font-bold mb-2">{product.title}</h1>
-              <div className="flex items-center gap-4 text-primary-100">
-                {product.brand && <span>Brand: {product.brand}</span>}
-                {product.sku && <span>SKU: {product.sku}</span>}
-                <span className="inline-flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {new Date(product.created_at).toLocaleDateString()}
-                </span>
+      {showAddUrl && (
+        <AddUrlModal
+          productId={id}
+          onClose={() => setShowAddUrl(false)}
+          onSuccess={(match) => { handleUrlMatchSuccess(match); }}
+        />
+      )}
+      <div className="p-4 lg:p-6 space-y-5">
+
+        {/* Back link */}
+        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm hover:text-white transition-colors" style={{ color: 'var(--text-muted)' }}>
+          {Ico.back} Back to Products
+        </Link>
+
+        {/* Product header card */}
+        <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          {editingProduct ? (
+            /* ── Edit mode ── */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-white">Edit Product Info</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setEditingProduct(false)} className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 text-white/70" style={{ border: '1px solid var(--border)' }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveProduct} disabled={savingProduct || !productInput.title.trim()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 gradient-brand text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                  >
+                    {savingProduct ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving…</> : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-white/70 mb-1">Product Title <span className="text-red-400">*</span></label>
+                  <input
+                    type="text" value={productInput.title}
+                    onChange={e => setProductInput(p => ({ ...p, title: e.target.value }))}
+                    className="glass-input w-full text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                    placeholder="Product title"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1">Brand</label>
+                  <input
+                    type="text" value={productInput.brand}
+                    onChange={e => setProductInput(p => ({ ...p, brand: e.target.value }))}
+                    className="glass-input w-full text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                    placeholder="Brand name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1">SKU</label>
+                  <input
+                    type="text" value={productInput.sku}
+                    onChange={e => setProductInput(p => ({ ...p, sku: e.target.value }))}
+                    className="glass-input w-full text-sm font-mono rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                    placeholder="SKU-001"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-white/70 mb-1">
+                    Cost Price <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(COGS — for margin calculations)</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={productInput.cost_price}
+                      onChange={e => setProductInput(p => ({ ...p, cost_price: e.target.value }))}
+                      className="glass-input w-full text-sm rounded-xl pl-7 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-white/70 mb-1">Image URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url" value={productInput.image_url}
+                      onChange={e => setProductInput(p => ({ ...p, image_url: e.target.value }))}
+                      className="glass-input flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 text-white placeholder-white/30"
+                      placeholder="https://example.com/image.jpg"
+                    />
+                    {productInput.image_url && (
+                      <div className="w-10 h-10 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                        <img src={productInput.image_url} alt="preview" className="w-full h-full object-contain" onError={e => e.target.style.display = 'none'} />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-
-            {product.image_url && (
-              <img
-                src={product.image_url}
-                alt={product.title}
-                className="w-32 h-32 rounded-lg object-cover shadow-lg border-4 border-white/20"
-                onError={(e) => e.target.style.display = 'none'}
-              />
-            )}
-          </div>
-
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={handleScrapeAmazon}
-              disabled={scraping}
-              className="inline-flex items-center px-6 py-3 bg-white text-primary-700 rounded-lg font-medium hover:bg-primary-50 transition-all hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {scraping ? (
-                <>
-                  <LoadingSpinner size="sm" color="primary" />
-                  <span className="ml-2">Scraping Amazon...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  Scrape Amazon
-                </>
-              )}
-            </button>
-
-            <button
-              className="inline-flex items-center px-6 py-3 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-all backdrop-blur-sm"
-              onClick={loadProductData}
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh Data
-            </button>
-          </div>
-        </div>
-
-        {/* Price Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">Competitors</p>
-              <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{matches.length}</p>
-            <p className="text-xs text-gray-500 mt-1">Total matches found</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">Lowest Price</p>
-              <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">
-              {latestPrice ? `$${latestPrice.toFixed(2)}` : 'N/A'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Best deal available</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">Average Price</p>
-              <svg className="w-6 h-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">
-              {avgPrice ? `$${avgPrice.toFixed(2)}` : 'N/A'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">Market average</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-orange-500">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-600">Price Range</p>
-              <svg className="w-6 h-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-              </svg>
-            </div>
-            <p className="text-3xl font-bold text-gray-900">
-              {matches.length > 0
-                ? `$${(Math.max(...matches.map(m => m.latest_price)) - Math.min(...matches.map(m => m.latest_price))).toFixed(2)}`
-                : 'N/A'
-              }
-            </p>
-            <p className="text-xs text-gray-500 mt-1">High - Low spread</p>
-          </div>
-        </div>
-
-        {/* Price History Chart */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <svg className="w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-            </svg>
-            Price History
-          </h2>
-          <PriceHistoryChart data={priceHistory} />
-        </div>
-
-        {/* Competitor Matches */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            <svg className="w-6 h-6 text-primary-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Competitor Matches ({matches.length})
-          </h2>
-
-          {matches.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <svg className="mx-auto h-16 w-16 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">No matches yet</h3>
-              <p className="mt-2 text-gray-500">Click "Scrape Amazon" to find competitor products</p>
-            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {matches.map((match) => (
-                <div
-                  key={match.id}
-                  className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-6 border border-gray-200 hover:shadow-xl transition-all hover:scale-105"
-                >
-                  {match.image_url && (
-                    <img
-                      src={match.image_url}
-                      alt={match.competitor_product_title}
-                      className="w-full h-48 object-cover rounded-lg mb-4"
-                      onError={(e) => e.target.style.display = 'none'}
-                    />
-                  )}
+            /* ── View mode ── */
+            <div className="flex items-start gap-5">
+              {/* Image */}
+              <div className="w-20 h-20 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.title} className="w-full h-full object-contain" onError={e => e.target.style.display = 'none'} />
+                ) : (
+                  <div>{Ico.image}</div>
+                )}
+              </div>
 
-                  <div className="mb-4">
-                    <p className="text-xs font-medium text-gray-500 mb-1">{match.competitor_name}</p>
-                    <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2">
-                      {match.competitor_product_title}
-                    </h3>
-                  </div>
-
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Price</span>
-                      <span className="text-2xl font-bold text-primary-600">
-                        ${match.latest_price.toFixed(2)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Stock</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        match.stock_status === 'In Stock'
-                          ? 'bg-green-100 text-green-800'
-                          : match.stock_status === 'Out of Stock'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {match.stock_status || 'Unknown'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">Match Score</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {match.match_score ? `${(match.match_score * 100).toFixed(0)}%` : 'N/A'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
-                    <a
-                      href={match.competitor_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors"
-                    >
-                      View Product
-                      <svg className="w-4 h-4 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </a>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-3 text-center">
-                    Last checked: {new Date(match.last_checked).toLocaleString()}
-                  </p>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl font-bold text-white leading-tight">{product.title}</h1>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                  {product.brand && <span>{product.brand}</span>}
+                  {product.sku && <span className="font-mono text-xs px-2 py-0.5 rounded" style={{ background: 'var(--bg-elevated)' }}>SKU: {product.sku}</span>}
+                  <span className="text-xs">{new Date(product.created_at).toLocaleDateString()}</span>
                 </div>
-              ))}
+                {/* My Price — inline editable */}
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>My Price:</span>
+                  {editingPrice ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm" style={{ color: 'var(--text-muted)' }}>$</span>
+                      <input
+                        autoFocus
+                        type="number" step="0.01" min="0"
+                        value={priceInput}
+                        onChange={e => setPriceInput(e.target.value)}
+                        onBlur={() => { if (!cancelPriceRef.current) handleSavePrice(); cancelPriceRef.current = false; }}
+                        onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { cancelPriceRef.current = true; setEditingPrice(false); } }}
+                        className="w-24 text-sm font-semibold text-white border-b-2 border-amber-500 bg-transparent focus:outline-none"
+                      />
+                      {savingPrice && <span className="text-xs animate-pulse" style={{ color: 'var(--text-muted)' }}>saving…</span>}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setPriceInput(product.my_price ?? ''); setEditingPrice(true); }}
+                      className="text-sm font-semibold text-white hover:text-amber-400 transition-colors"
+                      title="Click to edit your price"
+                    >
+                      {product.my_price != null ? `$${product.my_price.toFixed(2)}` : (
+                        <span className="font-normal text-xs" style={{ color: 'var(--text-muted)' }}>Set price</span>
+                      )}
+                    </button>
+                  )}
+                  {storeConn && product.my_price != null && !editingPrice && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (storeConn.type === 'woocommerce') {
+                            await api.pushPriceToWooCommerce(storeConn.credentials.store_url, storeConn.credentials.consumer_key, storeConn.credentials.consumer_secret, product.sku || '', product.title, product.my_price);
+                          } else {
+                            await api.pushPriceToShopify(storeConn.credentials.shop_url, storeConn.credentials.access_token, product.sku || '', product.title, product.my_price);
+                          }
+                          addToast(`Price pushed to ${storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}`, 'success');
+                        } catch (e) {
+                          addToast(`Sync failed: ${e.message}`, 'error');
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium hover:bg-white/5 transition-colors text-amber-400"
+                      style={{ background: 'rgba(245,158,11,0.1)' }}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      Push to {storeConn.type === 'woocommerce' ? 'WooCommerce' : 'Shopify'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="shrink-0 flex flex-col sm:flex-row gap-2">
+                {/* Scrape button with site picker */}
+                <div className="relative">
+                  <div className="flex rounded-xl overflow-hidden" style={{ border: '1px solid rgba(245,158,11,0.5)' }}>
+                    <button
+                      onClick={() => handleScrape()} disabled={scraping}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white text-sm font-medium transition-colors disabled:opacity-50"
+                    >
+                      {scraping ? (
+                        <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Scraping…</>
+                      ) : (
+                        <>{Ico.search} {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={scraping}
+                      onClick={() => setShowSitePicker(p => !p)}
+                      className="px-2 py-2.5 gradient-brand text-white transition-colors disabled:opacity-50"
+                      style={{ borderLeft: '1px solid rgba(255,255,255,0.15)' }}
+                      title="Choose site to scrape"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </div>
+
+                  {/* Site picker dropdown */}
+                  {showSitePicker && (
+                    <div className="absolute top-full left-0 mt-1 w-56 rounded-xl shadow-lg z-20 p-2" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                      <p className="text-xs font-medium uppercase tracking-wide px-2 mb-1" style={{ color: 'var(--text-muted)' }}>Quick pick</p>
+                      {PRESET_SITES.map(site => (
+                        <button
+                          key={site.value}
+                          onClick={() => { setScrapeTarget(site.value); setCustomSite(''); setShowSitePicker(false); handleScrape(site.value); }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${scrapeTarget === site.value ? 'text-amber-400 font-medium' : 'text-white/70 hover:bg-white/5'}`}
+                          style={scrapeTarget === site.value ? { background: 'rgba(245,158,11,0.1)' } : {}}
+                        >
+                          {site.label}
+                          <span className="font-normal ml-1 text-xs" style={{ color: 'var(--text-muted)' }}>{site.value}</span>
+                        </button>
+                      ))}
+                      <div className="mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                        <p className="text-xs font-medium uppercase tracking-wide px-2 mb-1" style={{ color: 'var(--text-muted)' }}>Custom domain</p>
+                        <div className="flex gap-1 px-1">
+                          <input
+                            type="text"
+                            value={customSite}
+                            onChange={e => setCustomSite(e.target.value)}
+                            placeholder="example.com"
+                            className="glass-input flex-1 text-sm rounded-lg px-2 py-1.5 focus:outline-none focus:border-amber-500/50 text-white placeholder-white/30"
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && customSite.trim()) {
+                                setScrapeTarget(customSite.trim());
+                                setShowSitePicker(false);
+                                handleScrape(customSite.trim());
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            disabled={!customSite.trim()}
+                            onClick={() => { setScrapeTarget(customSite.trim()); setShowSitePicker(false); handleScrape(customSite.trim()); }}
+                            className="px-2 py-1.5 gradient-brand text-white rounded-lg text-sm transition-colors disabled:opacity-40"
+                          >
+                            Go
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setShowAddUrl(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70"
+                  style={{ border: '1px solid var(--border)' }}
+                  title="Manually add a competitor URL you already know is this product"
+                >
+                  {Ico.link}
+                  <span className="hidden sm:inline">Add URL</span>
+                </button>
+
+                <button onClick={startEditProduct} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70" style={{ border: '1px solid var(--border)' }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  Edit
+                </button>
+                <Link
+                  href={`/products/${id}/report?print=1`}
+                  target="_blank"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70"
+                  style={{ border: '1px solid var(--border)' }}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span className="hidden sm:inline">PDF</span>
+                </Link>
+                <button
+                  onClick={async () => {
+                    try {
+                      const blob = await api.exportProductXLSX(id);
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `marketintel_${product.title.slice(0, 30).replace(/ /g, '_')}_${id}.xlsx`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch (e) { addToast('Excel export failed: ' + e.message, 'error'); }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70"
+                  style={{ border: '1px solid var(--border)' }}
+                  title="Download as Excel (.xlsx)"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span className="hidden sm:inline">Excel</span>
+                </button>
+                <button onClick={loadData} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors hover:bg-white/5 text-white/70" style={{ border: '1px solid var(--border)' }}>
+                  {Ico.refresh}
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Competitors" value={matches.length} color="blue" icon={Ico.users} />
+          <StatCard label="Lowest Price" value={lowestPrice != null ? `$${lowestPrice.toFixed(2)}` : '—'} sub="best deal" color="emerald" icon={Ico.dollar} />
+          <StatCard label="Average Price" value={avgPrice ? `$${avgPrice.toFixed(2)}` : '—'} sub="market avg" color="violet" icon={Ico.avg} />
+          <StatCard label="Price Range" value={priceRange != null ? `$${priceRange.toFixed(2)}` : '—'} sub="high – low" color="amber" icon={Ico.range} />
+        </div>
+
+        {/* ── Market Position + Margin panels ── */}
+        {pricedMatches.length > 0 && product.my_price != null && (() => {
+          const highestPrice = Math.max(...pricedMatches.map(m => m.latest_price));
+          const sortedPrices = [...pricedMatches.map(m => m.latest_price), product.my_price].sort((a, b) => a - b);
+          const myRank = sortedPrices.indexOf(product.my_price) + 1;
+          const totalPlayers = sortedPrices.length;
+          const gapToLowest = product.my_price - lowestPrice;
+          const gapToAvg = product.my_price - avgPrice;
+          const gapToAvgPct = avgPrice ? ((gapToAvg / avgPrice) * 100).toFixed(1) : 0;
+          const positionPct = highestPrice > lowestPrice ? ((product.my_price - lowestPrice) / (highestPrice - lowestPrice)) * 100 : 50;
+
+          // Margin calculations
+          const costPrice = product.cost_price;
+          const hasMargin = costPrice != null && costPrice > 0;
+          const marginAtMyPrice = hasMargin ? ((product.my_price - costPrice) / product.my_price * 100) : null;
+          const marginAtLowest = hasMargin && lowestPrice ? ((lowestPrice - costPrice) / lowestPrice * 100) : null;
+          const breakEvenPrice = costPrice || null;
+
+          // Repricing suggestion: target 2nd-lowest price if we're not already there
+          const uniquePrices = [...new Set(pricedMatches.map(m => m.latest_price))].sort((a, b) => a - b);
+          const suggestedPrice = uniquePrices.length >= 2 ? uniquePrices[0] - 0.01 : uniquePrices[0];
+          const marginAtSuggested = hasMargin && suggestedPrice > costPrice ? ((suggestedPrice - costPrice) / suggestedPrice * 100) : null;
+
+          return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Market Position Panel */}
+              <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                  </div>
+                  <p className="text-sm font-semibold text-white">Your Market Position</p>
+                </div>
+
+                {/* Rank badge */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`text-3xl font-black ${myRank === 1 ? 'text-emerald-400' : myRank === totalPlayers ? 'text-red-400' : 'text-amber-400'}`}>
+                    #{myRank}
+                  </div>
+                  <div>
+                    <p className="text-sm text-white font-medium">of {totalPlayers} {totalPlayers === 1 ? 'seller' : 'sellers'} by price</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                      {myRank === 1 ? 'You have the lowest price' : myRank === totalPlayers ? 'You have the highest price' : `${myRank - 1} cheaper, ${totalPlayers - myRank} more expensive`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Position bar */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+                    <span>${lowestPrice.toFixed(2)}</span>
+                    <span>${highestPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="relative h-3 rounded-full overflow-hidden" style={{ background: 'var(--bg-elevated)' }}>
+                    <div className="absolute inset-0 rounded-full" style={{ background: 'linear-gradient(90deg, #34d399 0%, #f59e0b 50%, #f87171 100%)', opacity: 0.25 }} />
+                    {/* Competitor dots */}
+                    {pricedMatches.map((m, i) => {
+                      const pos = highestPrice > lowestPrice ? ((m.latest_price - lowestPrice) / (highestPrice - lowestPrice)) * 100 : 50;
+                      return (
+                        <div key={i} className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white/30"
+                          style={{ left: `${Math.min(Math.max(pos, 2), 98)}%`, transform: 'translate(-50%, -50%)' }}
+                          title={`${m.competitor_name}: $${m.latest_price.toFixed(2)}`}
+                        />
+                      );
+                    })}
+                    {/* My price marker */}
+                    <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 border-sky-400 bg-sky-500 shadow-lg shadow-sky-500/30"
+                      style={{ left: `${Math.min(Math.max(positionPct, 3), 97)}%`, transform: 'translate(-50%, -50%)' }}
+                      title={`Your price: $${product.my_price.toFixed(2)}`}
+                    />
+                  </div>
+                  <p className="text-center text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400 inline-block" /> You</span>
+                    <span className="mx-2">·</span>
+                    <span className="inline-flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/30 inline-block" /> Competitors</span>
+                  </p>
+                </div>
+
+                {/* Gap metrics */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gap to Lowest</p>
+                    <p className={`text-lg font-bold ${gapToLowest <= 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {gapToLowest <= 0 ? `-$${Math.abs(gapToLowest).toFixed(2)}` : `+$${gapToLowest.toFixed(2)}`}
+                    </p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>vs Market Avg</p>
+                    <p className={`text-lg font-bold ${gapToAvg <= 0 ? 'text-emerald-400' : gapToAvg > 0 ? 'text-amber-400' : 'text-white/50'}`}>
+                      {gapToAvg > 0 ? '+' : ''}{gapToAvgPct}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Margin & Repricing Panel */}
+              <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399' }}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <p className="text-sm font-semibold text-white">
+                    {hasMargin ? 'Margin & Repricing' : 'Repricing Suggestion'}
+                  </p>
+                </div>
+
+                {hasMargin ? (
+                  <>
+                    {/* Margin gauges */}
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin at My Price</p>
+                        <p className={`text-lg font-bold ${marginAtMyPrice >= 20 ? 'text-emerald-400' : marginAtMyPrice >= 10 ? 'text-amber-400' : 'text-red-400'}`}>
+                          {marginAtMyPrice.toFixed(1)}%
+                        </p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>${(product.my_price - costPrice).toFixed(2)} profit</p>
+                      </div>
+                      <div className="rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Margin if Match Lowest</p>
+                        <p className={`text-lg font-bold ${marginAtLowest >= 20 ? 'text-emerald-400' : marginAtLowest >= 10 ? 'text-amber-400' : marginAtLowest > 0 ? 'text-red-400' : 'text-red-500'}`}>
+                          {marginAtLowest != null ? `${marginAtLowest.toFixed(1)}%` : '—'}
+                        </p>
+                        {marginAtLowest != null && marginAtLowest < 0 && (
+                          <p className="text-xs text-red-400 font-medium">Below cost!</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl p-3 mb-4" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Cost Price</p>
+                          <p className="text-sm font-semibold text-white">${costPrice.toFixed(2)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Break-even</p>
+                          <p className="text-sm font-semibold text-white">${breakEvenPrice.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl p-3 mb-4 flex items-center gap-2" style={{ background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.15)' }}>
+                    <svg className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-xs text-sky-400">Set a cost price to see margin analysis. Edit this product to add it.</p>
+                  </div>
+                )}
+
+                {/* Repricing suggestion */}
+                {suggestedPrice < product.my_price && suggestedPrice > (costPrice || 0) && (
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                    <div className="flex items-start gap-2">
+                      <svg className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                      <div className="flex-1">
+                        <p className="text-xs font-semibold text-amber-400 mb-1">Repricing Suggestion</p>
+                        <p className="text-sm text-white">
+                          Undercut the cheapest competitor at{' '}
+                          <span className="font-bold text-amber-400">${suggestedPrice.toFixed(2)}</span>
+                        </p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          <span>Save: ${(product.my_price - suggestedPrice).toFixed(2)} less than now</span>
+                          {marginAtSuggested != null && (
+                            <span className={marginAtSuggested >= 10 ? 'text-emerald-400' : 'text-amber-400'}>
+                              Margin: {marginAtSuggested.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {suggestedPrice >= product.my_price && (
+                  <div className="rounded-xl p-3 flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                    <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                    <p className="text-xs text-emerald-400 font-medium">You already have the best or matching price</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── Market Intelligence Panel ── */}
+        {pricedMatches.length > 0 && (() => {
+          const inStockMatches = matches.filter(m => m.stock_status === 'In Stock');
+          const outOfStockMatches = matches.filter(m => m.stock_status === 'Out of Stock');
+          const lowStockMatches = matches.filter(m => m.stock_status && m.stock_status !== 'In Stock' && m.stock_status !== 'Out of Stock');
+          const withRating = matches.filter(m => m.rating != null);
+          const fbaCount = matches.filter(m => m.fulfillment_type === 'FBA').length;
+          const fbmCount = matches.filter(m => m.fulfillment_type === 'FBM' || m.fulfillment_type === 'merchant').length;
+          const primeCount = matches.filter(m => m.is_prime).length;
+          const freeShipCount = matches.filter(m => m.shipping_cost === 0).length;
+          const promoCount = matches.filter(m => m.promotion_label).length;
+
+          // Total landed cost ranking (includes your price in the correct position)
+          const landedCostRanking = [
+            ...matches.filter(m => m.latest_price != null).map(m => ({
+              name: m.competitor_name,
+              price: m.latest_price,
+              shipping: m.shipping_cost || 0,
+              total: m.total_price || m.latest_price,
+              stock: m.stock_status,
+              isMe: false,
+            })),
+            ...(product.my_price != null ? [{
+              name: 'You',
+              price: product.my_price,
+              shipping: 0,
+              total: product.my_price,
+              stock: 'In Stock',
+              isMe: true,
+            }] : []),
+          ].sort((a, b) => a.total - b.total);
+
+          return (
+            <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(167,139,250,0.12)', color: '#a78bfa' }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <p className="text-sm font-semibold text-white">Market Intelligence</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                {/* Stock & Availability */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Stock & Availability</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                        <span className="text-xs text-white">In Stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-white">{inStockMatches.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ background: 'var(--text-muted)' }} />
+                        <span className="text-xs text-white">Out of Stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-white">{outOfStockMatches.length}</span>
+                    </div>
+                    {lowStockMatches.length > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-400" />
+                          <span className="text-xs text-white">Low Stock</span>
+                        </div>
+                        <span className="text-sm font-bold text-white">{lowStockMatches.length}</span>
+                      </div>
+                    )}
+                    {outOfStockMatches.length > 0 && (
+                      <div className="rounded-xl p-2 mt-1" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                        <p className="text-xs text-emerald-400">
+                          {outOfStockMatches.map(m => m.competitor_name).join(', ')} {outOfStockMatches.length === 1 ? 'is' : 'are'} out of stock — potential pricing opportunity
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fulfillment & Shipping */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Fulfillment & Shipping</p>
+                  <div className="space-y-2">
+                    {fbaCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">FBA (Amazon Fulfilled)</span>
+                        <span className="text-sm font-bold text-white">{fbaCount}</span>
+                      </div>
+                    )}
+                    {fbmCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">FBM / Merchant</span>
+                        <span className="text-sm font-bold text-white">{fbmCount}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <span className="text-xs text-white">Prime Eligible</span>
+                      <span className="text-sm font-bold text-white">{primeCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                      <span className="text-xs text-white">Free Shipping</span>
+                      <span className="text-sm font-bold text-emerald-400">{freeShipCount}</span>
+                    </div>
+                    {promoCount > 0 && (
+                      <div className="flex items-center justify-between rounded-xl p-3" style={{ background: 'var(--bg-elevated)' }}>
+                        <span className="text-xs text-white">Active Promotions</span>
+                        <span className="text-sm font-bold text-red-400">{promoCount}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Total Landed Cost Ranking */}
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Total Landed Cost Ranking</p>
+                  <div className="space-y-1.5">
+                    {landedCostRanking.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-xl p-2.5"
+                        style={item.isMe
+                          ? { background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.12)' }
+                          : { background: 'var(--bg-elevated)' }
+                        }
+                      >
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          item.isMe ? 'bg-sky-500/20 text-sky-400'
+                          : i === 0 ? 'bg-emerald-500/20 text-emerald-400'
+                          : 'text-white/50'
+                        }`} style={!item.isMe && i > 0 ? { background: 'var(--bg-surface)' } : {}}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs truncate font-medium ${item.isMe ? 'text-sky-400' : 'text-white'}`}>{item.name}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className={`text-xs font-bold ${item.isMe ? 'text-sky-400' : 'text-white'}`}>${item.total.toFixed(2)}</p>
+                          {item.shipping > 0 && (
+                            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>+${item.shipping.toFixed(2)} ship</p>
+                          )}
+                        </div>
+                        {item.stock === 'Out of Stock' && (
+                          <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>OOS</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rating Comparison Table */}
+              {withRating.length > 0 && (
+                <div className="mt-5 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Rating & Review Comparison</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          <th className="text-left py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Competitor</th>
+                          <th className="text-center py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Rating</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Reviews</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Price</th>
+                          <th className="text-right py-2 font-medium" style={{ color: 'var(--text-muted)' }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...withRating].sort((a, b) => (b.rating || 0) - (a.rating || 0)).map(m => (
+                          <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td className="py-2.5 text-white font-medium truncate max-w-[140px]">{m.competitor_name}</td>
+                            <td className="py-2.5 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <svg className="w-3 h-3 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                <span className="text-white font-semibold">{m.rating.toFixed(1)}</span>
+                              </div>
+                            </td>
+                            <td className="py-2.5 text-right" style={{ color: 'var(--text-muted)' }}>
+                              {m.review_count != null ? m.review_count.toLocaleString() : '—'}
+                            </td>
+                            <td className="py-2.5 text-right text-amber-400 font-semibold">
+                              {m.latest_price != null ? `$${m.latest_price.toFixed(2)}` : '—'}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <StockBadge status={m.stock_status} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Price timeline — competitors + my price on one chart */}
+        <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-semibold text-white">Price Timeline</p>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{priceHistory.length} data point{priceHistory.length !== 1 ? 's' : ''}</span>
+          </div>
+          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+            Competitor prices vs your price over time.{' '}
+            {myPriceHistory.length > 0 && <span className="text-sky-400 font-medium">Diamond markers = your price changes.</span>}
+          </p>
+          {priceHistory.length === 0 && myPriceHistory.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3" style={{ background: 'var(--bg-elevated)' }}>{Ico.avg}</div>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No price history yet</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Scrape competitors to start tracking</p>
+            </div>
+          ) : (
+            <PriceTimelineChart
+              priceHistory={priceHistory}
+              myPriceHistory={myPriceHistory}
+              myCurrentPrice={product?.my_price}
+            />
+          )}
+        </div>
+
+        {/* Competitor matches */}
+        <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-white">Competitor Matches ({matches.length})</p>
+            <button
+              onClick={() => setShowAddUrl(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-dashed text-xs font-medium transition-all hover:text-amber-400 hover:bg-white/5 text-white/50"
+              style={{ border: '1px dashed var(--border)' }}
+            >
+              {Ico.link} Add from URL
+            </button>
+          </div>
+
+          {matches.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {/* Empty state */}
+              <div className="sm:col-span-2 xl:col-span-2 flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--bg-elevated)' }}>
+                  {Ico.search}
+                </div>
+                <p className="text-sm font-medium text-white">No matches yet</p>
+                <p className="text-sm mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Use the Scrape button above to search automatically, or paste a URL you already know.</p>
+                <button
+                  onClick={() => handleScrape()} disabled={scraping}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {Ico.search} Scrape {PRESET_SITES.find(s => s.value === scrapeTarget)?.label || scrapeTarget}
+                </button>
+              </div>
+              {/* Add from URL card */}
+              <AddUrlCard onClick={() => setShowAddUrl(true)} />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {matches.map(m => (
+                <MatchCard key={m.id} match={m} myPrice={product?.my_price} allMatches={matches} />
+              ))}
+              {/* Always show the "add from URL" card at the end */}
+              <AddUrlCard onClick={() => setShowAddUrl(true)} />
+            </div>
+          )}
+        </div>
+
+        {/* My Price History timeline */}
+        <div className="rounded-2xl shadow-sm p-5" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-white">My Price History</p>
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{myPriceHistory.length} change{myPriceHistory.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {myPriceHistory.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No price changes recorded yet</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Every time you update your price, it's logged here automatically</p>
+            </div>
+          ) : (
+            <div className="relative">
+              {/* Vertical timeline line */}
+              <div className="absolute left-3 top-2 bottom-2 w-px" style={{ background: 'var(--border)' }} />
+              <div className="space-y-3">
+                {[...myPriceHistory].reverse().map((entry, i) => {
+                  const isUp = entry.change != null && entry.change > 0;
+                  const isDown = entry.change != null && entry.change < 0;
+                  return (
+                    <div key={entry.id} className="flex items-start gap-3 pl-8 relative">
+                      {/* Dot */}
+                      <div className={`absolute left-1.5 top-1.5 w-3 h-3 rounded-full border-2 ${
+                        isUp ? 'bg-emerald-400 border-emerald-400/30' : isDown ? 'bg-red-400 border-red-400/30' : 'border-white/10'
+                      }`} style={!isUp && !isDown ? { background: 'var(--bg-elevated)' } : {}} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-white">${entry.new_price.toFixed(2)}</span>
+                          {entry.old_price != null && (
+                            <span className="text-xs line-through" style={{ color: 'var(--text-muted)' }}>${entry.old_price.toFixed(2)}</span>
+                          )}
+                          {entry.change_pct != null && (
+                            <span className={`text-xs font-semibold ${isUp ? 'text-emerald-400' : isDown ? 'text-red-400' : 'text-white/50'}`}>
+                              {entry.change_pct > 0 ? '+' : ''}{entry.change_pct.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                          {new Date(entry.changed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                          {entry.note && <span className="ml-1.5 text-white/50">— {entry.note}</span>}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
     </Layout>
   );

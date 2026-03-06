@@ -10,7 +10,8 @@ from typing import Optional, List
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored
+from database.models import ProductMonitored, User
+from api.dependencies import get_current_user
 from tasks.scraping_tasks import (
     scrape_single_product,
     scrape_all_products,
@@ -63,7 +64,8 @@ class BulkScrapeRequest(BaseModel):
 async def trigger_product_scrape(
     product_id: int,
     website: str = 'amazon.com',
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Manually trigger scrape for a single product
@@ -71,9 +73,10 @@ async def trigger_product_scrape(
     - **product_id**: ID of product to scrape
     - **website**: Competitor website (default: amazon.com)
     """
-    # Verify product exists
+    # Verify product exists and belongs to the requesting user
     product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
     ).first()
 
     if not product:

@@ -345,7 +345,7 @@ class FilterService:
 
         for product in products:
             # New competitors
-            new_comps = [m for m in product.competitor_matches if m.created_at >= week_ago]
+            new_comps = [m for m in product.competitor_matches if m.created_at and m.created_at >= week_ago]
             if new_comps:
                 activity_counts["new_competitor"] += 1
 

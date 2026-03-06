@@ -517,7 +517,7 @@ class EmailService:
                 </div>
 
                 <p style="text-align: center; margin-top: 30px;">
-                    <a href="http://localhost:3000" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                    <a href="{os.getenv('FRONTEND_URL', 'http://localhost:3000')}" style="display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
                         Go to Dashboard →
                     </a>
                 </p>

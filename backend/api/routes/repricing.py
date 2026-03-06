@@ -5,13 +5,14 @@ Automated pricing and bulk price management
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from typing import List, Dict, Any, Optional
 
 from database.connection import get_db
-from database.models import User, RepricingRule
+from database.models import User, RepricingRule, ProductMonitored, CompetitorMatch
 from api.dependencies import get_current_user
 from services.repricing_service import get_repricing_service
+from services.activity_service import log_activity
 
 router = APIRouter(prefix="/repricing", tags=["Repricing & Bulk Actions"])
 
@@ -69,8 +70,7 @@ class RepricingRuleResponse(BaseModel):
     success_count: int
     created_at: Any
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Bulk Action Endpoints
@@ -100,6 +100,11 @@ async def bulk_match_lowest(
         margin_pct
     )
 
+    strategy_name = "match_lowest"
+    count = result.get("products_processed", 0)
+    log_activity(db, current_user.id, "bulk.reprice", "rule", f"Bulk repriced {count} product(s) using {strategy_name}", metadata={"strategy": strategy_name, "product_count": count})
+    db.flush()
+
     return result
 
 
@@ -127,6 +132,11 @@ async def bulk_undercut(
         undercut_amount,
         undercut_pct
     )
+
+    strategy_name = "undercut"
+    count = result.get("products_processed", 0)
+    log_activity(db, current_user.id, "bulk.reprice", "rule", f"Bulk repriced {count} product(s) using {strategy_name}", metadata={"strategy": strategy_name, "product_count": count})
+    db.flush()
 
     return result
 
@@ -156,6 +166,11 @@ async def bulk_margin_based(
         margin_pct
     )
 
+    strategy_name = "margin_based"
+    count = result.get("products_processed", 0)
+    log_activity(db, current_user.id, "bulk.reprice", "rule", f"Bulk repriced {count} product(s) using {strategy_name}", metadata={"strategy": strategy_name, "product_count": count})
+    db.flush()
+
     return result
 
 
@@ -183,6 +198,11 @@ async def bulk_dynamic(
         product_ids,
         conditions
     )
+
+    strategy_name = "dynamic"
+    count = result.get("products_processed", 0)
+    log_activity(db, current_user.id, "bulk.reprice", "rule", f"Bulk repriced {count} product(s) using {strategy_name}", metadata={"strategy": strategy_name, "product_count": count})
+    db.flush()
 
     return result
 
@@ -256,6 +276,9 @@ async def create_repricing_rule(
         "auto_apply": rule.auto_apply,
         "requires_approval": rule.requires_approval
     })
+
+    log_activity(db, current_user.id, "rule.create", "rule", f"Created repricing rule '{new_rule.name}'", entity_type="rule", entity_id=new_rule.id, entity_name=new_rule.name, metadata={"rule_type": new_rule.rule_type})
+    db.flush()
 
     return new_rule
 
@@ -371,6 +394,7 @@ async def delete_repricing_rule(
     if not rule:
         raise HTTPException(status_code=404, detail="Repricing rule not found")
 
+    log_activity(db, current_user.id, "rule.delete", "rule", f"Deleted repricing rule '{rule.name}'", entity_type="rule", entity_id=rule_id, entity_name=rule.name)
     db.delete(rule)
     db.commit()
 
@@ -394,10 +418,20 @@ async def apply_repricing_rule(
     """
     repricing_service = get_repricing_service(db, current_user)
 
+    rule = db.query(RepricingRule).filter(
+        RepricingRule.id == rule_id,
+        RepricingRule.user_id == current_user.id
+    ).first()
+
     result = repricing_service.apply_repricing_rule(rule_id, product_ids)
 
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+
+    applied_count = result.get("products_processed", 0)
+    if rule:
+        log_activity(db, current_user.id, "rule.apply", "rule", f"Applied rule '{rule.name}' to {applied_count} product(s)", entity_type="rule", entity_id=rule_id, entity_name=rule.name, metadata={"applied_count": applied_count})
+        db.flush()
 
     return result
 
@@ -418,10 +452,104 @@ async def toggle_repricing_rule(
         raise HTTPException(status_code=404, detail="Repricing rule not found")
 
     rule.enabled = not rule.enabled
+    log_activity(db, current_user.id, "rule.toggle", "rule", f"{'Enabled' if rule.enabled else 'Disabled'} rule '{rule.name}'", entity_type="rule", entity_id=rule.id, entity_name=rule.name, metadata={"enabled": rule.enabled})
     db.commit()
 
     return {
         "success": True,
         "rule_id": rule.id,
         "enabled": rule.enabled
+    }
+
+
+# ============================================================
+# MAP Violation Report
+# ============================================================
+
+@router.get("/map-violations")
+async def get_map_violations(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Identify competitors currently selling below your Minimum Advertised Price (MAP).
+
+    Scans all repricing rules that have a `map_price` set and cross-references
+    current competitor prices for the associated product(s). Returns a ranked
+    list of violations sorted by the largest discount below MAP.
+
+    Use this report to file MAP complaints with manufacturers or flag rogue sellers.
+    """
+    # Fetch user's MAP-protected rules
+    map_rules = db.query(RepricingRule).filter(
+        RepricingRule.user_id == current_user.id,
+        RepricingRule.map_price.isnot(None),
+        RepricingRule.enabled == True,
+    ).all()
+
+    violations = []
+
+    for rule in map_rules:
+        map_price = rule.map_price
+
+        # Determine which products this rule applies to
+        if rule.product_id:
+            products = db.query(ProductMonitored).filter(
+                ProductMonitored.id == rule.product_id,
+                ProductMonitored.user_id == current_user.id,
+            ).all()
+        else:
+            # Rule applies to all user products
+            products = db.query(ProductMonitored).filter(
+                ProductMonitored.user_id == current_user.id
+            ).all()
+
+        for product in products:
+            matches = db.query(CompetitorMatch).filter(
+                CompetitorMatch.monitored_product_id == product.id,
+                CompetitorMatch.latest_price.isnot(None),
+                CompetitorMatch.latest_price < map_price,
+            ).all()
+
+            for match in matches:
+                below_by = round(map_price - match.latest_price, 2)
+                below_pct = round(below_by / map_price * 100, 2)
+
+                violations.append({
+                    "rule_id": rule.id,
+                    "rule_name": rule.name,
+                    "product_id": product.id,
+                    "product_title": product.title,
+                    "product_sku": product.sku,
+                    "map_price": map_price,
+                    "competitor": match.competitor_name,
+                    "competitor_url": match.competitor_url,
+                    "competitor_price": match.latest_price,
+                    "below_map_by": below_by,
+                    "below_map_pct": below_pct,
+                    "last_scraped": (
+                        match.last_scraped_at.isoformat() if match.last_scraped_at else None
+                    ),
+                    "severity": (
+                        "high" if below_pct >= 10
+                        else "medium" if below_pct >= 5
+                        else "low"
+                    ),
+                })
+
+    # Sort: largest violation first
+    violations.sort(key=lambda x: -x["below_map_pct"])
+
+    summary = {
+        "high": sum(1 for v in violations if v["severity"] == "high"),
+        "medium": sum(1 for v in violations if v["severity"] == "medium"),
+        "low": sum(1 for v in violations if v["severity"] == "low"),
+    }
+
+    return {
+        "success": True,
+        "total_violations": len(violations),
+        "severity_summary": summary,
+        "map_rules_checked": len(map_rules),
+        "violations": violations,
     }

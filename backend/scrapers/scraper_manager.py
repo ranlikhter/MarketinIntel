@@ -1,54 +1,63 @@
 """
-Scraper Manager - Intelligent Scraper Selection
+Scraper Manager — Intelligent Scraper Selection
 
-This module automatically selects the best scraper for a given URL:
-- Amazon scraper for Amazon.com URLs
-- Walmart scraper for Walmart.com URLs (future)
-- Generic scraper for all other websites
+Automatically routes URLs to the right scraper:
+  - AmazonScraper   for *.amazon.* URLs  (with Apify cloud fallback on CAPTCHA)
+  - GenericWebScraper for everything else
 
-It also handles scraping queues, retries, and error handling.
+Performance additions over the original:
+  - CircuitBreaker  — stops hammering domains that are blocking us
+  - DomainRateLimiter — throttles per domain to avoid bans
+  - ResponseCache   — skips re-scraping the same URL within 5 minutes
+  - Thread-safe singleton via threading.Lock
+
+Apify fallback:
+  When local Amazon scraping hits a CAPTCHA, the request is automatically
+  retried via Apify's cloud infrastructure (proxy rotation, residential IPs).
+  Requires APIFY_API_TOKEN in the environment and `pip install apify-client`.
 """
 
+import logging
+import threading
 from typing import Dict, Optional
 from urllib.parse import urlparse
-import asyncio
+
+logger = logging.getLogger(__name__)
 
 from scrapers.amazon_scraper import AmazonScraper
+from scrapers.apify_scraper import ApifyScraper
 from scrapers.generic_scraper import GenericWebScraper
+from scrapers.browser_pool import (
+    BrowserPool,
+    circuit_breaker,
+    rate_limiter,
+    response_cache,
+)
 
 
 class ScraperManager:
     """
-    Manages scraping operations and selects appropriate scraper based on URL.
+    Routes scrape requests to the correct backend and enforces
+    circuit-breaking, rate-limiting, and response caching.
 
-    Usage:
-        manager = ScraperManager()
-
-        # Automatically uses Amazon scraper
-        result = await manager.scrape("https://www.amazon.com/dp/B0BSHF7WHW")
-
-        # Automatically uses generic scraper
-        result = await manager.scrape(
-            "https://competitor.com/product/123",
-            price_selector=".price"
-        )
+    Typically obtained via get_scraper_manager() rather than instantiated
+    directly, so a single BrowserPool is shared across the process.
     """
 
-    def __init__(self):
-        self.amazon_scraper = AmazonScraper()
-        self.generic_scraper = GenericWebScraper()
+    def __init__(self, browser_pool: Optional[BrowserPool] = None):
+        self._pool = browser_pool
+        self.amazon_scraper = AmazonScraper(browser_pool=browser_pool)
+        self.apify_scraper = ApifyScraper()
+        self.generic_scraper = GenericWebScraper(browser_pool=browser_pool)
 
-        # Map domains to specialized scrapers
         self.specialized_scrapers = {
-            'amazon.com': self.amazon_scraper,
-            'amazon.co.uk': self.amazon_scraper,
-            'amazon.ca': self.amazon_scraper,
-            'amazon.de': self.amazon_scraper,
-            # Add more specialized scrapers here in the future
-            # 'walmart.com': WalmartScraper(),
-            # 'ebay.com': EbayScraper(),
+            "amazon.com": self.amazon_scraper,
+            "amazon.co.uk": self.amazon_scraper,
+            "amazon.ca": self.amazon_scraper,
+            "amazon.de": self.amazon_scraper,
         }
 
+    # ── Public API ────────────────────────────────────────────────────────────
 
     async def scrape(
         self,
@@ -57,175 +66,151 @@ class ScraperManager:
         title_selector: Optional[str] = None,
         stock_selector: Optional[str] = None,
         image_selector: Optional[str] = None,
-        max_retries: int = 3
+        max_retries: int = 3,
+        bypass_cache: bool = False,
     ) -> Dict:
         """
         Scrape a product URL using the appropriate scraper.
 
-        Args:
-            url: Product URL
-            price_selector: CSS selector for price (optional)
-            title_selector: CSS selector for title (optional)
-            stock_selector: CSS selector for stock status (optional)
-            image_selector: CSS selector for image (optional)
-            max_retries: Number of retry attempts on failure
-
-        Returns:
-            Dictionary with scraped data
+        Checks the response cache first, enforces per-domain rate limiting,
+        and uses the circuit breaker to skip domains that are blocking us.
         """
-        # Determine which scraper to use
         domain = self._extract_domain(url)
+
+        # ── Cache check ──────────────────────────────────────────────────
+        if not bypass_cache:
+            cached = response_cache.get(url)
+            if cached is not None:
+                return cached
+
+        # ── Circuit breaker ──────────────────────────────────────────────
+        if circuit_breaker.is_open(domain):
+            secs = int(circuit_breaker.seconds_until_reset(domain))
+            return {
+                "url": url,
+                "error": f"Domain {domain} is temporarily blocked (circuit open, resets in {secs}s)",
+            }
+
+        # ── Rate limiter ─────────────────────────────────────────────────
+        await rate_limiter.acquire(domain)
+
+        # ── Route to scraper ─────────────────────────────────────────────
         scraper = self.specialized_scrapers.get(domain, self.generic_scraper)
 
-        # Attempt scraping with retries
         for attempt in range(max_retries):
             try:
                 if isinstance(scraper, AmazonScraper):
-                    # Amazon scraper doesn't need CSS selectors
                     result = await scraper.scrape_product(url)
                 else:
-                    # Generic scraper uses CSS selectors
                     result = await scraper.scrape_product(
-                        url,
-                        price_selector,
-                        title_selector,
-                        stock_selector,
-                        image_selector
+                        url, price_selector, title_selector, stock_selector, image_selector
                     )
 
-                # Check for CAPTCHA or blocking
-                if result.get('error') and 'CAPTCHA' in result['error']:
+                if result.get("error"):
+                    if "CAPTCHA" in result["error"]:
+                        circuit_breaker.record_failure(domain)
+                        # Fall back to Apify cloud scraper for Amazon CAPTCHA blocks
+                        if isinstance(scraper, AmazonScraper) and self.apify_scraper.is_configured:
+                            apify_result = await self.apify_scraper.scrape_product(url)
+                            if not apify_result.get("error"):
+                                response_cache.set(url, apify_result)
+                                return apify_result
                     if attempt < max_retries - 1:
-                        # Wait longer before retry
-                        await asyncio.sleep((attempt + 1) * 5)
+                        await _backoff(attempt, base=5)
                         continue
+                    return result
 
+                # Success
+                circuit_breaker.record_success(domain)
+                if not result.get("error"):
+                    response_cache.set(url, result)
                 return result
 
             except Exception as e:
+                circuit_breaker.record_failure(domain)
                 if attempt < max_retries - 1:
-                    # Wait before retry
-                    await asyncio.sleep((attempt + 1) * 2)
+                    await _backoff(attempt, base=2)
                     continue
-                else:
-                    return {
-                        "url": url,
-                        "error": f"Failed after {max_retries} attempts: {str(e)}"
-                    }
+                return {"url": url, "error": f"Failed after {max_retries} attempts: {e}"}
 
-        return {
-            "url": url,
-            "error": "Max retries exceeded"
-        }
-
+        return {"url": url, "error": "Max retries exceeded"}
 
     async def search(
         self,
         query: str,
         website: str = "amazon.com",
-        max_results: int = 10
+        max_results: int = 10,
     ) -> list:
-        """
-        Search for products on a specific website.
-
-        Args:
-            query: Search term
-            website: Website to search (default: amazon.com)
-            max_results: Maximum number of results
-
-        Returns:
-            List of product dictionaries
-        """
+        """Search for products on a specific website."""
         scraper = self.specialized_scrapers.get(website)
-
         if not scraper:
-            return {"error": f"No specialized scraper for {website}. Only direct URL scraping is supported."}
-
+            logger.warning("No specialized scraper for %s", website)
+            return []
         if isinstance(scraper, AmazonScraper):
-            return await scraper.search_products(query, max_results)
+            results = await scraper.search_products(query, max_results)
+            # Fall back to Apify if local search was blocked by CAPTCHA
+            if isinstance(results, dict) and "CAPTCHA" in results.get("error", ""):
+                if self.apify_scraper.is_configured:
+                    return await self.apify_scraper.search_products(query, max_results)
+            return results if isinstance(results, list) else []
+        logger.warning("Search not implemented for %s", website)
+        return []
 
-        return {"error": "Search not implemented for this website"}
+    # ── Helpers ───────────────────────────────────────────────────────────────
 
-
-    def _extract_domain(self, url: str) -> str:
-        """Extract domain from URL"""
+    @staticmethod
+    def _extract_domain(url: str) -> str:
         try:
-            parsed = urlparse(url)
-            domain = parsed.netloc.lower()
-
-            # Remove 'www.' prefix
-            if domain.startswith('www.'):
+            domain = urlparse(url).netloc.lower()
+            if domain.startswith("www."):
                 domain = domain[4:]
-
             return domain
-        except:
+        except Exception:
             return ""
 
-
     def get_scraper_type(self, url: str) -> str:
-        """
-        Get the type of scraper that would be used for a URL.
-
-        Returns:
-            "amazon", "generic", etc.
-        """
         domain = self._extract_domain(url)
-
         if domain in self.specialized_scrapers:
-            return domain.split('.')[0]  # e.g., "amazon" from "amazon.com"
-
+            return domain.split(".")[0]
         return "generic"
 
 
-# Global scraper manager instance
-_manager = None
+async def _backoff(attempt: int, base: int = 2):
+    import asyncio
+    await asyncio.sleep(base * (2 ** attempt))
+
+
+# ── Thread-safe singleton ─────────────────────────────────────────────────────
+
+_manager: Optional[ScraperManager] = None
+_manager_lock = threading.Lock()
 
 
 def get_scraper_manager() -> ScraperManager:
-    """Get or create the global scraper manager"""
+    """Return (and lazily create) the process-wide ScraperManager singleton."""
     global _manager
     if _manager is None:
-        _manager = ScraperManager()
+        with _manager_lock:
+            if _manager is None:
+                _manager = ScraperManager()
     return _manager
 
 
-# Convenience functions
+# ── Convenience wrappers ─────────────────────────────────────────────────────
+
 async def scrape_url(
     url: str,
     price_selector: Optional[str] = None,
     title_selector: Optional[str] = None,
     stock_selector: Optional[str] = None,
-    image_selector: Optional[str] = None
+    image_selector: Optional[str] = None,
 ) -> Dict:
-    """
-    Convenience function to scrape any URL.
-
-    Usage:
-        # Amazon (automatic)
-        result = await scrape_url("https://www.amazon.com/dp/B0BSHF7WHW")
-
-        # Custom site
-        result = await scrape_url(
-            "https://competitor.com/product/123",
-            price_selector=".price"
-        )
-    """
-    manager = get_scraper_manager()
-    return await manager.scrape(
-        url,
-        price_selector,
-        title_selector,
-        stock_selector,
-        image_selector
+    return await get_scraper_manager().scrape(
+        url, price_selector, title_selector, stock_selector, image_selector
     )
 
 
-async def search_products(query: str, website: str = "amazon.com", max_results: int = 10) -> list:
-    """
-    Search for products on a website.
-
-    Usage:
-        results = await search_products("Sony headphones", max_results=5)
-    """
-    manager = get_scraper_manager()
-    return await manager.search(query, website, max_results)
+async def search_products(
+    query: str, website: str = "amazon.com", max_results: int = 10
+) -> list:
+    return await get_scraper_manager().search(query, website, max_results)

@@ -8,7 +8,7 @@ These endpoints allow clients to add and manage their own custom competitor webs
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from pydantic import BaseModel, HttpUrl
+from pydantic import ConfigDict, BaseModel, HttpUrl
 from datetime import datetime
 
 # Import our database stuff
@@ -73,8 +73,7 @@ class CompetitorWebsiteResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # API ENDPOINTS

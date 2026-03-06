@@ -62,6 +62,7 @@ class RepricingService:
                 suggested_price -= margin_amount
             if margin_pct:
                 suggested_price -= (lowest_price * (margin_pct / 100))
+            suggested_price = max(0.01, suggested_price)  # Never go negative
 
             suggestions.append({
                 "product_id": product.id,
@@ -112,6 +113,7 @@ class RepricingService:
                 suggested_price -= undercut_amount
             if undercut_pct:
                 suggested_price -= (lowest_price * (undercut_pct / 100))
+            suggested_price = max(0.01, suggested_price)  # Never go negative
 
             suggestions.append({
                 "product_id": product.id,
@@ -411,7 +413,12 @@ class RepricingService:
         ).first()
 
     def _get_lowest_competitor_price(self, product: ProductMonitored) -> Optional[float]:
-        """Get lowest in-stock competitor price for product"""
+        """Get lowest in-stock effective competitor price for product.
+
+        Uses effective_price (price after coupons/Subscribe & Save) when
+        available so repricing decisions reflect what customers actually pay,
+        not just the listed base price.
+        """
         if not product.competitor_matches:
             return None
 
@@ -421,8 +428,11 @@ class RepricingService:
                 PriceHistory.match_id == match.id
             ).order_by(desc(PriceHistory.timestamp)).first()
 
-            if latest and latest.in_stock:
-                prices.append(latest.price)
+            if latest and latest.in_stock and latest.price:
+                # Prefer effective_price (post-coupon/subscribe-and-save);
+                # fall back to the listed base price.
+                effective = latest.effective_price or latest.price
+                prices.append(effective)
 
         return min(prices) if prices else None
 
@@ -438,17 +448,17 @@ class RepricingService:
             original_price = suggestion["suggested_price"]
 
             # Apply minimum price
-            if min_price and suggestion["suggested_price"] < min_price:
+            if min_price is not None and suggestion["suggested_price"] < min_price:
                 suggestion["suggested_price"] = min_price
                 suggestion["constraint_applied"] = "min_price"
 
             # Apply maximum price
-            if max_price and suggestion["suggested_price"] > max_price:
+            if max_price is not None and suggestion["suggested_price"] > max_price:
                 suggestion["suggested_price"] = max_price
                 suggestion["constraint_applied"] = "max_price"
 
             # Apply MAP
-            if map_price and suggestion["suggested_price"] < map_price:
+            if map_price is not None and suggestion["suggested_price"] < map_price:
                 suggestion["suggested_price"] = map_price
                 suggestion["constraint_applied"] = "map_protection"
                 suggestion["map_warning"] = f"Price adjusted to MAP: ${map_price}"

@@ -192,7 +192,7 @@ class ShopifyIntegration:
             if main_variant.get('price'):
                 try:
                     price = float(main_variant['price'])
-                except:
+                except (ValueError, TypeError):
                     pass
 
             # Get product type/category
@@ -217,6 +217,80 @@ class ShopifyIntegration:
         except Exception as e:
             logger.error(f"Error parsing Shopify product: {e}")
             return None
+
+    def update_product_price(self, sku: str, new_price: float, title: str = '') -> Dict:
+        """
+        Update a product variant's price in Shopify by SKU, with title as fallback.
+
+        Args:
+            sku: Variant SKU to search for
+            new_price: New price to set
+            title: Product title used as fallback search term
+
+        Returns:
+            Dict with success status, variant_id on success, or error message
+        """
+        try:
+            target_variant_id = None
+
+            # Search products by title (Shopify REST has no direct SKU search)
+            search_params = {'limit': 50, 'status': 'active'}
+            if title:
+                search_params['title'] = title
+
+            response = requests.get(
+                f"{self.base_url}/products.json",
+                headers=self.headers,
+                params=search_params,
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                return {'success': False, 'error': f'Shopify search failed: {response.status_code}'}
+
+            products = response.json().get('products', [])
+
+            # Find variant with matching SKU
+            if sku:
+                for product in products:
+                    for variant in product.get('variants', []):
+                        if variant.get('sku', '').strip().lower() == sku.strip().lower():
+                            target_variant_id = variant['id']
+                            break
+                    if target_variant_id:
+                        break
+
+            # Fallback: use first variant of first product
+            if not target_variant_id and products:
+                first_variants = products[0].get('variants', [])
+                if first_variants:
+                    target_variant_id = first_variants[0]['id']
+
+            if not target_variant_id:
+                return {
+                    'success': False,
+                    'error': 'Product not found in Shopify store (no SKU or title match)'
+                }
+
+            # Update the variant price
+            update_response = requests.put(
+                f"{self.base_url}/variants/{target_variant_id}.json",
+                headers=self.headers,
+                json={'variant': {'id': target_variant_id, 'price': str(round(new_price, 2))}},
+                timeout=30
+            )
+
+            if update_response.status_code == 200:
+                return {'success': True, 'variant_id': target_variant_id, 'new_price': new_price}
+            else:
+                return {
+                    'success': False,
+                    'error': f'Shopify price update failed: {update_response.status_code}'
+                }
+
+        except Exception as e:
+            logger.error(f"Error updating Shopify variant price: {e}")
+            return {'success': False, 'error': str(e)}
 
     def get_product_by_id(self, product_id: int) -> Optional[Dict]:
         """
@@ -307,7 +381,7 @@ class ShopifyIntegration:
             data = response.json()
             products_data = data.get('products', [])
 
-            return [self._parse_product(item) for item in products_data if self._parse_product(item)]
+            return [p for p in (self._parse_product(item) for item in products_data) if p]
 
         except Exception as e:
             logger.error(f"Error fetching collection products: {e}")
@@ -341,7 +415,7 @@ class ShopifyIntegration:
             data = response.json()
             products_data = data.get('products', [])
 
-            return [self._parse_product(item) for item in products_data if self._parse_product(item)]
+            return [p for p in (self._parse_product(item) for item in products_data) if p]
 
         except Exception as e:
             logger.error(f"Error searching Shopify products: {e}")

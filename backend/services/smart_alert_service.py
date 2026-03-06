@@ -9,10 +9,14 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import os
 
+import logging
+
 from database.models import (
     PriceAlert, ProductMonitored, CompetitorMatch,
     PriceHistory, User
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SmartAlertService:
@@ -105,6 +109,9 @@ class SmartAlertService:
             previous = prices[1]
 
             if not latest.in_stock or not previous.in_stock:
+                continue
+
+            if previous.price == 0:
                 continue
 
             # Calculate change
@@ -296,6 +303,9 @@ class SmartAlertService:
         old_avg = sum(old_prices) / len(old_prices)
         new_avg = sum(new_prices) / len(new_prices)
 
+        if old_avg == 0:
+            return False
+
         # Calculate trend
         trend_pct = ((new_avg - old_avg) / old_avg) * 100
 
@@ -360,178 +370,171 @@ class SmartAlertService:
 
         subject = f"🚨 {data['alert_name']}: {data['product_title']}"
 
-        body = f"""
-        Alert Triggered: {data['alert_name']}
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
 
-        Product: {data['product_title']}
-        SKU: {data['product_sku'] or 'N/A'}
-        Brand: {data['product_brand'] or 'N/A'}
-
-        Competitors: {data['competitor_count']}
-        Threshold: {data['threshold_pct']}%
-
-        Triggered at: {data['triggered_at']}
-
-        View details: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                     color: #1f2937; max-width: 560px; margin: 0 auto; padding: 24px;">
+          <div style="background: #2563eb; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 24px;">
+            <h1 style="color: white; margin: 0; font-size: 20px;">🚨 {data['alert_name']}</h1>
+          </div>
+          <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+            <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600;">{data['product_title']}</p>
+            <p style="margin: 0 0 4px; color: #6b7280; font-size: 14px;">SKU: {data['product_sku'] or 'N/A'} &nbsp;·&nbsp; Brand: {data['product_brand'] or 'N/A'}</p>
+            <p style="margin: 8px 0 0; color: #6b7280; font-size: 14px;">Competitors tracked: {data['competitor_count']}</p>
+          </div>
+          <p style="text-align: center; margin: 20px 0;">
+            <a href="{product_url}" style="background: #2563eb; color: white; padding: 12px 24px;
+               border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px;">
+              View Product Details →
+            </a>
+          </p>
+          <p style="text-align: center; font-size: 12px; color: #9ca3af;">
+            &copy; MarketIntel &mdash; E-commerce Competitive Intelligence
+          </p>
+        </body>
+        </html>
         """
+
+        text_content = (
+            f"Alert: {data['alert_name']}\n\n"
+            f"Product: {data['product_title']}\n"
+            f"SKU: {data['product_sku'] or 'N/A'}\n"
+            f"Brand: {data['product_brand'] or 'N/A'}\n"
+            f"Competitors: {data['competitor_count']}\n\n"
+            f"View details: {product_url}"
+        )
 
         try:
             email_service.send_email(
                 to_email=alert.email,
                 subject=subject,
-                body=body
+                html_content=html_content,
+                text_content=text_content
             )
         except Exception as e:
-            print(f"Failed to send email for alert {alert.id}: {e}")
+            logger.error(f"Failed to send email for alert {alert.id}: {e}")
 
     def _send_sms_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send SMS notification via Twilio"""
-        account_sid = os.getenv('TWILIO_ACCOUNT_SID')
-        auth_token = os.getenv('TWILIO_AUTH_TOKEN')
-        from_number = os.getenv('TWILIO_PHONE_NUMBER')
-
-        if not all([account_sid, auth_token, from_number]):
-            print(f"Twilio not configured – skipping SMS for alert {alert.id}")
-            return
-
+        """Send SMS notification — uses stdlib-based sms_service (no twilio package needed)"""
+        from services.sms_service import send_sms
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
+        message = (
+            f"MarketIntel: {data['alert_name']}\n"
+            f"{data['product_title'][:50]}\n"
+            f"{product_url}"
+        )
         try:
-            from twilio.rest import Client
-            client = Client(account_sid, auth_token)
-            body = (
-                f"{data['alert_name']}: {data['product_title']} | "
-                f"{data['competitor_count']} competitors | "
-                f"View: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
-            )
-            client.messages.create(body=body, from_=from_number, to=alert.phone_number)
-        except ImportError:
-            print("twilio package not installed – skipping SMS")
+            send_sms(to_number=alert.phone_number, message=message)
         except Exception as e:
-            print(f"Failed to send SMS for alert {alert.id}: {e}")
+            logger.error(f"Failed to send SMS for alert {alert.id}: {e}")
 
     def _send_slack_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send Slack webhook notification"""
-        import requests
-
-        payload = {
-            "text": f"🚨 *{data['alert_name']}*",
-            "blocks": [
-                {
-                    "type": "header",
-                    "text": {
-                        "type": "plain_text",
-                        "text": f"🚨 {data['alert_name']}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "fields": [
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Product:*\n{data['product_title']}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Competitors:*\n{data['competitor_count']}"
-                        },
-                        {
-                            "type": "mrkdwn",
-                            "text": f"*Threshold:*\n{data['threshold_pct']}%"
-                        }
-                    ]
-                },
-                {
-                    "type": "actions",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "View Details"
-                            },
-                            "url": f"{os.getenv('FRONTEND_URL')}/products/{data['product_id']}"
-                        }
-                    ]
-                }
-            ]
-        }
-
+        """Send Slack webhook notification — uses stdlib-based webhook_service"""
+        from services.webhook_service import send_slack_alert
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
         try:
-            requests.post(alert.slack_webhook_url, json=payload)
+            send_slack_alert(
+                webhook_url=alert.slack_webhook_url,
+                product_title=data['product_title'],
+                competitor_name=f"{data['competitor_count']} competitors",
+                old_price=None,
+                new_price=0.0,
+                change_pct=0.0,
+                product_url=product_url,
+            )
         except Exception as e:
-            print(f"Failed to send Slack notification for alert {alert.id}: {e}")
+            logger.error(f"Failed to send Slack notification for alert {alert.id}: {e}")
 
     def _send_discord_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send Discord webhook notification"""
-        import requests
-
-        payload = {
-            "embeds": [{
-                "title": f"🚨 {data['alert_name']}",
-                "description": f"**{data['product_title']}**",
-                "color": 15158332,  # Red color
-                "fields": [
-                    {
-                        "name": "SKU",
-                        "value": data['product_sku'] or "N/A",
-                        "inline": True
-                    },
-                    {
-                        "name": "Competitors",
-                        "value": str(data['competitor_count']),
-                        "inline": True
-                    },
-                    {
-                        "name": "Threshold",
-                        "value": f"{data['threshold_pct']}%",
-                        "inline": True
-                    }
-                ],
-                "footer": {
-                    "text": f"Triggered at {data['triggered_at']}"
-                }
-            }]
-        }
-
+        """Send Discord webhook notification — uses stdlib-based webhook_service"""
+        from services.webhook_service import send_discord_alert
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+        product_url = f"{frontend_url}/products/{data['product_id']}"
         try:
-            requests.post(alert.discord_webhook_url, json=payload)
+            send_discord_alert(
+                webhook_url=alert.discord_webhook_url,
+                product_title=data['product_title'],
+                competitor_name=f"{data['competitor_count']} competitors",
+                old_price=None,
+                new_price=0.0,
+                change_pct=0.0,
+                product_url=product_url,
+            )
         except Exception as e:
-            print(f"Failed to send Discord notification for alert {alert.id}: {e}")
+            logger.error(f"Failed to send Discord notification for alert {alert.id}: {e}")
 
     def _send_push_notification(self, alert: PriceAlert, data: Dict[str, Any]):
-        """Send push notification (PWA) via Web Push / VAPID"""
+        """Send Web Push notifications to all of the alert owner's registered devices."""
         vapid_private_key = os.getenv('VAPID_PRIVATE_KEY')
-        vapid_public_key = os.getenv('VAPID_PUBLIC_KEY')
         vapid_claims_email = os.getenv('VAPID_CLAIMS_EMAIL', 'alerts@marketintel.com')
 
-        if not all([vapid_private_key, vapid_public_key]):
-            print(f"VAPID keys not configured – skipping push notification for alert {alert.id}")
+        if not vapid_private_key:
+            logger.warning("VAPID_PRIVATE_KEY not configured – skipping push for alert %s", alert.id)
             return
 
-        # Push subscription endpoint stored on the alert (or user) record would be needed.
-        # For now we log the intent; the frontend registers a subscription and stores it in the DB.
-        push_subscription = getattr(alert, 'push_subscription', None)
-        if not push_subscription:
-            print(f"No push subscription registered for alert {alert.id}")
+        if not alert.user_id:
+            logger.warning("Alert %s has no user_id – cannot look up push subscriptions", alert.id)
+            return
+
+        # Load all active push subscriptions for this user from the DB
+        from database.models import PushSubscription
+        subscriptions = (
+            self.db.query(PushSubscription)
+            .filter(
+                PushSubscription.user_id == alert.user_id,
+                PushSubscription.is_active == True,  # noqa: E712
+            )
+            .all()
+        )
+
+        if not subscriptions:
+            logger.debug("No active push subscriptions for user %s (alert %s)", alert.user_id, alert.id)
             return
 
         try:
             from pywebpush import webpush, WebPushException
             import json
-            payload = json.dumps({
-                "title": data['alert_name'],
-                "body": data['product_title'],
-                "url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}"
-            })
-            webpush(
-                subscription_info=push_subscription,
-                data=payload,
-                vapid_private_key=vapid_private_key,
-                vapid_claims={"sub": f"mailto:{vapid_claims_email}"}
-            )
         except ImportError:
-            print("pywebpush package not installed – skipping push notification")
-        except Exception as e:
-            print(f"Failed to send push notification for alert {alert.id}: {e}")
+            logger.warning("pywebpush not installed – skipping push notification (pip install pywebpush)")
+            return
+
+        payload = json.dumps({
+            "title": data['alert_name'],
+            "body": data['product_title'],
+            "url": f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{data['product_id']}",
+        })
+        vapid_claims = {"sub": f"mailto:{vapid_claims_email}"}
+
+        for sub in subscriptions:
+            subscription_info = {
+                "endpoint": sub.endpoint,
+                "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
+            }
+            try:
+                webpush(
+                    subscription_info=subscription_info,
+                    data=payload,
+                    vapid_private_key=vapid_private_key,
+                    vapid_claims=vapid_claims,
+                )
+            except WebPushException as exc:
+                # HTTP 410 Gone means the subscription is no longer valid; deactivate it
+                if exc.response is not None and exc.response.status_code == 410:
+                    sub.is_active = False
+                    self.db.add(sub)
+                    logger.info("Deactivated expired push subscription %s for user %s", sub.id, sub.user_id)
+                else:
+                    logger.error("Push failed for sub %s (alert %s): %s", sub.id, alert.id, exc)
+            except Exception as exc:
+                logger.error("Push failed for sub %s (alert %s): %s", sub.id, alert.id, exc)
+
+        self.db.commit()
 
     # Digest Management
 
@@ -624,7 +627,7 @@ class SmartAlertService:
                 top_price_increases=top_increases[:5],
             )
         except Exception as e:
-            print(f"Failed to send {label.lower()} digest to user {user_id}: {e}")
+            logger.error(f"Failed to send {label.lower()} digest to user {user_id}: {e}")
 
 
 # Factory function

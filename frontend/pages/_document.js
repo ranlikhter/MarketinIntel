@@ -4,12 +4,26 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
+        {/* Favicon */}
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+
+        {/* PWA manifest */}
+        <link rel="manifest" href="/manifest.json" />
+
+        {/* PWA meta */}
+        <meta name="theme-color" content="#08080e" />
+        <meta name="application-name" content="MarketIntel" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="MarketIntel" />
+        <meta name="mobile-web-app-capable" content="yes" />
+
+        {/* Apple touch icon */}
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+        {/* SEO */}
+        <meta name="description" content="Real-time competitive price intelligence and monitoring for e-commerce businesses." />
       </Head>
       <body>
         <Main />

@@ -3,33 +3,209 @@
 @tailwind utilities;
 
 :root {
-  --sidebar-width: 256px;
+  --sidebar-width: 240px;
   --topbar-height: 64px;
   --bottom-nav-height: 64px;
+
+  /* ── Dark theme color tokens ─────────────────────────────────────────────── */
+  --bg-base:     #08080e;
+  --bg-surface:  #0e0e1a;
+  --bg-elevated: #141427;
+  --bg-hover:    rgba(255,255,255,0.04);
+  --border:      rgba(255,255,255,0.07);
+  --border-md:   rgba(255,255,255,0.10);
+
+  --accent:      #f59e0b;
+  --accent-dim:  rgba(245,158,11,0.15);
+  --accent-glow: rgba(245,158,11,0.25);
+
+  --text:        #f1f5f9;
+  --text-muted:  #64748b;
+  --text-dim:    #334155;
 }
 
-/* Clean app background — overrides the default gradient */
+/* ─── Body ───────────────────────────────────────────────────────────────── */
 body {
-  background-color: #f3f4f6;
-  color: #111827;
+  background: var(--bg-base);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Hide scrollbars while keeping scroll functionality */
 @layer utilities {
+
+  /* ── Scrollbar ─────────────────────────────────────────────────────────── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .text-balance { text-wrap: balance; }
+  .safe-bottom  { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* ── Dark surfaces ───────────────────────────────────────────────────────── */
+
+  /* Generic dark panel */
+  .glass {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
   }
 
-  .text-balance {
-    text-wrap: balance;
+  /* Card-level dark surface */
+  .glass-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
   }
 
-  /* Safe-area padding for notched phones */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Sidebar */
+  .glass-sidebar {
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+  }
+
+  /* Topbar */
+  .glass-topbar {
+    background: rgba(8,8,14,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 16px rgba(0,0,0,0.4);
+  }
+
+  /* Bottom nav */
+  .glass-nav {
+    background: rgba(10,10,18,0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 20px rgba(0,0,0,0.5);
+  }
+
+  /* Input */
+  .glass-input {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-md);
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .glass-input:focus {
+    background: var(--bg-elevated);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    outline: none;
+  }
+  .glass-input::placeholder {
+    color: var(--text-muted);
+  }
+  select.glass-input option {
+    background: var(--bg-elevated);
+    color: var(--text);
+  }
+
+  /* ── Brand gradient (amber → orange) ────────────────────────────────────── */
+  .gradient-brand {
+    background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  }
+
+  .gradient-brand-hover:hover {
+    background: linear-gradient(135deg, #d97706 0%, #ea6c00 100%);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Stat card backgrounds (dark tinted) ────────────────────────────────── */
+  .stat-blue    { background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); }
+  .stat-violet  { background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%); }
+  .stat-emerald { background: linear-gradient(135deg, #047857 0%, #059669 100%); }
+  .stat-amber   { background: linear-gradient(135deg, #b45309 0%, #d97706 100%); }
+  .stat-rose    { background: linear-gradient(135deg, #be123c 0%, #e11d48 100%); }
+  .stat-sky     { background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%); }
+
+  /* Dark stat cards (matching the image aesthetic) */
+  .stat-dark-blue    { background: linear-gradient(135deg, rgba(37,99,235,0.3), rgba(37,99,235,0.15)); border: 1px solid rgba(37,99,235,0.25); }
+  .stat-dark-violet  { background: linear-gradient(135deg, rgba(124,58,237,0.3), rgba(124,58,237,0.15)); border: 1px solid rgba(124,58,237,0.25); }
+  .stat-dark-emerald { background: linear-gradient(135deg, rgba(5,150,105,0.3), rgba(5,150,105,0.15)); border: 1px solid rgba(5,150,105,0.25); }
+  .stat-dark-amber   { background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(245,158,11,0.15)); border: 1px solid rgba(245,158,11,0.25); }
+
+  /* ── Shadows ────────────────────────────────────────────────────────────── */
+  .shadow-glass {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  }
+
+  .shadow-glass-lg {
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .shadow-gradient {
+    box-shadow: 0 4px 20px var(--accent-glow);
+  }
+
+  /* ── Animations ─────────────────────────────────────────────────────────── */
+  .animate-fade-in {
+    animation: fadeSlideIn 0.18s ease-out both;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0);   }
+  }
+
+  /* ── Dark card utility ───────────────────────────────────────────────────── */
+  .dark-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+  }
+
+  .dark-card-elevated {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+  }
+
+  /* ── Accent utilities ────────────────────────────────────────────────────── */
+  .accent-glow {
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  /* ── Divider ────────────────────────────────────────────────────────────── */
+  .dark-divider {
+    border-color: var(--border);
+  }
+
+  /* ── Table ────────────────────────────────────────────────────────────────── */
+  .dark-table th {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dark-table td {
+    padding: 0.875rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.875rem;
+  }
+
+  .dark-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .dark-table tr:hover td {
+    background: var(--bg-hover);
   }
 }
