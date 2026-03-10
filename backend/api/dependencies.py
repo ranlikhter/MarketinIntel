@@ -121,7 +121,7 @@ def _enforce_trial_limits(user: User) -> None:
 
     if (
         user.trial_ends_at is not None
-        and user.trial_ends_at < datetime.utcnow()
+        and user.trial_ends_at < utcnow()
         and user.subscription_status == SubscriptionStatus.TRIALING
     ):
         # Temporarily cap limits to free-tier values for this request
