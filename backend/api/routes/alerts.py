@@ -5,9 +5,11 @@ Manage price alert rules and notifications
 
 import os
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, tuple_
 from pydantic import ConfigDict, BaseModel, EmailStr
 from typing import Literal, Optional, List
 
@@ -231,19 +233,17 @@ async def get_alerts(
 
     alerts = query.all()
 
-    # Add product titles
-    result = []
-    for alert in alerts:
-        product = db.query(ProductMonitored).filter(
-            ProductMonitored.id == alert.product_id
-        ).first()
+    # Prefetch all product titles in a single query
+    product_ids = list({a.product_id for a in alerts})
+    titles_by_id = {
+        p.id: p.title
+        for p in db.query(ProductMonitored).filter(ProductMonitored.id.in_(product_ids)).all()
+    } if product_ids else {}
 
-        result.append(AlertResponse(
-            **alert.__dict__,
-            product_title=product.title if product else "Unknown"
-        ))
-
-    return result
+    return [
+        AlertResponse(**alert.__dict__, product_title=titles_by_id.get(alert.product_id, "Unknown"))
+        for alert in alerts
+    ]
 
 
 @router.get("/{alert_id}", response_model=AlertResponse)
@@ -340,11 +340,7 @@ async def delete_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
-    product_title = product.title if product else "Unknown"
-    log_activity(db, current_user.id, "alert.delete", "alert", f"Deleted price alert for '{product_title}'", entity_type="alert", entity_id=alert_id, entity_name=product_title)
+    log_activity(db, current_user.id, "alert.delete", "alert", f"Deleted price alert #{alert_id}", entity_type="alert", entity_id=alert_id)
     db.delete(alert)
     db.commit()
 
@@ -372,11 +368,7 @@ async def toggle_alert(
     alert.enabled = not alert.enabled
     alert.updated_at = datetime.utcnow()
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
-    product_title = product.title if product else "Unknown"
-    log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert for '{product_title}'", entity_type="alert", entity_id=alert.id, entity_name=product_title, metadata={"enabled": alert.enabled})
+    log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert #{alert.id}", entity_type="alert", entity_id=alert.id, metadata={"enabled": alert.enabled})
     db.commit()
     db.refresh(alert)
 
@@ -397,9 +389,29 @@ async def check_all_alerts(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Check all enabled alerts and send notifications if triggered
+    Check all enabled alerts and send notifications if triggered.
+    Scoped to the authenticated user's alerts only.
     """
-    alerts = db.query(PriceAlert).filter(PriceAlert.enabled == True).all()
+    alerts = db.query(PriceAlert).filter(
+        PriceAlert.enabled == True,
+        PriceAlert.user_id == current_user.id,
+    ).all()
+
+    if not alerts:
+        return {"success": True, "alerts_checked": 0, "triggered": 0, "skipped": 0, "errors": 0}
+
+    # Prefetch all products in one query to avoid N+1
+    product_ids = list({a.product_id for a in alerts})
+    products_by_id = {
+        p.id: p for p in db.query(ProductMonitored).filter(ProductMonitored.id.in_(product_ids)).all()
+    }
+
+    # Prefetch all competitor matches for those products in one query
+    matches_by_product: dict[int, list] = {pid: [] for pid in product_ids}
+    for match in db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id.in_(product_ids)
+    ).all():
+        matches_by_product[match.monitored_product_id].append(match)
 
     triggered = 0
     skipped = 0
@@ -414,20 +426,11 @@ async def check_all_alerts(
                     skipped += 1
                     continue
 
-            # Get product and matches
-            product = db.query(ProductMonitored).filter(
-                ProductMonitored.id == alert.product_id
-            ).first()
-
+            product = products_by_id.get(alert.product_id)
             if not product:
                 continue
 
-            matches = db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product.id
-            ).all()
-
-            # Check each match for price changes
-            for match in matches:
+            for match in matches_by_product.get(product.id, []):
                 if await check_single_match(alert, match, product, db):
                     triggered += 1
 
@@ -493,7 +496,7 @@ async def check_single_match(
         old_price=previous.price,
         new_price=current.price,
         change_pct=price_change_pct,
-        product_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{product.id}"
+        product_url=f"{FRONTEND_URL}/products/{product.id}"
     )
 
     if success:
@@ -542,7 +545,7 @@ async def test_alert(
         old_price=match.latest_price * 1.1,  # Fake 10% higher previous price
         new_price=match.latest_price,
         change_pct=-10.0,
-        product_url=f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products/{product.id}"
+        product_url=f"{FRONTEND_URL}/products/{product.id}"
     )
 
     if success:

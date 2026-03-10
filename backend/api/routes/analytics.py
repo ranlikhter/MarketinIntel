@@ -186,7 +186,6 @@ async def get_date_range_comparison(
 
 @router.post("/snapshots")
 async def calculate_daily_snapshots(
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Calculate daily price snapshots (async background task)"""
@@ -197,7 +196,6 @@ async def calculate_daily_snapshots(
 
 @router.post("/update")
 async def update_analytics(
-    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Recalculate all analytics (async background task)"""
