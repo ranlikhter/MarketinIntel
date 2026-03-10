@@ -15,6 +15,7 @@ from services.sms_service import send_price_alert_sms
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
+from utils.time import utcnow
 import logging
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
     try:
         logger.info("Checking price alerts (threshold: %.1f%%)", threshold_pct)
 
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = utcnow() - timedelta(days=1)
 
         # ── 1. Load all products with their matches in two queries ────────────
         products = (
@@ -122,7 +123,7 @@ def check_price_alerts(self, threshold_pct: float = 5.0):
 
         # ── 4. Evaluate alerts — pure Python, no more DB calls in the loop ────
         alerts = []
-        now = datetime.utcnow()
+        now = utcnow()
         notifications = []   # (callable, kwargs) pairs for parallel dispatch
         rules_to_update = []
 
@@ -257,7 +258,7 @@ def send_daily_digest(self):
     try:
         logger.info("Generating daily digest")
 
-        yesterday = datetime.utcnow() - timedelta(days=1)
+        yesterday = utcnow() - timedelta(days=1)
 
         # Count products scraped (distinct) — single query with COUNT DISTINCT
         scraped_count = (
@@ -301,7 +302,7 @@ def send_daily_digest(self):
         )
 
         digest_data = {
-            "date": datetime.utcnow().date().isoformat(),
+            "date": utcnow().date().isoformat(),
             "stats": {
                 "products_monitored": scraped_count,
                 "price_updates": price_changes,
@@ -362,7 +363,7 @@ def send_price_drop_alert(self, product_id: int, match_id: int):
             "competitor": match.competitor_name,
             "current_price": match.latest_price,
             "url": match.competitor_url,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
         logger.info("Price drop alert for %s: $%s", product.title, match.latest_price)
 

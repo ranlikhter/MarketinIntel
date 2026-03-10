@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 import os
 
 import logging
@@ -160,7 +161,7 @@ class SmartAlertService:
     def _check_price_war(self, alert: PriceAlert) -> bool:
         """Check if 3+ competitors dropped prices in last 24h"""
         product = alert.product
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        yesterday = utcnow() - timedelta(hours=24)
 
         drops = 0
         for match in product.competitor_matches:
@@ -186,7 +187,7 @@ class SmartAlertService:
     def _check_new_competitor(self, alert: PriceAlert) -> bool:
         """Check if new competitor was added in last 24h"""
         product = alert.product
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        yesterday = utcnow() - timedelta(hours=24)
 
         new_matches = [
             m for m in product.competitor_matches
@@ -275,7 +276,7 @@ class SmartAlertService:
     def _check_market_trend(self, alert: PriceAlert) -> bool:
         """Check if overall market price is trending up/down"""
         product = alert.product
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
 
         # Get average prices from week ago vs now
         old_prices = []
@@ -321,7 +322,7 @@ class SmartAlertService:
         Trigger an alert - send notifications via all enabled channels
         """
         # Update alert status
-        alert.last_triggered_at = datetime.utcnow()
+        alert.last_triggered_at = utcnow()
         alert.trigger_count += 1
         self.db.commit()
 
@@ -555,7 +556,7 @@ class SmartAlertService:
         if not user or not user.email:
             return
 
-        since = datetime.utcnow() - timedelta(days=days)
+        since = utcnow() - timedelta(days=days)
 
         # Alerts that triggered within the window
         triggered_alerts = self.db.query(PriceAlert).filter(
@@ -617,7 +618,7 @@ class SmartAlertService:
             ).count(),
         }
 
-        date_str = datetime.utcnow().strftime("%Y-%m-%d")
+        date_str = utcnow().strftime("%Y-%m-%d")
         try:
             email_service.send_daily_digest(
                 to_email=user.email,

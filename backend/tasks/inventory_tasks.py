@@ -13,6 +13,7 @@ Celery beat schedule (add to celery_app.py conf_beat_schedule):
 
 import logging
 from datetime import datetime
+from utils.time import utcnow
 
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
@@ -40,7 +41,7 @@ def sync_all_store_inventory(self):
         try:
             count = _sync_connection(conn, self.db)
             synced_total += count
-            conn.last_synced_at = datetime.utcnow()
+            conn.last_synced_at = utcnow()
             self.db.commit()
             logger.info(f"[InventorySync] {conn.platform}:{conn.store_url} → {count} products updated")
         except Exception as e:
@@ -65,7 +66,7 @@ def sync_single_connection(self, connection_id: int):
 
     try:
         count = _sync_connection(conn, self.db)
-        conn.last_synced_at = datetime.utcnow()
+        conn.last_synced_at = utcnow()
         self.db.commit()
         return {"success": True, "synced": count}
     except Exception as e:

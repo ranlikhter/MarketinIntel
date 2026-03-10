@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, desc
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from collections import defaultdict
 
 from database.models import (
@@ -223,7 +224,7 @@ class InsightsService:
         ).count()
 
         # Recent price changes (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         recent_changes = self.db.query(PriceHistory).join(
             CompetitorMatch
         ).join(
@@ -254,7 +255,7 @@ class InsightsService:
         trending = []
 
         # Products with most price changes in last 7 days
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
 
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
@@ -308,7 +309,7 @@ class InsightsService:
             score += 10  # Low competition = opportunity
 
         # Factor 3: Recent price volatility (+15 if volatile)
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         changes = self.db.query(PriceHistory).join(
             CompetitorMatch
         ).filter(
@@ -374,7 +375,7 @@ class InsightsService:
 
     def _detect_price_wars(self) -> List[Dict[str, Any]]:
         """Detect products in active price wars (3+ price drops in 24h)"""
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        yesterday = utcnow() - timedelta(hours=24)
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()
@@ -405,7 +406,7 @@ class InsightsService:
 
     def _get_new_competitors(self) -> List[Dict[str, Any]]:
         """Get newly detected competitors (added in last 7 days)"""
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
 
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
@@ -425,7 +426,7 @@ class InsightsService:
 
     def _get_stale_products(self) -> List[Dict[str, Any]]:
         """Get products with stale data (no updates in 48h)"""
-        threshold = datetime.utcnow() - timedelta(hours=48)
+        threshold = utcnow() - timedelta(hours=48)
 
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
@@ -527,7 +528,7 @@ class InsightsService:
         Find competitors who dropped their price 3+ times in the last 7 days
         across any of the user's products.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()
@@ -561,7 +562,7 @@ class InsightsService:
         """
         Find products where the average competitor price declined over the last 7 days.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()
@@ -602,7 +603,7 @@ class InsightsService:
         Find products where we were cheapest 7 days ago but are no longer the cheapest now.
         Requires my_price to be set on the product.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()

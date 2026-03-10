@@ -316,7 +316,7 @@ async def get_trending_competitors(
     from database.models import CompetitorMatch, ProductMonitored, PriceHistory
     from datetime import datetime, timedelta
 
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = utcnow() - timedelta(days=days)
 
     intel_service = get_competitor_intel_service(db, current_user)
 

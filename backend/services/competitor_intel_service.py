@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from collections import defaultdict
 
 from database.models import (
@@ -92,7 +93,7 @@ class CompetitorIntelService:
                         total_similar += 1
 
         # Price change frequency
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = utcnow() - timedelta(days=30)
         price_changes = []
 
         for match in matches:
@@ -134,7 +135,7 @@ class CompetitorIntelService:
         )
 
         # Recent activity (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         recent_activity = self._get_recent_activity(competitor_name, week_ago)
 
         return {
@@ -361,7 +362,7 @@ class CompetitorIntelService:
                 strategies["market_followers"].append(competitor_summary)
 
         return {
-            "analysis_date": datetime.utcnow().isoformat(),
+            "analysis_date": utcnow().isoformat(),
             "total_competitors_analyzed": len(competitor_names),
             "strategies": strategies,
             "insights": self._generate_strategy_insights(strategies)
@@ -549,7 +550,7 @@ class CompetitorIntelService:
 
     def _calculate_price_trend(self, match_id: int) -> str:
         """Calculate if price is trending up, down, or stable"""
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = utcnow() - timedelta(days=30)
 
         prices = self.db.query(PriceHistory).filter(
             PriceHistory.match_id == match_id,
@@ -573,7 +574,7 @@ class CompetitorIntelService:
 
     def _calculate_stock_rate(self, match_id: int) -> float:
         """Calculate stock availability rate over last 30 days"""
-        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        thirty_days_ago = utcnow() - timedelta(days=30)
 
         checks = self.db.query(PriceHistory).filter(
             PriceHistory.match_id == match_id,

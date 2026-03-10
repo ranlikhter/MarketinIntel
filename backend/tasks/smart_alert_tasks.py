@@ -10,6 +10,7 @@ from database.connection import SessionLocal
 from services.smart_alert_service import get_smart_alert_service
 from database.models import User
 from datetime import datetime
+from utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ def check_smart_alerts():
 
         return {
             "status": "success",
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": utcnow().isoformat(),
             "alerts_triggered": len(triggered),
             "alert_ids": [a.id for a in triggered]
         }
@@ -61,7 +62,7 @@ def check_user_smart_alerts(user_id: int):
         return {
             "status": "success",
             "user_id": user_id,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": utcnow().isoformat(),
             "alerts_triggered": len(triggered)
         }
 

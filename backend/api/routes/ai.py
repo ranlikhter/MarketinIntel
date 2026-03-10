@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import (
@@ -57,7 +58,7 @@ def _build_user_context(user: User, db: Session) -> dict:
         })
 
     # Recent price changes (last 7 days)
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    cutoff = utcnow() - timedelta(days=7)
     recent_changes = []
     for p in products:
         for match in db.query(CompetitorMatch).filter(
@@ -147,7 +148,7 @@ async def ai_pricing_recommendation(
         })
 
     # 30-day price history
-    cutoff = datetime.utcnow() - timedelta(days=30)
+    cutoff = utcnow() - timedelta(days=30)
     history = []
     for m in matches:
         rows = (
@@ -197,7 +198,7 @@ async def ai_pricing_recommendation(
         "product_title": product.title,
         "current_price": product.my_price,
         "recommendation": result,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utcnow().isoformat(),
     }
 
 
@@ -252,7 +253,7 @@ async def ai_competitive_query(
         "question": body.question,
         "answer": result["answer"],
         "related_product_ids": result.get("related_product_ids", []),
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utcnow().isoformat(),
     }
 
 
@@ -280,7 +281,7 @@ async def generate_narrative(
     metrics = context["metrics"]
     metrics["alerts_fired"] = db.query(PriceAlert).filter(
         PriceAlert.user_id == current_user.id,
-        PriceAlert.last_triggered_at >= datetime.utcnow() - timedelta(days=7),
+        PriceAlert.last_triggered_at >= utcnow() - timedelta(days=7),
     ).count()
 
     # Pull insights for narrative context
@@ -296,7 +297,7 @@ async def generate_narrative(
 
     # Top price changes for the week
     top_changes = []
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    cutoff = utcnow() - timedelta(days=7)
     products = db.query(ProductMonitored).filter(
         ProductMonitored.user_id == current_user.id
     ).all()
@@ -343,7 +344,7 @@ async def generate_narrative(
     return {
         "success": True,
         "narrative": narrative,
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utcnow().isoformat(),
     }
 
 

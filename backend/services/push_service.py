@@ -15,6 +15,7 @@ import json
 import logging
 import os
 from datetime import datetime
+from utils.time import utcnow
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -145,7 +146,7 @@ def send_push_to_user(
                 },
                 ttl=86400 if not urgent else 3600,
             )
-            sub.last_used_at = datetime.utcnow()
+            sub.last_used_at = utcnow()
             sent += 1
         except WebPushException as exc:
             # 410 Gone = subscription revoked by the browser

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.models import (
     ReviewSnapshot, SellerProfile, ListingQualitySnapshot, KeywordRank,
@@ -39,7 +40,7 @@ class KeywordRankService:
         if not product:
             return []
 
-        cutoff_7d = datetime.utcnow() - timedelta(days=7)
+        cutoff_7d = utcnow() - timedelta(days=7)
 
         # Get all unique keywords for this product
         keywords = self.db.query(KeywordRank.keyword).filter(
@@ -221,7 +222,7 @@ class KeywordRankService:
         if not product:
             return []
 
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utcnow() - timedelta(days=days)
 
         entries = self.db.query(KeywordRank).filter(
             KeywordRank.product_id == product_id,
@@ -260,7 +261,7 @@ class KeywordRankService:
             organic_rank=None,
             sponsored_rank=None,
             total_results=None,
-            scraped_at=datetime.utcnow()
+            scraped_at=utcnow()
         )
 
         self.db.add(new_entry)
@@ -297,7 +298,7 @@ class KeywordRankService:
         if not product_ids:
             return {"improved": [], "declined": []}
 
-        now = datetime.utcnow()
+        now = utcnow()
         cutoff_start = now - timedelta(days=days)
 
         # Get unique product/keyword pairs

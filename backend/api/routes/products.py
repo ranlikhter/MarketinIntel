@@ -10,15 +10,13 @@ These endpoints handle all operations related to products:
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List
 from pydantic import ConfigDict, BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta
+from utils.time import utcnow
 import asyncio
-
-# Import our database stuff
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User, MyPriceHistory
@@ -28,6 +26,46 @@ from services.activity_service import log_activity
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
+
+
+
+
+def _batch_latest_prices(db: Session, match_ids: list) -> dict:
+    """Return {match_id: PriceHistory} for the most-recent row of each match — 2 queries total."""
+    if not match_ids:
+        return {}
+    subq = (
+        db.query(PriceHistory.match_id, func.max(PriceHistory.timestamp).label("max_ts"))
+        .filter(PriceHistory.match_id.in_(match_ids))
+        .group_by(PriceHistory.match_id)
+        .subquery()
+    )
+    rows = (
+        db.query(PriceHistory)
+        .join(subq, and_(PriceHistory.match_id == subq.c.match_id,
+                         PriceHistory.timestamp == subq.c.max_ts))
+        .all()
+    )
+    return {r.match_id: r for r in rows}
+
+
+def _batch_prices_before(db: Session, match_ids: list, cutoff: datetime) -> dict:
+    """Return {match_id: PriceHistory} for the most-recent row on or before *cutoff* — 2 queries."""
+    if not match_ids:
+        return {}
+    subq = (
+        db.query(PriceHistory.match_id, func.max(PriceHistory.timestamp).label("max_ts"))
+        .filter(PriceHistory.match_id.in_(match_ids), PriceHistory.timestamp <= cutoff)
+        .group_by(PriceHistory.match_id)
+        .subquery()
+    )
+    rows = (
+        db.query(PriceHistory)
+        .join(subq, and_(PriceHistory.match_id == subq.c.match_id,
+                         PriceHistory.timestamp == subq.c.max_ts))
+        .all()
+    )
+    return {r.match_id: r for r in rows}
 
 
 # Pydantic models for request/response validation
@@ -197,8 +235,12 @@ def create_product(
                  f"Added product '{db_product.title}' to monitoring",
                  entity_type="product", entity_id=db_product.id, entity_name=db_product.title,
                  metadata={"sku": db_product.sku, "brand": db_product.brand, "my_price": db_product.my_price})
-    db.commit()
-    db.refresh(db_product)  # Get the ID that was auto-generated
+    try:
+        db.commit()
+        db.refresh(db_product)
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error: could not save product")
 
     return ProductResponse(
         id=db_product.id,
@@ -234,37 +276,39 @@ def get_all_products(
         ProductMonitored.user_id == current_user.id
     ).order_by(ProductMonitored.created_at.desc()).offset(offset).limit(limit).all()
 
-    from datetime import timedelta
+    if not products:
+        return []
+
+    # Prefetch all matches for these products in one query
+    product_ids = [p.id for p in products]
+    all_matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id.in_(product_ids)
+    ).all()
+
+    matches_by_product: dict = {}
+    for m in all_matches:
+        matches_by_product.setdefault(m.monitored_product_id, []).append(m)
+
+    # Prefetch latest and 7-day-ago PriceHistory for all matches in 4 queries total
+    match_ids = [m.id for m in all_matches]
+    week_ago_cutoff = utcnow() - timedelta(days=7)
+    latest_by_match = _batch_latest_prices(db, match_ids)
+    week_ago_by_match = _batch_prices_before(db, match_ids, week_ago_cutoff)
 
     response_products = []
     for product in products:
-        # Collect latest prices from all competitor matches
+        product_matches = matches_by_product.get(product.id, [])
         latest_prices = []
         stock_statuses = []
         week_ago_prices = []
 
-        for match in product.competitor_matches:
-            latest = (
-                db.query(PriceHistory)
-                .filter(PriceHistory.match_id == match.id)
-                .order_by(PriceHistory.timestamp.desc())
-                .first()
-            )
+        for match in product_matches:
+            latest = latest_by_match.get(match.id)
             if latest:
                 if latest.price:
                     latest_prices.append(latest.price)
                 stock_statuses.append(bool(latest.in_stock))
-
-            # 7-day-old price for trend
-            week_ago = (
-                db.query(PriceHistory)
-                .filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp <= datetime.utcnow() - timedelta(days=7),
-                )
-                .order_by(PriceHistory.timestamp.desc())
-                .first()
-            )
+            week_ago = week_ago_by_match.get(match.id)
             if week_ago and week_ago.price:
                 week_ago_prices.append(week_ago.price)
 
@@ -272,7 +316,6 @@ def get_all_products(
         avg_price = (sum(latest_prices) / len(latest_prices)) if latest_prices else None
         in_stock_count = sum(1 for s in stock_statuses if s)
 
-        # Price position relative to my_price
         price_position = None
         if product.my_price and lowest_price is not None:
             if product.my_price <= lowest_price:
@@ -282,7 +325,6 @@ def get_all_products(
             else:
                 price_position = "mid"
 
-        # 7-day price change %
         price_change_pct = None
         if latest_prices and week_ago_prices:
             current_avg = sum(latest_prices) / len(latest_prices)
@@ -302,7 +344,7 @@ def get_all_products(
             upc_ean=product.upc_ean,
             cost_price=product.cost_price,
             created_at=product.created_at,
-            competitor_count=len(product.competitor_matches),
+            competitor_count=len(product_matches),
             lowest_price=round(lowest_price, 2) if lowest_price else None,
             avg_price=round(avg_price, 2) if avg_price else None,
             in_stock_count=in_stock_count,
@@ -400,8 +442,12 @@ def update_product(
                          entity_type="product", entity_id=product.id, entity_name=product.title,
                          metadata={"fields_changed": changed})
 
-    db.commit()
-    db.refresh(product)
+    try:
+        db.commit()
+        db.refresh(product)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Database error: could not update product")
 
     return ProductResponse(
         id=product.id,
@@ -445,12 +491,13 @@ def get_product_matches(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
 
-    # Convert to response format with latest price snapshot
+    # Batch-fetch latest price snapshot for all matches in 2 queries
+    match_ids = [m.id for m in matches]
+    latest_by_match = _batch_latest_prices(db, match_ids)
+
     response_matches = []
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_by_match.get(match.id)
 
         response_matches.append(CompetitorMatchResponse(
             id=match.id,
@@ -506,31 +553,34 @@ def get_price_history(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Get all price history records for this product's matches
-    history_records = []
-    for match in product.competitor_matches:
-        for price_record in match.price_history:
-            history_records.append(PriceHistoryResponse(
-                timestamp=price_record.timestamp,
-                price=price_record.price,
-                currency=price_record.currency,
-                in_stock=bool(price_record.in_stock),
-                competitor_name=match.competitor_name,
-                was_price=price_record.was_price,
-                discount_pct=price_record.discount_pct,
-                shipping_cost=price_record.shipping_cost,
-                total_price=price_record.total_price,
-                promotion_label=price_record.promotion_label,
-                seller_name=price_record.seller_name,
-                seller_count=price_record.seller_count,
-                is_buy_box_winner=price_record.is_buy_box_winner,
-                scrape_quality=price_record.scrape_quality,
-            ))
+    # Single JOIN query — no lazy-loading of relationships
+    rows = (
+        db.query(PriceHistory, CompetitorMatch.competitor_name)
+        .join(CompetitorMatch, PriceHistory.match_id == CompetitorMatch.id)
+        .filter(CompetitorMatch.monitored_product_id == product_id)
+        .order_by(PriceHistory.timestamp.asc())
+        .all()
+    )
 
-    # Sort by timestamp
-    history_records.sort(key=lambda x: x.timestamp)
-
-    return history_records
+    return [
+        PriceHistoryResponse(
+            timestamp=ph.timestamp,
+            price=ph.price,
+            currency=ph.currency,
+            in_stock=bool(ph.in_stock),
+            competitor_name=name,
+            was_price=ph.was_price,
+            discount_pct=ph.discount_pct,
+            shipping_cost=ph.shipping_cost,
+            total_price=ph.total_price,
+            promotion_label=ph.promotion_label,
+            seller_name=ph.seller_name,
+            seller_count=ph.seller_count,
+            is_buy_box_winner=ph.is_buy_box_winner,
+            scrape_quality=ph.scrape_quality,
+        )
+        for ph, name in rows
+    ]
 
 
 @router.post("/{product_id}/scrape")
@@ -592,7 +642,7 @@ async def trigger_scrape(
                 # Update existing match with latest data
                 existing.competitor_product_title = result.get('title', '') or existing.competitor_product_title
                 existing.image_url = result.get('image_url') or existing.image_url
-                existing.last_scraped_at = datetime.utcnow()
+                existing.last_scraped_at = utcnow()
                 existing.latest_price = new_price if new_price is not None else existing.latest_price
                 existing.stock_status = stock_status
                 # Update rich fields if present
@@ -634,7 +684,7 @@ async def trigger_scrape(
                     match_score=85.0,
                     latest_price=new_price,
                     stock_status=stock_status,
-                    last_scraped_at=datetime.utcnow(),
+                    last_scraped_at=utcnow(),
                     external_id=result.get('asin') or result.get('external_id'),
                     rating=result.get('rating'),
                     review_count=result.get('review_count'),
@@ -689,11 +739,7 @@ async def trigger_scrape(
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "product_id": product_id,
-            "error": str(e)
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class ScrapeUrlBody(BaseModel):
@@ -788,7 +834,7 @@ async def scrape_competitor_url(
         if existing:
             existing.competitor_product_title = result.get('title', '') or existing.competitor_product_title
             existing.image_url = result.get('image_url') or existing.image_url
-            existing.last_scraped_at = datetime.utcnow()
+            existing.last_scraped_at = utcnow()
             existing.latest_price = scrape_price if scrape_price is not None else existing.latest_price
             existing.stock_status = 'In Stock' if scrape_stock else 'Out of Stock'
             if result.get('asin') or result.get('external_id'):
@@ -816,7 +862,7 @@ async def scrape_competitor_url(
                 match_score=100.0,
                 latest_price=scrape_price,
                 stock_status='In Stock' if scrape_stock else 'Out of Stock',
-                last_scraped_at=datetime.utcnow(),
+                last_scraped_at=utcnow(),
                 external_id=result.get('asin') or result.get('external_id'),
                 rating=result.get('rating'),
                 review_count=result.get('review_count'),
@@ -860,8 +906,12 @@ async def scrape_competitor_url(
         log_activity(db, current_user.id, action_label, "competitor", action_desc,
                      entity_type="product", entity_id=product_id, entity_name=product.title,
                      metadata={"competitor_name": competitor_name, "url": competitor_url, "price": scrape_price})
-        db.commit()
-        db.refresh(existing if existing else new_match)
+        try:
+            db.commit()
+            db.refresh(existing if existing else new_match)
+        except SQLAlchemyError:
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Database error: could not save competitor data")
         match_obj = existing if existing else new_match
 
         return {
@@ -898,10 +948,7 @@ async def scrape_competitor_url(
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{product_id}/my-price-history")
@@ -971,6 +1018,8 @@ def export_product_csv(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
 
+    latest_by_match = _batch_latest_prices(db, [m.id for m in matches])
+
     output = io.StringIO()
     writer = csv.writer(output)
 
@@ -989,9 +1038,7 @@ def export_product_csv(
     ])
 
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_by_match.get(match.id)
 
         price = match.latest_price
         shipping = latest.shipping_cost if latest else None
@@ -1075,6 +1122,8 @@ def export_product_xlsx(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
 
+    latest_by_match = _batch_latest_prices(db, [m.id for m in matches])
+
     headers = [
         "Competitor", "Product Title", "URL",
         "Match Score (%)", "Price", "Was Price", "Discount (%)",
@@ -1089,9 +1138,7 @@ def export_product_xlsx(
 
     rows = []
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_by_match.get(match.id)
 
         price = match.latest_price
         shipping = latest.shipping_cost if latest else None

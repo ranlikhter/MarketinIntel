@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.models import (
     ReviewSnapshot, SellerProfile, ListingQualitySnapshot, KeywordRank,
@@ -54,7 +55,7 @@ class ProductHealthService:
                 "message": "No competitors found for this product"
             }
 
-        now = datetime.utcnow()
+        now = utcnow()
         cutoff_7d = now - timedelta(days=7)
         cutoff_30d = now - timedelta(days=30)
 
@@ -129,7 +130,7 @@ class ProductHealthService:
         if not products:
             return {"error": "No products found", "flagged_products": []}
 
-        now = datetime.utcnow()
+        now = utcnow()
         cutoff_7d = now - timedelta(days=7)
         cutoff_30d = now - timedelta(days=30)
 
@@ -233,7 +234,7 @@ class ProductHealthService:
         Returns list of {date, review_count, velocity} where velocity is
         the day-over-day change in review_count.
         """
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utcnow() - timedelta(days=days)
 
         snapshots = self.db.query(ReviewSnapshot).filter(
             ReviewSnapshot.match_id == match_id,

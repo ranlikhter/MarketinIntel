@@ -370,8 +370,8 @@ async def update_repricing_rule(
     if update.requires_approval is not None:
         rule.requires_approval = update.requires_approval
 
-    from datetime import datetime
-    rule.updated_at = datetime.utcnow()
+
+    rule.updated_at = utcnow()
 
     db.commit()
     db.refresh(rule)

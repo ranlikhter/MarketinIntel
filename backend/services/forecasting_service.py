@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from collections import defaultdict
 import statistics
 
@@ -47,7 +48,7 @@ class ForecastingService:
         if not product:
             return {"error": "Product not found"}
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = utcnow() - timedelta(days=days)
 
         # Get all competitor matches
         matches = self.db.query(CompetitorMatch).filter(
@@ -140,7 +141,7 @@ class ForecastingService:
             return {"error": "Product not found"}
 
         # Get 90 days of history for training
-        ninety_days_ago = datetime.utcnow() - timedelta(days=90)
+        ninety_days_ago = utcnow() - timedelta(days=90)
 
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id
@@ -216,7 +217,7 @@ class ForecastingService:
         if not product:
             return {"error": "Product not found"}
 
-        cutoff_date = datetime.utcnow() - timedelta(days=months * 30)
+        cutoff_date = utcnow() - timedelta(days=months * 30)
 
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id
@@ -302,7 +303,7 @@ class ForecastingService:
         - Win rate (how often they had lowest price)
         - Price change frequency
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = utcnow() - timedelta(days=days)
 
         # Get all matches for this competitor
         matches = self.db.query(CompetitorMatch).join(
@@ -392,7 +393,7 @@ class ForecastingService:
         - Detecting competitor sales/promotions
         - Triggering price match strategies
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = utcnow() - timedelta(days=days)
 
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
@@ -494,7 +495,7 @@ class ForecastingService:
 
         # Compare first week vs last week averages
         week_in_seconds = 7 * 24 * 60 * 60
-        now = datetime.utcnow()
+        now = utcnow()
         week_ago = now - timedelta(days=7)
         start_week = now - timedelta(days=days)
         start_week_end = start_week + timedelta(days=7)

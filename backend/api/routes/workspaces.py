@@ -22,6 +22,7 @@ Endpoints:
 """
 
 from datetime import datetime
+from utils.time import utcnow
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -152,7 +153,7 @@ def create_workspace(
         workspace_id=ws.id,
         user_id=current_user.id,
         role=UserRole.ADMIN,
-        joined_at=datetime.utcnow(),
+        joined_at=utcnow(),
     )
     db.add(member)
     db.commit()
@@ -188,7 +189,7 @@ def update_workspace(
         raise HTTPException(status_code=403, detail="Only admins can rename the workspace")
 
     ws.name = body.name.strip()
-    ws.updated_at = datetime.utcnow()
+    ws.updated_at = utcnow()
     db.commit()
     db.refresh(ws)
     return _fmt_workspace(ws)
@@ -255,7 +256,7 @@ def invite_member(
         # Re-activate
         existing.is_active = True
         existing.role = _parse_role(body.role)
-        existing.joined_at = datetime.utcnow()
+        existing.joined_at = utcnow()
         db.commit()
         db.refresh(existing)
         return _fmt_member(existing)
@@ -265,7 +266,7 @@ def invite_member(
         workspace_id=ws_id,
         user_id=target.id,
         role=role,
-        joined_at=datetime.utcnow(),
+        joined_at=utcnow(),
     )
     db.add(member)
     db.commit()

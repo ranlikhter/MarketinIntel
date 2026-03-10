@@ -14,6 +14,7 @@ This turns reactive monitoring into proactive strategy.
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from typing import Optional
 
 from sqlalchemy import func, desc
@@ -47,7 +48,7 @@ class CompetitorDNAService:
     def __init__(self, db: Session, user: User):
         self.db = db
         self.user = user
-        self._cutoff = datetime.utcnow() - timedelta(days=_DNA_LOOKBACK_DAYS)
+        self._cutoff = utcnow() - timedelta(days=_DNA_LOOKBACK_DAYS)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Public methods
@@ -137,7 +138,7 @@ class CompetitorDNAService:
             "total_raises": len(raises),
             "strike_prediction": strike_prediction,
             "ai_summary": ai_summary,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utcnow().isoformat(),
         }
 
     def get_strike_predictions(self) -> dict:
@@ -187,7 +188,7 @@ class CompetitorDNAService:
         return {
             "predictions": predictions,
             "calendar": calendar,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utcnow().isoformat(),
         }
 
     def classify_price_change(
@@ -264,7 +265,7 @@ class CompetitorDNAService:
             patterns    = dna["strike_patterns"]
 
             # Check if today matches their typical strike day
-            today_name = DAYS[datetime.utcnow().weekday()]
+            today_name = DAYS[utcnow().weekday()]
             top_day = patterns.get("most_active_day", "")
             day_match = today_name == top_day
 
@@ -526,7 +527,7 @@ class CompetitorDNAService:
         Build day-of-week and hour-of-day frequency distributions
         weighted slightly toward recent events.
         """
-        now = datetime.utcnow()
+        now = utcnow()
         day_counts: dict[int, float] = defaultdict(float)
         hour_counts: dict[int, float] = defaultdict(float)
 

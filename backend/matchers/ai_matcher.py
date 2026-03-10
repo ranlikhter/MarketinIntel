@@ -15,6 +15,7 @@ import json
 import os
 import logging
 from datetime import datetime
+from utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +332,7 @@ class AIProductMatcher:
                 "competitor_title": competitor_title,
                 "ai_score": result["score"],
                 "user_confirmed": user_confirmed,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": utcnow().isoformat(),
             })
 
             os.makedirs(os.path.dirname(feedback_file), exist_ok=True)

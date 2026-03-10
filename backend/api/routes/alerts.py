@@ -19,6 +19,7 @@ ALERT_TYPE = Literal[
     "back_in_stock", "market_trend",
 ]
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
@@ -307,7 +308,7 @@ async def update_alert(
     if update.cooldown_hours is not None:
         alert.cooldown_hours = update.cooldown_hours
 
-    alert.updated_at = datetime.utcnow()
+    alert.updated_at = utcnow()
 
     db.commit()
     db.refresh(alert)
@@ -366,7 +367,7 @@ async def toggle_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
 
     alert.enabled = not alert.enabled
-    alert.updated_at = datetime.utcnow()
+    alert.updated_at = utcnow()
 
     log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert #{alert.id}", entity_type="alert", entity_id=alert.id, metadata={"enabled": alert.enabled})
     db.commit()
@@ -422,7 +423,7 @@ async def check_all_alerts(
             # Check cooldown
             if alert.last_triggered_at:
                 cooldown_end = alert.last_triggered_at + timedelta(hours=alert.cooldown_hours)
-                if datetime.utcnow() < cooldown_end:
+                if utcnow() < cooldown_end:
                     skipped += 1
                     continue
 
@@ -501,7 +502,7 @@ async def check_single_match(
 
     if success:
         # Update last triggered time
-        alert.last_triggered_at = datetime.utcnow()
+        alert.last_triggered_at = utcnow()
         db.commit()
         return True
 
@@ -733,8 +734,8 @@ async def snooze_alert(
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
 
-    alert.snoozed_until = datetime.utcnow() + timedelta(hours=hours)
-    alert.updated_at = datetime.utcnow()
+    alert.snoozed_until = utcnow() + timedelta(hours=hours)
+    alert.updated_at = utcnow()
 
     product = db.query(ProductMonitored).filter(
         ProductMonitored.id == alert.product_id
@@ -773,7 +774,7 @@ async def unsnooze_alert(
         raise HTTPException(status_code=404, detail="Alert not found")
 
     alert.snoozed_until = None
-    alert.updated_at = datetime.utcnow()
+    alert.updated_at = utcnow()
     db.commit()
 
     return {

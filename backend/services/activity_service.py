@@ -6,6 +6,7 @@ a user action into the activity_logs table.
 """
 
 from datetime import datetime
+from utils.time import utcnow
 from sqlalchemy.orm import Session
 from database.models import ActivityLog
 
@@ -40,7 +41,7 @@ def log_activity(
         entity_name=entity_name,
         metadata_=metadata or {},
         status=status,
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(entry)
     # Flush so the entry is persisted with the surrounding transaction.

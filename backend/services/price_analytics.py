@@ -6,6 +6,7 @@ Calculates trends, averages, and insights from price history data
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from typing import List, Dict, Optional
 import logging
 
@@ -37,7 +38,7 @@ class PriceAnalytics:
         """
         try:
             # Get date range
-            end_date = datetime.utcnow()
+            end_date = utcnow()
             start_date = end_date - timedelta(days=days)
 
             # Get all competitor matches for this product
@@ -233,7 +234,7 @@ class PriceAnalytics:
             Comparison data by competitor
         """
         try:
-            end_date = datetime.utcnow()
+            end_date = utcnow()
             start_date = end_date - timedelta(days=days)
 
             # Get matches
@@ -315,7 +316,7 @@ class PriceAnalytics:
         """
         try:
             # Get last 24 hours vs previous 24 hours
-            now = datetime.utcnow()
+            now = utcnow()
             yesterday = now - timedelta(days=1)
             day_before = yesterday - timedelta(days=1)
 

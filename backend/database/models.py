@@ -6,6 +6,7 @@ Think of this as creating blueprints for our data storage.
 """
 
 from datetime import datetime
+from utils.time import utcnow
 from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, JSON, Index
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -260,6 +261,7 @@ class CompetitorWebsite(Base):
     __tablename__ = "competitor_websites"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Owner; nullable for legacy rows
     name = Column(String(200), nullable=False)           # e.g., "Competitor Store", "Rival Electronics"
     base_url = Column(String(500), nullable=False)       # e.g., "https://www.competitor.com"
     website_type = Column(String(50), default="custom")  # "custom", "amazon", "walmart", etc.

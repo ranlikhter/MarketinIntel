@@ -14,6 +14,7 @@ import os
 import json
 import logging
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -271,7 +272,7 @@ def generate_weekly_narrative(
         {subject: str, html: str, plain_text: str}
     """
     if week_start is None:
-        week_start = datetime.utcnow() - timedelta(days=7)
+        week_start = utcnow() - timedelta(days=7)
     week_label = week_start.strftime("%B %d")
 
     # Changes

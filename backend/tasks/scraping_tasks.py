@@ -17,6 +17,7 @@ Key improvements over the original:
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from celery import Task
 from celery_app import celery_app
@@ -134,7 +135,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         product_dict = scrape_result["product_dict"]
         matcher = SimpleProductMatcher()
         matches_found = 0
-        now = datetime.utcnow()
+        now = utcnow()
 
         # ── Pre-batch DB reads so the item loop makes zero extra queries ──────
         # 1. All existing competitor matches for this product, keyed by URL
@@ -457,7 +458,7 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             "success": True,
             "product_id": product_id,
             "matches_found": matches_found,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -502,7 +503,7 @@ def scrape_all_products(self):
             "success": True,
             "products_queued": len(task_ids),
             "task_ids": task_ids,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -518,7 +519,7 @@ def scrape_products_by_priority(self):
     try:
         logger.info("Starting priority-based scraping")
 
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = utcnow() - timedelta(hours=24)
         stale = (
             self.db.query(ProductMonitored)
             .join(CompetitorMatch)
@@ -551,7 +552,7 @@ def retry_failed_scrapes(self):
     try:
         logger.info("Retrying failed scrapes")
 
-        cutoff = datetime.utcnow() - timedelta(hours=24)
+        cutoff = utcnow() - timedelta(hours=24)
 
         # Products that have competitor matches but no recent price history
         failed_match_ids = (
@@ -657,7 +658,7 @@ def _upsert_seller_profile(db, item: dict):
             existing.feedback_count = item["seller_feedback_count"]
         if item.get("seller_positive_feedback_pct") is not None:
             existing.positive_feedback_pct = item["seller_positive_feedback_pct"]
-        existing.last_updated_at = datetime.utcnow()
+        existing.last_updated_at = utcnow()
     else:
         db.add(SellerProfile(
             seller_name=seller_name,
@@ -674,7 +675,7 @@ def _upsert_promotions(db, match_id: int, promotions: list):
     Active promos that disappeared are deactivated; new ones are inserted;
     returning ones get their last_seen_at updated.
     """
-    now = datetime.utcnow()
+    now = utcnow()
 
     db.query(CompetitorPromotion).filter_by(match_id=match_id, is_active=True).update(
         {"is_active": False}, synchronize_session=False

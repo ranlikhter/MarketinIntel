@@ -390,7 +390,7 @@ async def approve_discovered_match(
         competitor_name=competitor_name,
         competitor_url=competitor_url,
         match_score=0.85,  # From discovery
-        created_at=datetime.utcnow()
+        created_at=utcnow()
     )
 
     db.add(new_match)

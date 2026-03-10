@@ -4,9 +4,10 @@ Automated pricing and bulk price management
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from utils.time import utcnow
 import logging
 
 from database.models import (
@@ -382,7 +383,7 @@ class RepricingService:
         )
 
         # Update rule stats
-        rule.last_applied_at = datetime.utcnow()
+        rule.last_applied_at = utcnow()
         rule.application_count += 1
         self.db.commit()
 
@@ -419,21 +420,30 @@ class RepricingService:
         available so repricing decisions reflect what customers actually pay,
         not just the listed base price.
         """
-        if not product.competitor_matches:
+        match_ids = [m.id for m in product.competitor_matches]
+        if not match_ids:
             return None
 
-        prices = []
-        for match in product.competitor_matches:
-            latest = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id
-            ).order_by(desc(PriceHistory.timestamp)).first()
+        # Batch-fetch the latest PriceHistory row per match in 2 queries
+        subq = (
+            self.db.query(PriceHistory.match_id, func.max(PriceHistory.timestamp).label("max_ts"))
+            .filter(PriceHistory.match_id.in_(match_ids))
+            .group_by(PriceHistory.match_id)
+            .subquery()
+        )
+        latest_rows = (
+            self.db.query(PriceHistory)
+            .join(subq, and_(PriceHistory.match_id == subq.c.match_id,
+                             PriceHistory.timestamp == subq.c.max_ts))
+            .filter(PriceHistory.in_stock == True, PriceHistory.price.isnot(None))
+            .all()
+        )
 
-            if latest and latest.in_stock and latest.price:
-                # Prefer effective_price (post-coupon/subscribe-and-save);
-                # fall back to the listed base price.
-                effective = latest.effective_price or latest.price
-                prices.append(effective)
-
+        prices = [
+            (r.effective_price or r.price)
+            for r in latest_rows
+            if r.in_stock and r.price
+        ]
         return min(prices) if prices else None
 
     def _apply_constraints(

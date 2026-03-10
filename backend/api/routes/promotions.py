@@ -17,6 +17,7 @@ GET /api/promotions/stats
 """
 
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -46,7 +47,7 @@ def list_promotions(
     """
     List competitor promotions for all of the user's monitored products.
     """
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utcnow() - timedelta(days=days)
 
     q = (
         db.query(CompetitorPromotion, CompetitorMatch, ProductMonitored)
@@ -102,7 +103,7 @@ def promotion_stats(
     """
     Aggregate promotion counts broken down by type and competitor.
     """
-    since = datetime.utcnow() - timedelta(days=days)
+    since = utcnow() - timedelta(days=days)
 
     rows = (
         db.query(CompetitorPromotion, CompetitorMatch)

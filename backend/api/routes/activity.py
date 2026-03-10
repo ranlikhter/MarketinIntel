@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional, List
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import ActivityLog, User
@@ -45,7 +46,7 @@ def get_activity(
         q = q.filter(ActivityLog.entity_id == entity_id)
 
     if days:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utcnow() - timedelta(days=days)
         q = q.filter(ActivityLog.created_at >= cutoff)
 
     total = q.count()

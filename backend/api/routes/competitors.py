@@ -8,13 +8,8 @@ These endpoints allow clients to add and manage their own custom competitor webs
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from pydantic import ConfigDict, BaseModel, HttpUrl
+from pydantic import ConfigDict, BaseModel
 from datetime import datetime
-
-# Import our database stuff
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
 from database.models import CompetitorWebsite, User
@@ -99,9 +94,10 @@ def create_competitor_website(
         "notes": "Our main competitor in the electronics space"
     }
     """
-    # Check if website already exists
+    # Check if website already exists for this user
     existing = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.base_url == competitor.base_url
+        CompetitorWebsite.user_id == current_user.id,
+        CompetitorWebsite.base_url == competitor.base_url,
     ).first()
 
     if existing:
@@ -112,6 +108,7 @@ def create_competitor_website(
 
     # Create new competitor website
     db_competitor = CompetitorWebsite(
+        user_id=current_user.id,
         name=competitor.name,
         base_url=competitor.base_url,
         website_type=competitor.website_type,
@@ -141,7 +138,9 @@ def get_all_competitors(
     Get all competitor websites.
     Use ?active_only=true to only show active competitors.
     """
-    query = db.query(CompetitorWebsite)
+    query = db.query(CompetitorWebsite).filter(
+        CompetitorWebsite.user_id == current_user.id
+    )
 
     if active_only:
         query = query.filter(CompetitorWebsite.is_active == True)
@@ -162,7 +161,8 @@ def get_competitor(
     Get a specific competitor website by ID.
     """
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
@@ -190,7 +190,8 @@ def update_competitor(
     }
     """
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
@@ -220,7 +221,8 @@ def delete_competitor(
     Warning: This will also remove all product matches from this competitor.
     """
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
@@ -245,7 +247,8 @@ def toggle_competitor_status(
     Useful for temporarily stopping scraping without losing configuration.
     """
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:

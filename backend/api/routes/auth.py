@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from pydantic import ConfigDict, BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 
 from database.connection import get_db
@@ -127,7 +128,7 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
         products_limit=5,
         matches_limit=10,
         alerts_limit=1,
-        created_at=datetime.utcnow()
+        created_at=utcnow()
     )
 
     db.add(new_user)
@@ -202,7 +203,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
         )
 
     # Update last login
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = utcnow()
     db.commit()
 
     # Create JWT tokens
@@ -431,7 +432,7 @@ async def verify_email(token: str, db: Session = Depends(get_db)):
 
     # Mark email as verified
     user.is_verified = True
-    user.email_verified_at = datetime.utcnow()
+    user.email_verified_at = utcnow()
     db.commit()
 
     return {

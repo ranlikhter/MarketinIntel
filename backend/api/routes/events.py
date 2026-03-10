@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from utils.time import utcnow
 
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import StreamingResponse
@@ -84,7 +85,7 @@ async def price_event_stream(
         last_seen_id = _get_latest_price_history_id(user_id)
 
         # Send initial ping so the browser knows the connection is live
-        yield _sse("ping", {"ts": datetime.utcnow().isoformat()})
+        yield _sse("ping", {"ts": utcnow().isoformat()})
 
         ping_counter = 0
 
@@ -105,7 +106,7 @@ async def price_event_stream(
 
             # Keepalive ping every ~60s regardless of activity
             if ping_counter >= 60:
-                yield _sse("ping", {"ts": datetime.utcnow().isoformat()})
+                yield _sse("ping", {"ts": utcnow().isoformat()})
                 ping_counter = 0
 
     return StreamingResponse(

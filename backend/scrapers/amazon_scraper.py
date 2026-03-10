@@ -1086,7 +1086,7 @@ class AmazonScraper:
                     from datetime import datetime
                     try:
                         day = int(m.group(1))
-                        today = datetime.utcnow().day
+                        today = utcnow().day
                         diff = day - today
                         if diff < 0:
                             diff += 30  # cross-month

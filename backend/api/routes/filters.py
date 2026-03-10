@@ -304,7 +304,7 @@ async def get_saved_view(
     # Update usage stats
     from datetime import datetime
     view.use_count += 1
-    view.last_used_at = datetime.utcnow()
+    view.last_used_at = utcnow()
     db.commit()
 
     return view
@@ -353,7 +353,7 @@ async def update_saved_view(
         view.sort_order = update.sort_order
 
     from datetime import datetime
-    view.updated_at = datetime.utcnow()
+    view.updated_at = utcnow()
 
     db.commit()
     db.refresh(view)

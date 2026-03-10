@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
@@ -174,7 +175,7 @@ async def rematch_product_with_ai(
             # Update if above threshold
             if new_score >= min_score:
                 match.match_score = new_score
-                match.last_scraped_at = datetime.utcnow()
+                match.last_scraped_at = utcnow()
                 updated += 1
             else:
                 # Optionally delete low-confidence matches

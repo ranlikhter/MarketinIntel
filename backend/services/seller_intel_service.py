@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 from collections import defaultdict
 
 from database.models import (
@@ -224,7 +225,7 @@ class SellerIntelService:
         if not product:
             return {"error": "Product not found", "product_id": product_id}
 
-        cutoff = datetime.utcnow() - timedelta(days=30)
+        cutoff = utcnow() - timedelta(days=30)
 
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id

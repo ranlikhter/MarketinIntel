@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, and_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.models import (
     ReviewSnapshot, SellerProfile, ListingQualitySnapshot, KeywordRank,
@@ -170,7 +171,7 @@ class ListingQualityService:
             "max_competitor_score": max(scores) if scores else None,
             "min_competitor_score": min(scores) if scores else None,
             "competitors": competitors,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utcnow().isoformat(),
         }
 
     def get_portfolio_listing_gaps(self) -> List[Dict[str, Any]]:
@@ -242,7 +243,7 @@ class ListingQualityService:
 
         Returns list of {date, score, image_count, has_video, has_aplus_content}.
         """
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = utcnow() - timedelta(days=days)
 
         snapshots = self.db.query(ListingQualitySnapshot).filter(
             ListingQualitySnapshot.match_id == match_id,

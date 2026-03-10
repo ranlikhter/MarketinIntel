@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, HttpUrl
 from typing import Optional, List
 from datetime import datetime
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
@@ -121,7 +122,7 @@ async def start_site_crawl(
                                 latest_price=product_data.get('price'),
                                 stock_status=product_data.get('stock_status'),
                                 image_url=product_data.get('image_url'),
-                                last_scraped_at=datetime.utcnow(),
+                                last_scraped_at=utcnow(),
                             )
                             db.add(match)
 

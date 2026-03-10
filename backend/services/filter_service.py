@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, Query
 from sqlalchemy import and_, or_, func, desc, select
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory, User
@@ -188,7 +189,7 @@ class FilterService:
 
     def _filter_by_activity(self, query: Query, activity: str) -> Query:
         """Filter by recent activity"""
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
 
         if activity == "price_dropped":
             # Products where any competitor dropped price in last 7 days
@@ -335,7 +336,7 @@ class FilterService:
                 competition_counts["high"] += 1
 
         # Recent activity counts
-        week_ago = datetime.utcnow() - timedelta(days=7)
+        week_ago = utcnow() - timedelta(days=7)
         activity_counts = {
             "new_competitor": 0,
             "price_dropped": 0,

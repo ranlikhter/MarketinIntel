@@ -9,6 +9,7 @@ from sqlalchemy import and_
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from utils.time import utcnow
 
 from database.connection import get_db
 from database.models import User, ProductMonitored, CompetitorMatch, PriceHistory, RepricingRule
@@ -256,7 +257,7 @@ async def get_price_wars(
     Returns products sorted by the number of competitors that dropped prices,
     with recommended response actions.
     """
-    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    cutoff = utcnow() - timedelta(hours=hours)
 
     # Fetch user's products
     products = db.query(ProductMonitored).filter(
@@ -360,7 +361,7 @@ async def get_competitor_oos(
     sorted by how long they've been unavailable. Longer OOS = bigger opportunity
     to capture demand or raise your own price.
     """
-    now = datetime.utcnow()
+    now = utcnow()
     oos_cutoff = now - timedelta(hours=min_hours)
 
     products = db.query(ProductMonitored).filter(

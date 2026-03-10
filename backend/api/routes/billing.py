@@ -48,28 +48,31 @@ def _is_event_processed(event_id: str) -> bool:
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-# Stripe Price IDs (you'll need to create these in Stripe Dashboard)
+_FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# Stripe Price IDs — must be set explicitly; no fake fallbacks that would send
+# invalid IDs to Stripe and silently break checkout.
 STRIPE_PRICES = {
-    "PRO_MONTHLY": os.getenv("STRIPE_PRICE_PRO_MONTHLY", "price_pro_monthly"),
-    "PRO_YEARLY": os.getenv("STRIPE_PRICE_PRO_YEARLY", "price_pro_yearly"),
-    "BUSINESS_MONTHLY": os.getenv("STRIPE_PRICE_BUSINESS_MONTHLY", "price_business_monthly"),
-    "BUSINESS_YEARLY": os.getenv("STRIPE_PRICE_BUSINESS_YEARLY", "price_business_yearly"),
-    "ENTERPRISE_MONTHLY": os.getenv("STRIPE_PRICE_ENTERPRISE_MONTHLY", "price_enterprise_monthly"),
-    "ENTERPRISE_YEARLY": os.getenv("STRIPE_PRICE_ENTERPRISE_YEARLY", "price_enterprise_yearly"),
+    "PRO_MONTHLY": os.getenv("STRIPE_PRICE_PRO_MONTHLY") or "",
+    "PRO_YEARLY": os.getenv("STRIPE_PRICE_PRO_YEARLY") or "",
+    "BUSINESS_MONTHLY": os.getenv("STRIPE_PRICE_BUSINESS_MONTHLY") or "",
+    "BUSINESS_YEARLY": os.getenv("STRIPE_PRICE_BUSINESS_YEARLY") or "",
+    "ENTERPRISE_MONTHLY": os.getenv("STRIPE_PRICE_ENTERPRISE_MONTHLY") or "",
+    "ENTERPRISE_YEARLY": os.getenv("STRIPE_PRICE_ENTERPRISE_YEARLY") or "",
 }
 
 # Pydantic Models
 class CheckoutSessionRequest(BaseModel):
     price_id: str
-    success_url: Optional[str] = "http://localhost:3000/dashboard?success=true"
-    cancel_url: Optional[str] = "http://localhost:3000/pricing?canceled=true"
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
 
 class CheckoutSessionResponse(BaseModel):
     session_id: str
     url: str
 
 class PortalSessionRequest(BaseModel):
-    return_url: Optional[str] = "http://localhost:3000/settings"
+    return_url: Optional[str] = None
 
 class PortalSessionResponse(BaseModel):
     url: str
@@ -117,8 +120,8 @@ async def create_checkout_session(
                 },
             ],
             mode="subscription",
-            success_url=request.success_url,
-            cancel_url=request.cancel_url,
+            success_url=request.success_url or f"{_FRONTEND_URL}/dashboard?success=true",
+            cancel_url=request.cancel_url or f"{_FRONTEND_URL}/pricing?canceled=true",
             metadata={
                 "user_id": str(current_user.id),
             }
@@ -139,7 +142,6 @@ async def create_checkout_session(
 async def create_portal_session(
     request: PortalSessionRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
     """
     Create a Stripe Customer Portal session for managing subscription
@@ -153,7 +155,7 @@ async def create_portal_session(
     try:
         portal_session = stripe.billing_portal.Session.create(
             customer=current_user.stripe_customer_id,
-            return_url=request.return_url,
+            return_url=request.return_url or f"{_FRONTEND_URL}/settings",
         )
 
         return PortalSessionResponse(url=portal_session.url)
@@ -167,7 +169,6 @@ async def create_portal_session(
 @router.get("/subscription", response_model=SubscriptionInfo)
 async def get_subscription_info(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
 ):
     """
     Get current user's subscription information

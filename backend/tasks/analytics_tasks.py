@@ -8,6 +8,7 @@ from tasks.scraping_tasks import DatabaseTask
 from sqlalchemy import func, text
 from database.models import PriceHistory, CompetitorMatch, ProductMonitored
 from datetime import datetime, timedelta, time as dt_time
+from utils.time import utcnow
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def update_all_analytics(self):
         return {
             "success": True,
             "products_updated": updated_count,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -79,7 +80,7 @@ def cleanup_old_data(self, days_to_keep: int = 90):
     try:
         logger.info("Starting data cleanup (keeping %d days)", days_to_keep)
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days_to_keep)
+        cutoff_date = utcnow() - timedelta(days=days_to_keep)
 
         deleted_count = (
             self.db.query(PriceHistory)
@@ -114,7 +115,7 @@ def calculate_daily_snapshots(self):
     try:
         logger.info("Calculating daily snapshots")
 
-        today = datetime.utcnow().date()
+        today = utcnow().date()
         # Use a timestamp range instead of func.date() so the index on
         # PriceHistory.timestamp (idx_ph_match_time) can be used.
         day_start = datetime.combine(today, dt_time.min)
@@ -141,7 +142,7 @@ def calculate_daily_snapshots(self):
             .all()
         )
 
-        now = datetime.utcnow()
+        now = utcnow()
         snapshots = [
             PriceHistory(
                 match_id=m.id,
