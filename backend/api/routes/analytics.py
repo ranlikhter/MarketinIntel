@@ -9,8 +9,10 @@ from typing import Optional
 from datetime import datetime
 
 from database.connection import get_db
+from database.models import User
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
+from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -183,7 +185,10 @@ async def get_date_range_comparison(
 
 
 @router.post("/snapshots")
-async def calculate_daily_snapshots(db: Session = Depends(get_db)):
+async def calculate_daily_snapshots(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Calculate daily price snapshots (async background task)"""
     from tasks.analytics_tasks import calculate_daily_snapshots as task
     t = task.delay()
@@ -191,7 +196,10 @@ async def calculate_daily_snapshots(db: Session = Depends(get_db)):
 
 
 @router.post("/update")
-async def update_analytics(db: Session = Depends(get_db)):
+async def update_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Recalculate all analytics (async background task)"""
     from tasks.analytics_tasks import update_all_analytics as task
     t = task.delay()

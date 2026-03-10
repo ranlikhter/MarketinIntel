@@ -90,7 +90,7 @@ def read_root():
         "message": "Welcome to MarketIntel API",
         "status": "online",
         "docs": "/docs",
-        "version": "1.0.0"
+        "version": "1.1.0"
     }
 
 
@@ -145,7 +145,6 @@ async def deep_health_check():
         checks["celery"] = f"error: {exc}"
 
     overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
-    from fastapi.responses import JSONResponse
     return JSONResponse(
         status_code=200 if overall == "healthy" else 503,
         content={"status": overall, "checks": checks},

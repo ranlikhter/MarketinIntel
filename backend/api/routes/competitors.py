@@ -17,7 +17,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
-from database.models import CompetitorWebsite
+from database.models import CompetitorWebsite, User
+from api.dependencies import get_current_user
 
 # Create a router
 router = APIRouter()
@@ -79,7 +80,11 @@ class CompetitorWebsiteResponse(BaseModel):
 # API ENDPOINTS
 
 @router.post("/", response_model=CompetitorWebsiteResponse, status_code=201)
-def create_competitor_website(competitor: CompetitorWebsiteCreate, db: Session = Depends(get_db)):
+def create_competitor_website(
+    competitor: CompetitorWebsiteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     POST /competitors
 
@@ -127,7 +132,8 @@ def create_competitor_website(competitor: CompetitorWebsiteCreate, db: Session =
 @router.get("/", response_model=List[CompetitorWebsiteResponse])
 def get_all_competitors(
     active_only: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     GET /competitors
@@ -145,7 +151,11 @@ def get_all_competitors(
 
 
 @router.get("/{competitor_id}", response_model=CompetitorWebsiteResponse)
-def get_competitor(competitor_id: int, db: Session = Depends(get_db)):
+def get_competitor(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     GET /competitors/{id}
 
@@ -165,7 +175,8 @@ def get_competitor(competitor_id: int, db: Session = Depends(get_db)):
 def update_competitor(
     competitor_id: int,
     competitor_update: CompetitorWebsiteUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     PUT /competitors/{id}
@@ -197,7 +208,11 @@ def update_competitor(
 
 
 @router.delete("/{competitor_id}")
-def delete_competitor(competitor_id: int, db: Session = Depends(get_db)):
+def delete_competitor(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     DELETE /competitors/{id}
 
@@ -218,7 +233,11 @@ def delete_competitor(competitor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{competitor_id}/toggle")
-def toggle_competitor_status(competitor_id: int, db: Session = Depends(get_db)):
+def toggle_competitor_status(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     POST /competitors/{id}/toggle
 

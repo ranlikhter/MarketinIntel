@@ -290,7 +290,7 @@ async def handle_subscription_updated(subscription, db: Session):
 
     # Update subscription info
     user.subscription_tier = tier
-    user.subscription_status = SubscriptionStatus.ACTIVE if subscription["status"] == "active" else SubscriptionStatus.CANCELLED
+    user.subscription_status = SubscriptionStatus.ACTIVE if subscription["status"] == "active" else SubscriptionStatus.CANCELED
     user.subscription_current_period_end = datetime.fromtimestamp(subscription["current_period_end"])
     user.subscription_cancel_at_period_end = subscription.get("cancel_at_period_end", False)
 
@@ -310,7 +310,7 @@ async def handle_subscription_deleted(subscription, db: Session):
 
     # Downgrade to FREE tier
     user.subscription_tier = SubscriptionTier.FREE
-    user.subscription_status = SubscriptionStatus.CANCELLED
+    user.subscription_status = SubscriptionStatus.CANCELED
     user.stripe_subscription_id = None
     user.subscription_cancel_at_period_end = False
 
