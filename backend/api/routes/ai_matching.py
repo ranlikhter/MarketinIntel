@@ -10,10 +10,46 @@ from typing import List, Optional
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite
+from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite, User
+from api.dependencies import get_current_user
 from matchers.ai_matcher import get_ai_matcher
 
 router = APIRouter(prefix="/ai-matching", tags=["AI Matching"])
+
+
+def _get_owned_product_or_404(db: Session, product_id: int, current_user: User) -> ProductMonitored:
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    return product
+
+
+def _get_owned_match_or_404(
+    db: Session,
+    match_id: int,
+    current_user: User
+) -> tuple[CompetitorMatch, ProductMonitored]:
+    match = db.query(CompetitorMatch).filter(
+        CompetitorMatch.id == match_id
+    ).first()
+
+    if not match:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == match.monitored_product_id,
+        ProductMonitored.user_id == current_user.id
+    ).first()
+
+    if not product:
+        raise HTTPException(status_code=404, detail="Match not found")
+
+    return match, product
 
 
 # Pydantic models
@@ -84,7 +120,8 @@ async def compare_products(request: MatchRequest):
 @router.post("/batch-match")
 async def batch_match_products(
     request: BatchMatchRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Match one product against multiple competitor products
@@ -97,12 +134,7 @@ async def batch_match_products(
     Returns top matches sorted by score
     """
     # Get product
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == request.product_id
-    ).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_owned_product_or_404(db, request.product_id, current_user)
 
     try:
         matcher = get_ai_matcher()
@@ -130,7 +162,8 @@ async def batch_match_products(
 async def rematch_product_with_ai(
     product_id: int,
     min_score: float = 70.0,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Re-calculate match scores for existing competitor matches using AI
@@ -140,12 +173,7 @@ async def rematch_product_with_ai(
 
     Updates match_score for all existing CompetitorMatch records
     """
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id
-    ).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_owned_product_or_404(db, product_id, current_user)
 
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
@@ -201,7 +229,8 @@ async def get_pending_matches(
     min_score: float = 50.0,
     max_score: float = 85.0,
     limit: int = 20,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get matches that need manual review
@@ -212,20 +241,20 @@ async def get_pending_matches(
 
     Returns matches with medium confidence that need human verification
     """
-    matches = db.query(CompetitorMatch).filter(
+    matches = db.query(CompetitorMatch, ProductMonitored).join(
+        ProductMonitored,
+        CompetitorMatch.monitored_product_id == ProductMonitored.id
+    ).filter(
+        ProductMonitored.user_id == current_user.id,
         CompetitorMatch.match_score >= min_score,
         CompetitorMatch.match_score <= max_score
     ).order_by(CompetitorMatch.match_score.desc()).limit(limit).all()
 
     results = []
-    for match in matches:
-        product = db.query(ProductMonitored).filter(
-            ProductMonitored.id == match.product_id
-        ).first()
-
+    for match, product in matches:
         results.append({
             'match_id': match.id,
-            'product_id': match.product_id,
+            'product_id': match.monitored_product_id,
             'product_title': product.title if product else "Unknown",
             'competitor_name': match.competitor_name,
             'competitor_title': match.competitor_product_title,
@@ -243,7 +272,11 @@ async def get_pending_matches(
 
 
 @router.post("/review")
-async def review_match(review: MatchReview, db: Session = Depends(get_db)):
+async def review_match(
+    review: MatchReview,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Approve or reject a match (provides feedback to AI)
 
@@ -253,16 +286,7 @@ async def review_match(review: MatchReview, db: Session = Depends(get_db)):
 
     This feedback helps improve future AI matching accuracy
     """
-    match = db.query(CompetitorMatch).filter(
-        CompetitorMatch.id == review.match_id
-    ).first()
-
-    if not match:
-        raise HTTPException(status_code=404, detail="Match not found")
-
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == match.product_id
-    ).first()
+    match, product = _get_owned_match_or_404(db, review.match_id, current_user)
 
     try:
         matcher = get_ai_matcher()
@@ -308,7 +332,10 @@ async def review_match(review: MatchReview, db: Session = Depends(get_db)):
 
 
 @router.get("/stats")
-async def get_matching_stats(db: Session = Depends(get_db)):
+async def get_matching_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get AI matching statistics
 
@@ -316,29 +343,41 @@ async def get_matching_stats(db: Session = Depends(get_db)):
     """
     from sqlalchemy import func
 
-    total_matches = db.query(CompetitorMatch).count()
+    base_query = db.query(CompetitorMatch).join(
+        ProductMonitored,
+        CompetitorMatch.monitored_product_id == ProductMonitored.id
+    ).filter(
+        ProductMonitored.user_id == current_user.id
+    )
+
+    total_matches = base_query.count()
 
     # Count by confidence level
-    high_confidence = db.query(CompetitorMatch).filter(
+    high_confidence = base_query.filter(
         CompetitorMatch.match_score >= 85
     ).count()
 
-    medium_confidence = db.query(CompetitorMatch).filter(
+    medium_confidence = base_query.filter(
         CompetitorMatch.match_score >= 70,
         CompetitorMatch.match_score < 85
     ).count()
 
-    low_confidence = db.query(CompetitorMatch).filter(
+    low_confidence = base_query.filter(
         CompetitorMatch.match_score >= 50,
         CompetitorMatch.match_score < 70
     ).count()
 
-    very_low = db.query(CompetitorMatch).filter(
+    very_low = base_query.filter(
         CompetitorMatch.match_score < 50
     ).count()
 
     # Average score
-    avg_score = db.query(func.avg(CompetitorMatch.match_score)).scalar() or 0
+    avg_score = db.query(func.avg(CompetitorMatch.match_score)).join(
+        ProductMonitored,
+        CompetitorMatch.monitored_product_id == ProductMonitored.id
+    ).filter(
+        ProductMonitored.user_id == current_user.id
+    ).scalar() or 0
 
     return {
         'total_matches': total_matches,
@@ -359,7 +398,11 @@ async def get_matching_stats(db: Session = Depends(get_db)):
 
 
 @router.post("/explain/{match_id}")
-async def explain_match(match_id: int, db: Session = Depends(get_db)):
+async def explain_match(
+    match_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Get detailed explanation of why AI matched these products
 
@@ -367,16 +410,7 @@ async def explain_match(match_id: int, db: Session = Depends(get_db)):
 
     Returns human-readable explanation with confidence factors
     """
-    match = db.query(CompetitorMatch).filter(
-        CompetitorMatch.id == match_id
-    ).first()
-
-    if not match:
-        raise HTTPException(status_code=404, detail="Match not found")
-
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == match.product_id
-    ).first()
+    match, product = _get_owned_match_or_404(db, match_id, current_user)
 
     try:
         matcher = get_ai_matcher()
