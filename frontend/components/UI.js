@@ -1,32 +1,26 @@
-// MarketIntel Design System — light theme primitives
-
-export function Spinner({ size = 20, color = '#2563EB' }) {
-import { useState } from 'react';
-
-// MarketIntel Design System — shared UI primitives
-
 export const C = {
-  // Using CSS custom properties for theming
-  bg: 'var(--color-light-background)',
-  surface: 'var(--color-light-surface)',
-  surface2: 'var(--color-light-surface)', // Using surface for consistency in light theme
-  border: 'var(--color-light-border)',
-  muted: 'var(--color-ink-100)', // A lighter muted tone
-  amber: 'var(--color-amber-500)',
-  amberBright: 'var(--color-amber-300)',
-  text: 'var(--color-light-text)',
-  textMuted: 'var(--color-light-textMuted)',
-  textDim: 'var(--color-ink-300)',
-  textFaint: 'var(--color-ink-400)',
-  up: 'var(--color-signal-up)',
-  down: 'var(--color-signal-down)',
+  bg: 'var(--bg-base, #0A0A0F)',
+  surface: 'var(--bg-surface, #111118)',
+  surface2: 'var(--bg-elevated, #16161E)',
+  border: 'var(--border, rgba(255,255,255,0.1))',
+  muted: 'var(--text-muted, #9CA3AF)',
+  amber: '#F59E0B',
+  blue: '#60A5FA',
+  emerald: '#34D399',
+  red: '#F87171',
+  violet: '#A78BFA',
+  text: 'var(--text-main, #F9FAFB)',
+  textMuted: 'var(--text-muted, #9CA3AF)',
+  textDim: 'rgba(255,255,255,0.6)',
+  textFaint: 'rgba(255,255,255,0.4)',
+  up: '#10B981',
+  down: '#EF4444',
 };
 
-export function Spinner({ size = 20, color = 'var(--color-amber-500)' }) {
+export function Spinner({ size = 20, color = '#2563EB' }) {
   return (
     <>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-        style={{ animation: 'ui-spin 0.7s linear infinite', flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ animation: 'ui-spin 0.7s linear infinite', flexShrink: 0 }}>
         <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2" strokeOpacity="0.2" />
         <path d="M21 12a9 9 0 00-9-9" stroke={color} strokeWidth="2" strokeLinecap="round" />
       </svg>
@@ -35,111 +29,130 @@ export function Spinner({ size = 20, color = 'var(--color-amber-500)' }) {
   );
 }
 
-export function Btn({ children, variant = 'primary', size = 'md', disabled, loading, onClick, type = 'button', style: s = {} }) {
+export function Btn({ children, variant = 'primary', size = 'md', disabled, loading, onClick, type = 'button', style = {} }) {
   const base = {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-    border: 'none', cursor: disabled || loading ? 'not-allowed' : 'pointer',
-    fontFamily: 'inherit', letterSpacing: '0.01em', fontWeight: 600,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '7px',
+    border: 'none',
+    cursor: disabled || loading ? 'not-allowed' : 'pointer',
+    fontFamily: 'inherit',
+    letterSpacing: '0.01em',
+    fontWeight: 600,
     transition: 'opacity 0.15s, box-shadow 0.15s, background 0.15s',
     opacity: disabled || loading ? 0.5 : 1,
-    textDecoration: 'none', whiteSpace: 'nowrap',
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
   };
   const sizes = {
-    sm: { padding: '6px 14px',  fontSize: '12px', borderRadius: '8px' },
-    md: { padding: '9px 20px',  fontSize: '13px', borderRadius: '10px' },
+    sm: { padding: '6px 14px', fontSize: '12px', borderRadius: '8px' },
+    md: { padding: '9px 20px', fontSize: '13px', borderRadius: '10px' },
     lg: { padding: '12px 28px', fontSize: '14px', borderRadius: '10px' },
   };
   const variants = {
-    primary:   { background: '#2563EB', color: '#FFFFFF', boxShadow: '0 1px 4px rgba(37,99,235,0.3)' },
+    primary: { background: '#2563EB', color: '#FFFFFF', boxShadow: '0 1px 4px rgba(37,99,235,0.3)' },
     secondary: { background: '#FFFFFF', color: '#374151', border: '1px solid #D1D5DB' },
-    danger:    { background: '#FFFFFF', color: '#EF4444', border: '1px solid #FECACA' },
-    ghost:     { background: 'transparent', color: '#6B7280' },
-    outline:   { background: 'transparent', color: '#2563EB', border: '1px solid #BFDBFE' },
-    success:   { background: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0' },
+    danger: { background: '#FFFFFF', color: '#EF4444', border: '1px solid #FECACA' },
+    ghost: { background: 'transparent', color: '#6B7280' },
+    outline: { background: 'transparent', color: '#2563EB', border: '1px solid #BFDBFE' },
+    success: { background: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0' },
   };
-    primary:   { background: 'var(--color-amber-500)', color: 'var(--color-ink-900)', boxShadow: 'var(--box-shadow-gradient-lg)' },
-    secondary: { background: 'var(--color-glass-light)', color: 'var(--color-light-textMuted)', border: '1px solid var(--color-glass-borderLight)', backdropFilter: 'blur(5px)' },
-    danger:    { background: 'rgba(239,68,68,0.1)',  color: 'var(--color-signal-down)', border: '1px solid rgba(239,68,68,0.2)', backdropFilter: 'blur(5px)' },
-    ghost:     { background: 'transparent', color: 'var(--color-ink-300)' },
-    outline:   { background: 'rgba(245,158,11,0.1)', color: 'var(--color-amber-500)', border: '1px solid rgba(245,158,11,0.2)', backdropFilter: 'blur(5px)' },
-    success:   { background: 'rgba(16,185,129,0.1)', color: 'var(--color-signal-up)', border: '1px solid rgba(16,185,129,0.2)', backdropFilter: 'blur(5px)' },
-  };
-  const iconColor = variant === 'primary' ? 'var(--color-ink-900)' : 'var(--color-amber-500)';
+
   return (
-    <button type={type} onClick={onClick} disabled={disabled || loading}
-      style={{ ...base, ...sizes[size], ...variants[variant], ...s }}>
-      {loading ? <Spinner size={size === 'sm' ? 12 : 15} /> : children}
+    <button type={type} onClick={onClick} disabled={disabled || loading} style={{ ...base, ...sizes[size], ...variants[variant], ...style }}>
+      {loading ? <Spinner size={size === 'sm' ? 12 : 15} color={variant === 'primary' ? '#FFFFFF' : '#2563EB'} /> : children}
     </button>
   );
 }
 
-export function Input({ id, name, type = 'text', value, onChange, placeholder, required, autoComplete, style: s = {}, monospace }) {
+export function Input({ id, name, type = 'text', value, onChange, placeholder, required, autoComplete, style = {}, monospace }) {
   return (
     <input
-      id={id} name={name} type={type} value={value} onChange={onChange}
-      placeholder={placeholder} required={required} autoComplete={autoComplete}
+      id={id}
+      name={name}
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      required={required}
+      autoComplete={autoComplete}
       style={{
-        width: '100%', background: '#FFFFFF', border: '1px solid #D1D5DB',
-        borderRadius: '8px', padding: '9px 14px', color: '#111827',
+        width: '100%',
+        background: '#FFFFFF',
+        border: '1px solid #D1D5DB',
+        borderRadius: '8px',
+        padding: '9px 14px',
+        color: '#111827',
         fontFamily: monospace ? 'ui-monospace, monospace' : 'inherit',
-        fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-        width: '100%', background: 'var(--color-glass-light)', border: '1px solid var(--color-glass-borderLight)',
-        borderRadius: '8px', padding: '10px 14px', color: 'var(--color-light-text)',
-        fontFamily: monospace ? 'IBM Plex Mono, monospace' : 'IBM Plex Sans, sans-serif',
-        fontSize: '13px', outline: 'none', boxSizing: 'border-box',
-        transition: 'border-color 0.15s, box-shadow 0.15s', ...s,
-        backdropFilter: 'blur(5px)', // Glassmorphism effect
+        fontSize: '14px',
+        outline: 'none',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        ...style,
       }}
-      onFocus={e => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
-      onBlur={e => { e.target.style.borderColor = '#D1D5DB'; e.target.style.boxShadow = 'none'; }}
-      onFocus={e => { e.target.style.borderColor = 'var(--color-amber-500)'; e.target.style.boxShadow = '0 0 0 2px rgba(245,158,11,0.12)'; }}
-      onBlur={e => { e.target.style.borderColor = 'var(--color-glass-borderLight)'; e.target.style.boxShadow = 'none'; }}
+      onFocus={(e) => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
+      onBlur={(e) => { e.target.style.borderColor = '#D1D5DB'; e.target.style.boxShadow = 'none'; }}
     />
   );
 }
 
-export function Textarea({ id, name, value, onChange, placeholder, rows = 3, style: s = {} }) {
+export function Textarea({ id, name, value, onChange, placeholder, rows = 3, style = {} }) {
   return (
     <textarea
-      id={id} name={name} value={value} onChange={onChange}
-      placeholder={placeholder} rows={rows}
+      id={id}
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      rows={rows}
       style={{
-        width: '100%', background: '#FFFFFF', border: '1px solid #D1D5DB',
-        borderRadius: '8px', padding: '9px 14px', color: '#111827',
-        fontFamily: 'inherit', fontSize: '14px',
-        width: '100%', background: 'var(--color-glass-light)', border: '1px solid var(--color-glass-borderLight)',
-        borderRadius: '8px', padding: '10px 14px', color: 'var(--color-light-text)',
-        fontFamily: 'IBM Plex Mono, monospace', fontSize: '12px',
-        outline: 'none', resize: 'vertical', boxSizing: 'border-box',
-        transition: 'border-color 0.15s, box-shadow 0.15s', ...s,
-        backdropFilter: 'blur(5px)', // Glassmorphism effect
+        width: '100%',
+        background: '#FFFFFF',
+        border: '1px solid #D1D5DB',
+        borderRadius: '8px',
+        padding: '9px 14px',
+        color: '#111827',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        outline: 'none',
+        resize: 'vertical',
+        boxSizing: 'border-box',
+        transition: 'border-color 0.15s, box-shadow 0.15s',
+        ...style,
       }}
-      onFocus={e => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
-      onBlur={e => { e.target.style.borderColor = '#D1D5DB'; e.target.style.boxShadow = 'none'; }}
+      onFocus={(e) => { e.target.style.borderColor = '#2563EB'; e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.1)'; }}
+      onBlur={(e) => { e.target.style.borderColor = '#D1D5DB'; e.target.style.boxShadow = 'none'; }}
     />
   );
 }
 
-export function Select({ id, name, value, onChange, children, style: s = {} }) {
+export function Select({ id, name, value, onChange, children, style = {} }) {
   return (
     <select
-      id={id} name={name} value={value} onChange={onChange}
+      id={id}
+      name={name}
+      value={value}
+      onChange={onChange}
       style={{
-        width: '100%', background: '#FFFFFF', border: '1px solid #D1D5DB',
-        borderRadius: '8px', padding: '9px 36px 9px 14px', color: '#111827',
-        fontFamily: 'inherit', fontSize: '14px',
-        width: '100%', background: 'var(--color-glass-light)', border: '1px solid var(--color-glass-borderLight)',
-        borderRadius: '8px', padding: '10px 36px 10px 14px', color: 'var(--color-light-text)',
-        fontFamily: 'IBM Plex Sans, sans-serif', fontSize: '13px',
-        outline: 'none', cursor: 'pointer', boxSizing: 'border-box',
-        appearance: 'none', WebkitAppearance: 'none',
-        transition: 'border-color 0.15s', ...s,
-        backdropFilter: 'blur(5px)', // Glassmorphism effect
+        width: '100%',
+        background: '#FFFFFF',
+        border: '1px solid #D1D5DB',
+        borderRadius: '8px',
+        padding: '9px 36px 9px 14px',
+        color: '#111827',
+        fontFamily: 'inherit',
+        fontSize: '14px',
+        outline: 'none',
+        cursor: 'pointer',
+        boxSizing: 'border-box',
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        transition: 'border-color 0.15s',
+        ...style,
       }}
-      onFocus={e => { e.target.style.borderColor = '#2563EB'; }}
-      onBlur={e => { e.target.style.borderColor = '#D1D5DB'; }}
-      onFocus={e => { e.target.style.borderColor = 'var(--color-amber-500)'; }}
-      onBlur={e => { e.target.style.borderColor = 'var(--color-glass-borderLight)'; }}
+      onFocus={(e) => { e.target.style.borderColor = '#2563EB'; }}
+      onBlur={(e) => { e.target.style.borderColor = '#D1D5DB'; }}
     >
       {children}
     </select>
@@ -148,16 +161,8 @@ export function Select({ id, name, value, onChange, children, style: s = {} }) {
 
 export function Label({ htmlFor, children, required }) {
   return (
-    <label htmlFor={htmlFor} style={{
-      display: 'block', fontSize: '13px', fontWeight: 500,
-      color: '#374151', marginBottom: '6px',
-    }}>
+    <label htmlFor={htmlFor} style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>
       {children}{required && <span style={{ color: '#EF4444', marginLeft: '4px' }}>*</span>}
-      display: 'block', fontSize: '10px', fontFamily: 'IBM Plex Mono, monospace',
-      color: 'var(--color-light-textMuted)', letterSpacing: '0.1em', marginBottom: '8px',
-      textTransform: 'uppercase',
-    }}>
-      {children}{required && <span style={{ color: 'var(--color-amber-500)', marginLeft: '4px' }}>*</span>}
     </label>
   );
 }
@@ -169,29 +174,16 @@ export function Field({ label, htmlFor, hint, required, error, children }) {
       {children}
       {hint && !error && <p style={{ marginTop: '5px', fontSize: '12px', color: '#9CA3AF' }}>{hint}</p>}
       {error && <p style={{ marginTop: '5px', fontSize: '12px', color: '#EF4444' }}>{error}</p>}
-      {hint && !error && <p style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-ink-300)', fontFamily: 'IBM Plex Mono, monospace' }}>{hint}</p>}
-      {error && <p style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-signal-down)', fontFamily: 'IBM Plex Mono, monospace' }}>{error}</p>}
     </div>
   );
 }
 
-export function Card({ children, style: s = {}, hover = false, padding = '24px' }) {
+export function Card({ children, style = {}, hover = false, padding = '24px' }) {
   return (
     <div
-      style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding, transition: 'border-color 0.2s, box-shadow 0.2s', ...s }}
-      onMouseEnter={hover ? e => { e.currentTarget.style.borderColor = '#BFDBFE'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.08)'; } : undefined}
-      onMouseLeave={hover ? e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none'; } : undefined}
-    <div style={{
-        background: 'var(--color-glass-light)',
-        border: '1px solid var(--color-glass-borderLight)',
-        borderRadius: '10px',
-        padding,
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        backdropFilter: 'blur(10px)', // Glassmorphism effect
-        ...s
-      }}
-      onMouseEnter={hover ? e => { e.currentTarget.style.borderColor = 'var(--color-amber-500)'; e.currentTarget.style.boxShadow = 'var(--box-shadow-glass)'; } : undefined}
-      onMouseLeave={hover ? e => { e.currentTarget.style.borderColor = 'var(--color-glass-borderLight)'; e.currentTarget.style.boxShadow = 'none'; } : undefined}
+      style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '12px', padding, transition: 'border-color 0.2s, box-shadow 0.2s', ...style }}
+      onMouseEnter={hover ? (e) => { e.currentTarget.style.borderColor = '#BFDBFE'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.08)'; } : undefined}
+      onMouseLeave={hover ? (e) => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none'; } : undefined}
     >
       {children}
     </div>
@@ -199,29 +191,17 @@ export function Card({ children, style: s = {}, hover = false, padding = '24px' 
 }
 
 export function Badge({ children, variant = 'neutral' }) {
-  const vs = {
-    neutral: { background: '#F3F4F6',  color: '#6B7280', border: '1px solid #E5E7EB' },
-    success: { background: '#ECFDF5',  color: '#10B981', border: '1px solid #A7F3D0' },
-    danger:  { background: '#FEF2F2',  color: '#EF4444', border: '1px solid #FECACA' },
-    amber:   { background: '#FFFBEB',  color: '#D97706', border: '1px solid #FDE68A' },
-    purple:  { background: '#F5F3FF',  color: '#7C3AED', border: '1px solid #DDD6FE' },
-    blue:    { background: '#EFF6FF',  color: '#2563EB', border: '1px solid #BFDBFE' },
+  const variants = {
+    neutral: { background: '#F3F4F6', color: '#6B7280', border: '1px solid #E5E7EB' },
+    success: { background: '#ECFDF5', color: '#10B981', border: '1px solid #A7F3D0' },
+    danger: { background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' },
+    amber: { background: '#FFFBEB', color: '#D97706', border: '1px solid #FDE68A' },
+    purple: { background: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE' },
+    blue: { background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' },
   };
+
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', padding: '2px 10px',
-      borderRadius: '20px', fontSize: '11px', fontWeight: 500,
-      whiteSpace: 'nowrap', ...vs[variant],
-    }}>
-    neutral: { background: 'rgba(255,255,255,0.05)', color: 'var(--color-light-textMuted)', border: '1px solid var(--color-glass-borderLight)' },
-    success: { background: 'rgba(16,185,129,0.1)', color: 'var(--color-signal-up)', border: '1px solid rgba(16,185,129,0.2)' },
-    danger:  { background: 'rgba(239,68,68,0.1)',  color: 'var(--color-signal-down)', border: '1px solid rgba(239,68,68,0.2)' },
-    amber:   { background: 'rgba(245,158,11,0.1)', color: 'var(--color-amber-500)', border: '1px solid rgba(245,158,11,0.2)' },
-    purple:  { background: 'rgba(129,140,248,0.1)', color: 'var(--color-ink-200)', border: '1px solid rgba(129,140,248,0.2)' },
-    blue:    { background: 'rgba(56,189,248,0.1)', color: 'var(--color-ink-200)', border: '1px solid rgba(56,189,248,0.2)' },
-  };
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: '20px', fontSize: '10px', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.06em', whiteSpace: 'nowrap', backdropFilter: 'blur(5px)', ...vs[variant] }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap', ...variants[variant] }}>
       {children}
     </span>
   );
@@ -235,12 +215,6 @@ export function PageHeader({ title, subtitle, action, tag }) {
         <div>
           <h1 style={{ fontWeight: 700, fontSize: '24px', color: '#111827', letterSpacing: '-0.02em', margin: 0 }}>{title}</h1>
           {subtitle && <p style={{ marginTop: '4px', fontSize: '14px', color: '#6B7280', lineHeight: 1.6 }}>{subtitle}</p>}
-    <div style={{ marginBottom: '32px' }}>
-      {tag && <div style={{ fontSize: '10px', color: 'var(--color-amber-500)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.12em', marginBottom: '10px' }}>{tag}</div>}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '28px', color: 'var(--color-light-text)', letterSpacing: '-0.03em', margin: 0 }}>{title}</h1>
-          {subtitle && <p style={{ marginTop: '6px', fontSize: '14px', color: 'var(--color-light-textMuted)', lineHeight: 1.6, margin: '6px 0 0' }}>{subtitle}</p>}
         </div>
         {action && <div style={{ flexShrink: 0 }}>{action}</div>}
       </div>
@@ -254,10 +228,6 @@ export function SectionHeader({ title, sub, action }) {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
         <h2 style={{ fontWeight: 600, fontSize: '16px', color: '#111827', margin: 0 }}>{title}</h2>
         {sub && <span style={{ fontSize: '12px', color: '#9CA3AF' }}>{sub}</span>}
-    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-        <h2 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '18px', color: 'var(--color-light-text)', letterSpacing: '-0.02em', margin: 0 }}>{title}</h2>
-        {sub && <span style={{ fontSize: '11px', color: 'var(--color-ink-300)', fontFamily: 'IBM Plex Mono, monospace' }}>{sub}</span>}
       </div>
       {action}
     </div>
@@ -265,21 +235,14 @@ export function SectionHeader({ title, sub, action }) {
 }
 
 export function Alert({ type = 'info', children }) {
-  const s = {
-    error:   { bg: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' },
+  const styles = {
+    error: { bg: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C' },
     warning: { bg: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' },
     success: { bg: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46' },
-    info:    { bg: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF' },
+    info: { bg: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF' },
   };
   return (
-    <div style={{ background: s[type].bg, border: s[type].border, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: s[type].color }}>
-    error:   { bg: 'rgba(239,68,68,0.08)',   border: '1px solid rgba(239,68,68,0.25)',   color: 'var(--color-signal-down)' },
-    warning: { bg: 'rgba(245,158,11,0.08)',  border: '1px solid rgba(245,158,11,0.25)',  color: 'var(--color-amber-500)' },
-    success: { bg: 'rgba(16,185,129,0.08)',  border: '1px solid rgba(16,185,129,0.25)',  color: 'var(--color-signal-up)' },
-    info:    { bg: 'rgba(129,140,248,0.08)', border: '1px solid rgba(129,140,248,0.25)', color: 'var(--color-ink-200)' }, // Using ink-200 for info for a lighter feel
-  };
-  return (
-    <div style={{ background: s[type].bg, border: s[type].border, borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: s[type].color, backdropFilter: 'blur(5px)' }}>
+    <div style={{ background: styles[type].bg, border: styles[type].border, borderRadius: '8px', padding: '12px 16px', fontSize: '14px', color: styles[type].color }}>
       {children}
     </div>
   );
@@ -291,10 +254,6 @@ export function Divider({ label }) {
       <div style={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
       {label && <span style={{ fontSize: '12px', color: '#9CA3AF', whiteSpace: 'nowrap' }}>{label}</span>}
       <div style={{ flex: 1, height: '1px', background: '#E5E7EB' }} />
-    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-      <div style={{ flex: 1, height: '1px', background: 'var(--color-light-border)' }} />
-      {label && <span style={{ fontSize: '11px', color: 'var(--color-ink-400)', fontFamily: 'IBM Plex Mono, monospace', whiteSpace: 'nowrap' }}>{label}</span>}
-      <div style={{ flex: 1, height: '1px', background: 'var(--color-light-border)' }} />
     </div>
   );
 }
@@ -305,11 +264,6 @@ export function EmptyState({ icon, title, body, action }) {
       {icon && <div style={{ marginBottom: '16px', color: '#D1D5DB' }}>{icon}</div>}
       <h3 style={{ fontWeight: 600, fontSize: '18px', color: '#111827', marginBottom: '8px' }}>{title}</h3>
       {body && <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: 1.65, maxWidth: '380px', margin: '0 auto 24px' }}>{body}</p>}
-    <div style={{ textAlign: 'center', padding: '64px 32px', background: 'var(--color-glass-light)', border: '1px solid var(--color-glass-borderLight)', borderRadius: '10px', backdropFilter: 'blur(10px)' }}>
-      {icon && <div style={{ marginBottom: '16px', color: 'var(--color-ink-400)' }}>{icon}</div>}
-      <div style={{ fontSize: '10px', color: 'var(--color-ink-400)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.12em', marginBottom: '12px' }}>EMPTY STATE</div>
-      <h3 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 700, fontSize: '22px', color: 'var(--color-light-text)', letterSpacing: '-0.02em', marginBottom: '8px' }}>{title}</h3>
-      {body && <p style={{ fontSize: '14px', color: 'var(--color-light-textMuted)', lineHeight: 1.65, maxWidth: '380px', margin: '0 auto 24px' }}>{body}</p>}
       {action}
     </div>
   );
@@ -321,12 +275,6 @@ export function StatCard({ label, value, color = '#2563EB', sub }) {
       <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '10px' }}>{label}</div>
       <div style={{ fontSize: '36px', fontWeight: 700, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
       {sub && <div style={{ marginTop: '6px', fontSize: '12px', color: '#9CA3AF' }}>{sub}</div>}
-export function StatCard({ label, value, color = 'var(--color-amber-500)', sub, mono = true }) {
-  return (
-    <div style={{ background: 'var(--color-glass-light)', border: '1px solid var(--color-glass-borderLight)', borderRadius: '10px', padding: '24px 28px', backdropFilter: 'blur(10px)' }}>
-      <div style={{ fontSize: '10px', color: 'var(--color-ink-300)', fontFamily: 'IBM Plex Mono, monospace', letterSpacing: '0.1em', marginBottom: '12px' }}>{label.toUpperCase()}</div>
-      <div style={{ fontSize: '40px', fontFamily: mono ? 'IBM Plex Mono, monospace' : 'Syne, sans-serif', fontWeight: 700, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--color-ink-300)', fontFamily: 'IBM Plex Mono, monospace' }}>{sub}</div>}
     </div>
   );
 }

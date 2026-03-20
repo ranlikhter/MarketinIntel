@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
+import GoogleSignInButton from '../../components/GoogleSignInButton';
+import MicrosoftSignInButton from '../../components/MicrosoftSignInButton';
 
 const inputCls = 'glass-input appearance-none block w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition text-sm';
 
@@ -16,7 +18,7 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { signup } = useAuth();
+  const { signup, loginWithGoogle, googleClientId, microsoftClientId, getMicrosoftLoginUrl } = useAuth();
 
   const handleChange = e => setFormData(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -32,6 +34,27 @@ export default function Signup() {
       else { setError(result.error || 'Signup failed'); }
     } catch { setError('An unexpected error occurred'); }
     finally { setLoading(false); }
+  };
+
+  const handleGoogleSignup = async (credential) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginWithGoogle(credential);
+      if (result.success) {
+        router.push('/dashboard');
+      } else {
+        setError(result.error || 'Google sign-up failed');
+      }
+    } catch {
+      setError('Google sign-up failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMicrosoftSignup = () => {
+    window.location.href = getMicrosoftLoginUrl('/dashboard');
   };
 
   return (
@@ -97,6 +120,34 @@ export default function Signup() {
               {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-amber-500 rounded-full animate-spin" /> : null}
               {loading ? 'Creating account…' : 'Create account'}
             </button>
+
+            {(googleClientId || microsoftClientId) && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
+                  <span className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>or</span>
+                  <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
+                </div>
+                <div className="space-y-3">
+                  {googleClientId && (
+                    <div className="flex justify-center">
+                      <GoogleSignInButton
+                        onCredential={handleGoogleSignup}
+                        disabled={loading}
+                        text="signup_with"
+                      />
+                    </div>
+                  )}
+                  {microsoftClientId && (
+                    <MicrosoftSignInButton
+                      onClick={handleMicrosoftSignup}
+                      disabled={loading}
+                      label="Continue with Microsoft"
+                    />
+                  )}
+                </div>
+              </>
+            )}
           </form>
 
           <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid var(--border)' }}>

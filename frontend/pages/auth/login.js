@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
+import GoogleSignInButton from '../../components/GoogleSignInButton';
+import MicrosoftSignInButton from '../../components/MicrosoftSignInButton';
 
 const inputCls = 'glass-input appearance-none block w-full px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition text-sm';
 
@@ -11,7 +13,13 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithGoogle, googleClientId, microsoftClientId, getMicrosoftLoginUrl } = useAuth();
+
+  useEffect(() => {
+    if (typeof router.query.error === 'string' && router.query.error) {
+      setError(router.query.error);
+    }
+  }, [router.query.error]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,6 +41,35 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogleLogin = async (credential) => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await loginWithGoogle(credential);
+      if (result.success) {
+        const redirect = router.query.redirect;
+        const safeRedirect = (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//'))
+          ? redirect
+          : '/dashboard';
+        router.push(safeRedirect);
+      } else {
+        setError(result.error || 'Google sign-in failed');
+      }
+    } catch {
+      setError('Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = () => {
+    const redirect = router.query.redirect;
+    const safeRedirect = (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//'))
+      ? redirect
+      : '/dashboard';
+    window.location.href = getMicrosoftLoginUrl(safeRedirect);
   };
 
   return (
@@ -86,6 +123,34 @@ export default function Login() {
               {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-amber-500 rounded-full animate-spin" /> : null}
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
+
+            {(googleClientId || microsoftClientId) && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
+                  <span className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>or</span>
+                  <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
+                </div>
+                <div className="space-y-3">
+                  {googleClientId && (
+                    <div className="flex justify-center">
+                      <GoogleSignInButton
+                        onCredential={handleGoogleLogin}
+                        disabled={loading}
+                        text="signin_with"
+                      />
+                    </div>
+                  )}
+                  {microsoftClientId && (
+                    <MicrosoftSignInButton
+                      onClick={handleMicrosoftLogin}
+                      disabled={loading}
+                      label="Continue with Microsoft"
+                    />
+                  )}
+                </div>
+              </>
+            )}
           </form>
 
           <div className="mt-6 pt-5 text-center" style={{ borderTop: '1px solid var(--border)' }}>

@@ -8,10 +8,10 @@ SQLite is a simple file-based database - perfect for getting started!
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
+from env_loader import load_backend_env
 
 # Load environment variables from .env file
-load_dotenv()
+load_backend_env()
 
 # Get database URL from environment (defaults to local SQLite file)
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/products.db")

@@ -11,7 +11,11 @@ import tempfile
 import os
 import csv
 import io
+import ipaddress
+import re
+import socket
 from datetime import datetime
+from urllib.parse import urlparse
 
 from database.connection import get_db
 from database.models import ProductMonitored, StoreConnection, User
@@ -63,6 +67,87 @@ def _find_existing_product_for_user(db: Session, user_id: int, sku: Optional[str
         ).first()
 
     return existing
+
+
+def _require_public_ip(ip_text: str) -> None:
+    ip = ipaddress.ip_address(ip_text)
+    if not ip.is_global:
+        raise HTTPException(
+            status_code=400,
+            detail="Store URL must not point to localhost, private, or internal network addresses",
+        )
+
+
+def _require_public_hostname(hostname: str) -> None:
+    normalized = hostname.rstrip(".").lower()
+    if normalized in {"localhost", "host.docker.internal"} or normalized.endswith(".local") or "." not in normalized:
+        raise HTTPException(
+            status_code=400,
+            detail="Store URL must use a public hostname",
+        )
+
+    try:
+        infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Store URL host could not be resolved",
+        ) from exc
+
+    seen = set()
+    for info in infos:
+        resolved_ip = info[4][0]
+        if resolved_ip in seen:
+            continue
+        seen.add(resolved_ip)
+        _require_public_ip(resolved_ip)
+
+
+def _normalize_woocommerce_store_url(store_url: str) -> str:
+    parsed = urlparse(store_url.strip())
+    if parsed.scheme != "https":
+        raise HTTPException(
+            status_code=400,
+            detail="WooCommerce store URL must use https",
+        )
+    if parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=400,
+            detail="Store URL must not include embedded credentials",
+        )
+    if not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Store URL is invalid")
+
+    try:
+        _require_public_ip(parsed.hostname)
+    except ValueError:
+        _require_public_hostname(parsed.hostname)
+
+    normalized = parsed._replace(query="", fragment="")
+    return normalized.geturl().rstrip("/")
+
+
+def _normalize_shopify_shop_url(shop_url: str) -> str:
+    normalized = shop_url.replace("https://", "").replace("http://", "").strip().strip("/")
+    if not normalized:
+        raise HTTPException(status_code=400, detail="Shopify shop URL is required")
+    if any(char in normalized for char in "@/?:#"):
+        raise HTTPException(
+            status_code=400,
+            detail="Shopify shop URL must be a shop hostname only",
+        )
+    if normalized.endswith(".myshopify.com"):
+        pass
+    else:
+        if "." in normalized or not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", normalized, re.IGNORECASE):
+            raise HTTPException(
+                status_code=400,
+                detail="Shopify shop URL must be a myshopify.com hostname or bare shop slug",
+            )
+        normalized = f"{normalized}.myshopify.com"
+
+    _require_public_hostname(normalized)
+    return normalized
 
 
 # XML Import
@@ -167,9 +252,11 @@ async def import_from_woocommerce(
     - **import_limit**: Max products to import (default: 100)
     """
     try:
+        store_url = _normalize_woocommerce_store_url(connection.store_url)
+
         # Initialize WooCommerce connection
         wc = WooCommerceIntegration(
-            store_url=connection.store_url,
+            store_url=store_url,
             consumer_key=connection.consumer_key,
             consumer_secret=connection.consumer_secret
         )
@@ -251,9 +338,11 @@ async def import_from_shopify(
     - **import_limit**: Max products to import (default: 100)
     """
     try:
+        shop_url = _normalize_shopify_shop_url(connection.shop_url)
+
         # Initialize Shopify connection
         shopify = ShopifyIntegration(
-            shop_url=connection.shop_url,
+            shop_url=shop_url,
             access_token=connection.access_token
         )
 
@@ -349,8 +438,10 @@ async def push_price_woocommerce(
     Matches by SKU first, then title fallback.
     """
     try:
+        store_url = _normalize_woocommerce_store_url(request.store_url)
+
         wc = WooCommerceIntegration(
-            store_url=request.store_url,
+            store_url=store_url,
             consumer_key=request.consumer_key,
             consumer_secret=request.consumer_secret
         )
@@ -381,8 +472,10 @@ async def push_price_shopify(
     Matches variant by SKU first, then first variant of title-matched product.
     """
     try:
+        shop_url = _normalize_shopify_shop_url(request.shop_url)
+
         shopify = ShopifyIntegration(
-            shop_url=request.shop_url,
+            shop_url=shop_url,
             access_token=request.access_token
         )
         result = shopify.update_product_price(
@@ -402,11 +495,15 @@ async def push_price_shopify(
 
 # Test WooCommerce Connection
 @router.post("/test/woocommerce")
-async def test_woocommerce_connection(connection: WooCommerceConnection):
+async def test_woocommerce_connection(
+    connection: WooCommerceConnection,
+    current_user: User = Depends(get_current_user),
+):
     """Test WooCommerce API connection"""
     try:
+        store_url = _normalize_woocommerce_store_url(connection.store_url)
         wc = WooCommerceIntegration(
-            store_url=connection.store_url,
+            store_url=store_url,
             consumer_key=connection.consumer_key,
             consumer_secret=connection.consumer_secret
         )
@@ -426,11 +523,15 @@ async def test_woocommerce_connection(connection: WooCommerceConnection):
 
 # Test Shopify Connection
 @router.post("/test/shopify")
-async def test_shopify_connection(connection: ShopifyConnection):
+async def test_shopify_connection(
+    connection: ShopifyConnection,
+    current_user: User = Depends(get_current_user),
+):
     """Test Shopify API connection"""
     try:
+        shop_url = _normalize_shopify_shop_url(connection.shop_url)
         shopify = ShopifyIntegration(
-            shop_url=connection.shop_url,
+            shop_url=shop_url,
             access_token=connection.access_token
         )
 
@@ -687,10 +788,16 @@ def save_store_connection(
     if platform not in ("shopify", "woocommerce"):
         raise HTTPException(status_code=422, detail="platform must be 'shopify' or 'woocommerce'")
 
+    store_url = (
+        _normalize_shopify_shop_url(body.store_url)
+        if platform == "shopify"
+        else _normalize_woocommerce_store_url(body.store_url)
+    )
+
     conn = StoreConnection(
         user_id=current_user.id,
         platform=platform,
-        store_url=body.store_url.rstrip("/"),
+        store_url=store_url,
         api_key=body.api_key,
         api_secret=body.api_secret,
         sync_inventory=body.sync_inventory,

@@ -14,7 +14,7 @@
 
 import { useEffect, useRef } from 'react';
 
-const BASE = 'http://localhost:8000';
+const BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 const MAX_BACKOFF = 60_000; // 60 seconds
 
 export default function usePriceEvents({ onEvent, enabled = true }) {

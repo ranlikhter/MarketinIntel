@@ -1,3 +1,5 @@
+const backendBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -5,12 +7,23 @@ const nextConfig = {
   images: {
     domains: ['m.media-amazon.com', 'i5.walmartimages.com'],
   },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer-when-downgrade' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+        ],
+      },
+    ];
+  },
   // API proxy to avoid CORS issues during development
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8000/:path*',
+        destination: `${backendBase}/:path*`,
       },
     ];
   },

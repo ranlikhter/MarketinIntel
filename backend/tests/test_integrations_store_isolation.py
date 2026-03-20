@@ -5,6 +5,7 @@ Security and tenant-isolation tests for store import endpoints.
 from tests.conftest import register_and_login, auth_headers
 from database.models import ProductMonitored, User
 from api.routes import integrations as integrations_routes
+from services.auth_service import create_access_token
 
 
 class _DummyShopifyIntegration:
@@ -44,6 +45,24 @@ class _DummyWooIntegration:
                 "image_url": "https://example.com/woo.jpg",
             }
         ]
+
+
+class _ShouldNotConstructWooIntegration:
+    def __init__(self, *args, **kwargs):
+        raise AssertionError("WooCommerceIntegration should not be constructed for blocked URLs")
+
+
+class _ShouldNotConstructShopifyIntegration:
+    def __init__(self, *args, **kwargs):
+        raise AssertionError("ShopifyIntegration should not be constructed for blocked URLs")
+
+
+def _issue_token_for_user(db, email: str) -> str:
+    user = User(email=email, hashed_password="not-used")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return create_access_token({"sub": str(user.id)})
 
 
 class TestStoreImportIsolation:
@@ -106,3 +125,74 @@ class TestStoreImportIsolation:
         imported = db.query(ProductMonitored).filter(ProductMonitored.sku == "SKU-WOO-001").all()
         assert len(imported) == 1
         assert imported[0].user_id == owner.id
+
+
+class TestIntegrationSecurity:
+    def test_woocommerce_test_connection_requires_authentication(self, client):
+        resp = client.post(
+            "/api/integrations/test/woocommerce",
+            json={
+                "store_url": "https://demo-woo.example.com",
+                "consumer_key": "ck_test",
+                "consumer_secret": "cs_test",
+            },
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_shopify_test_connection_requires_authentication(self, client):
+        resp = client.post(
+            "/api/integrations/test/shopify",
+            json={
+                "shop_url": "demo-store.myshopify.com",
+                "access_token": "shpat_test",
+            },
+        )
+        assert resp.status_code in (401, 403)
+
+    def test_woocommerce_test_rejects_private_target_before_network_call(self, client, db, monkeypatch):
+        token = _issue_token_for_user(db, "security-woo@example.com")
+        monkeypatch.setattr(integrations_routes, "WooCommerceIntegration", _ShouldNotConstructWooIntegration)
+
+        resp = client.post(
+            "/api/integrations/test/woocommerce",
+            json={
+                "store_url": "http://127.0.0.1:8000",
+                "consumer_key": "ck_test",
+                "consumer_secret": "cs_test",
+            },
+            headers=auth_headers(token),
+        )
+        assert resp.status_code == 400, resp.text
+        assert "https" in resp.text or "public" in resp.text or "internal" in resp.text
+
+    def test_shopify_test_rejects_non_shopify_host_before_network_call(self, client, db, monkeypatch):
+        token = _issue_token_for_user(db, "security-shopify@example.com")
+        monkeypatch.setattr(integrations_routes, "ShopifyIntegration", _ShouldNotConstructShopifyIntegration)
+
+        resp = client.post(
+            "/api/integrations/test/shopify",
+            json={
+                "shop_url": "127.0.0.1",
+                "access_token": "shpat_test",
+            },
+            headers=auth_headers(token),
+        )
+        assert resp.status_code == 400, resp.text
+        assert "myshopify.com" in resp.text or "shop slug" in resp.text or "public" in resp.text
+
+    def test_store_connection_rejects_private_woocommerce_url(self, client, db):
+        token = _issue_token_for_user(db, "store-conn@example.com")
+
+        resp = client.post(
+            "/api/integrations/store-connections",
+            json={
+                "platform": "woocommerce",
+                "store_url": "http://127.0.0.1:8000",
+                "api_key": "ck_test",
+                "api_secret": "cs_test",
+                "sync_inventory": True,
+            },
+            headers=auth_headers(token),
+        )
+        assert resp.status_code == 400, resp.text
+        assert "https" in resp.text or "public" in resp.text or "internal" in resp.text

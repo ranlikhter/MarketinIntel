@@ -184,6 +184,15 @@ function ProfileTab({ user, updateUser }) {
   const memberSince = user?.created_at
     ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '—';
+  const providerLabel = user?.auth_provider === 'google'
+    ? 'Google SSO'
+    : user?.auth_provider === 'microsoft'
+      ? 'Microsoft SSO'
+      : 'Email & Password';
+  const signInMethodLabel =
+    user?.password_login_enabled && ['google', 'microsoft'].includes(user?.auth_provider)
+      ? `${providerLabel} + Password`
+      : providerLabel;
 
   return (
     <div className="space-y-6">
@@ -191,10 +200,18 @@ function ProfileTab({ user, updateUser }) {
       <Section title="Profile Information" description="Update your display name visible across the platform.">
         {/* Avatar */}
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-blue-900/60">
-            {(user?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)) ||
-             user?.email?.[0]?.toUpperCase() || '?'}
-          </div>
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.full_name || user.email || 'Profile'}
+              className="w-16 h-16 rounded-full object-cover ring-4 ring-blue-900/60"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-2xl font-bold select-none ring-4 ring-blue-900/60">
+              {(user?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)) ||
+               user?.email?.[0]?.toUpperCase() || '?'}
+            </div>
+          )}
           <div>
             <p className="font-semibold text-white">{user?.full_name || 'No name set'}</p>
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
@@ -211,6 +228,9 @@ function ProfileTab({ user, updateUser }) {
                   Email not verified
                 </span>
               )}
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(59,130,246,0.15)', color: '#93c5fd' }}>
+                {signInMethodLabel}
+              </span>
               <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Member since {memberSince}</span>
             </div>
           </div>
@@ -231,6 +251,11 @@ function ProfileTab({ user, updateUser }) {
               <Input value={user?.email ?? ''} readOnly disabled className="opacity-50 cursor-not-allowed" />
             </Field>
           </div>
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
+            <Field label="Sign-in Method" hint="How this account authenticates">
+              <Input value={signInMethodLabel} readOnly disabled className="opacity-50 cursor-not-allowed" />
+            </Field>
+          </div>
           <div className="pt-4">
             <SaveButton loading={savingName} />
           </div>
@@ -239,6 +264,11 @@ function ProfileTab({ user, updateUser }) {
 
       {/* Change password */}
       <Section title="Change Password" description="Use a strong, unique password.">
+        {!user?.password_login_enabled ? (
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: '#bfdbfe' }}>
+            This account signs in with {signInMethodLabel}. Password changes are disabled because this account does not have a local password.
+          </div>
+        ) : (
         <form onSubmit={handleChangePw} className="divide-y">
           <div style={{ borderBottom: '1px solid var(--border)' }}>
             <Field label="Current Password">
@@ -312,6 +342,7 @@ function ProfileTab({ user, updateUser }) {
             <SaveButton loading={savingPw}>Change Password</SaveButton>
           </div>
         </form>
+        )}
       </Section>
     </div>
   );
