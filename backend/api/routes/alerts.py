@@ -390,11 +390,17 @@ async def toggle_alert(
 # ============================================
 
 @router.post("/check")
-async def check_all_alerts(db: Session = Depends(get_db)):
+async def check_all_alerts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
-    Check all enabled alerts and send notifications if triggered
+    Check enabled alerts for the authenticated user and send notifications if triggered
     """
-    alerts = db.query(PriceAlert).filter(PriceAlert.enabled == True).all()
+    alerts = db.query(PriceAlert).filter(
+        PriceAlert.enabled == True,
+        PriceAlert.user_id == current_user.id
+    ).all()
 
     triggered = 0
     skipped = 0
@@ -418,7 +424,7 @@ async def check_all_alerts(db: Session = Depends(get_db)):
                 continue
 
             matches = db.query(CompetitorMatch).filter(
-                CompetitorMatch.product_id == product.id
+                CompetitorMatch.monitored_product_id == product.id
             ).all()
 
             # Check each match for price changes
@@ -501,11 +507,18 @@ async def check_single_match(
 
 
 @router.post("/test/{alert_id}")
-async def test_alert(alert_id: int, db: Session = Depends(get_db)):
+async def test_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
     Send a test email for this alert (ignores cooldown and thresholds)
     """
-    alert = db.query(PriceAlert).filter(PriceAlert.id == alert_id).first()
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        PriceAlert.user_id == current_user.id
+    ).first()
 
     if not alert:
         raise HTTPException(status_code=404, detail="Alert not found")
@@ -514,9 +527,12 @@ async def test_alert(alert_id: int, db: Session = Depends(get_db)):
         ProductMonitored.id == alert.product_id
     ).first()
 
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
     # Get a recent match to use for test
     match = db.query(CompetitorMatch).filter(
-        CompetitorMatch.product_id == product.id
+        CompetitorMatch.monitored_product_id == product.id
     ).first()
 
     if not match or not match.latest_price:
