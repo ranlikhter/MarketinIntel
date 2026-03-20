@@ -20,6 +20,14 @@ module.exports = {
           800: '#111118',
           900: '#0A0A0F',
         },
+        // Proposed light theme colors
+        light: {
+          background: '#F0F0FA',
+          surface: '#FFFFFF',
+          border: '#E0E0E0',
+          text: '#0A0A0F',
+          textMuted: '#606080',
+        },
         amber: {
           DEFAULT: '#F59E0B',
           50: '#FFFBEB',
@@ -100,6 +108,14 @@ module.exports = {
           elevated: '#141427',
           border:   'rgba(255,255,255,0.07)',
         },
+        // Glassmorphism specific colors
+        glass:
+        {
+          light: 'rgba(255, 255, 255, 0.15)',
+          dark: 'rgba(0, 0, 0, 0.15)',
+          borderLight: 'rgba(255, 255, 255, 0.2)',
+          borderDark: 'rgba(0, 0, 0, 0.2)',
+        }
       },
       boxShadow: {
         'glass':    '0 4px 24px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)',
@@ -116,6 +132,10 @@ module.exports = {
       },
       backdropBlur: {
         xs: '4px',
+        sm: '8px',
+        md: '12px',
+        lg: '16px',
+        xl: '24px',
       },
     },
   },
