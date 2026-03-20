@@ -1,22 +1,60 @@
 """
-API Dependencies
-Reusable dependencies for route protection and user authentication
+API dependencies shared by protected routes.
 """
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from api.auth_cookies import ACCESS_COOKIE_NAME, get_request_token
 from database.connection import get_db
 from database.models import User
 from services.auth_service import verify_token
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+
+
+def _validate_access_token(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
+) -> dict:
+    token = get_request_token(
+        request,
+        credentials,
+        cookie_name=ACCESS_COOKIE_NAME,
+    )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
+
+
+async def get_current_token_payload(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> dict:
+    """
+    Return the validated access-token payload from a bearer header or auth cookie.
+    """
+    return _validate_access_token(request, credentials)
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
 ) -> User:
     """
     Get the current authenticated user from JWT token
@@ -38,15 +76,7 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
-    token = credentials.credentials
-    payload = verify_token(token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    payload = _validate_access_token(request, credentials)
 
     user_id = payload.get("sub")
     if not user_id:

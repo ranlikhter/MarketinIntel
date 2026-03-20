@@ -1,10 +1,28 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
 const AuthContext = createContext();
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 const MICROSOFT_CLIENT_ID = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID || '';
+
+const jsonHeaders = {
+  'Content-Type': 'application/json',
+};
+
+async function fetchJson(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: 'include',
+    ...options,
+    headers: {
+      ...(options.body instanceof FormData ? {} : jsonHeaders),
+      ...(options.headers || {}),
+    },
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -20,41 +38,30 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
   const router = useRouter();
 
-  const storeTokens = (data) => {
-    localStorage.setItem('accessToken', data.access_token);
-    localStorage.setItem('refreshToken', data.refresh_token);
-    setUser(data.user);
+  const loadCurrentUser = async () => {
+    const { response, data } = await fetchJson('/api/auth/me', {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      setUser(null);
+      return { success: false, error: data.detail || 'Not authenticated' };
+    }
+
+    setUser(data);
+    return { success: true, user: data };
   };
 
-  const clearTokens = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-  };
-
-  // Check for stored auth token on mount
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        try {
-          const response = await fetch(`${API_BASE}/api/auth/me`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (response.ok) {
-            const userData = await response.json();
-            setUser(userData);
-          } else {
-            clearTokens();
-          }
-        } catch (err) {
-          console.error('Auth check failed:', err);
-          clearTokens();
-        }
+      try {
+        await loadCurrentUser();
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     checkAuth();
@@ -63,11 +70,8 @@ export const AuthProvider = ({ children }) => {
   const signup = async (email, password, fullName) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/signup`, {
+      const { response, data } = await fetchJson('/api/auth/signup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           email,
           password,
@@ -75,14 +79,11 @@ export const AuthProvider = ({ children }) => {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.detail || 'Signup failed');
       }
 
-      storeTokens(data);
-
+      setUser(data.user);
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -93,25 +94,19 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const { response, data } = await fetchJson('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           email,
           password,
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.detail || 'Login failed');
       }
 
-      storeTokens(data);
-
+      setUser(data.user);
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -122,20 +117,16 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async (credential) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/sso/google`, {
+      const { response, data } = await fetchJson('/api/auth/sso/google', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ credential }),
       });
 
-      const data = await response.json();
       if (!response.ok) {
         throw new Error(data.detail || 'Google sign-in failed');
       }
 
-      storeTokens(data);
+      setUser(data.user);
       return { success: true };
     } catch (err) {
       setError(err.message);
@@ -143,27 +134,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const completeSSOLogin = async ({ accessToken, refreshToken }) => {
+  const completeSSOLogin = async () => {
     try {
       setError(null);
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-
-      const response = await fetch(`${API_BASE}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || 'SSO login failed');
+      const result = await loadCurrentUser();
+      if (!result.success) {
+        throw new Error(result.error || 'SSO login failed');
       }
 
-      setUser(data);
       return { success: true };
     } catch (err) {
-      clearTokens();
       setUser(null);
       setError(err.message);
       return { success: false, error: err.message };
@@ -175,20 +155,13 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem('accessToken');
-      if (token) {
-        await fetch(`${API_BASE}/api/auth/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-      }
+      await fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
-      // Always clear local state
-      clearTokens();
       setUser(null);
       router.push('/auth/login');
     }
@@ -196,46 +169,29 @@ export const AuthProvider = ({ children }) => {
 
   const refreshAccessToken = async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
-      }
-
-      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      const { response } = await fetchJson('/api/auth/refresh', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${refreshToken}`,
-        },
       });
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error('Token refresh failed');
       }
 
-      localStorage.setItem('accessToken', data.access_token);
-      return data.access_token;
+      return true;
     } catch (err) {
       console.error('Token refresh failed:', err);
-      // If refresh fails, logout user
       await logout();
-      return null;
+      return false;
     }
   };
 
   const forgotPassword = async (email) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+      const { response, data } = await fetchJson('/api/auth/forgot-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ email }),
       });
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.detail || 'Password reset request failed');
@@ -251,18 +207,13 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (token, newPassword) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      const { response, data } = await fetchJson('/api/auth/reset-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           token,
           new_password: newPassword,
         }),
       });
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.detail || 'Password reset failed');
@@ -276,27 +227,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (userData) => {
-    setUser(prev => ({ ...prev, ...userData }));
+    setUser((prev) => ({ ...(prev || {}), ...userData }));
   };
 
   const verifyEmail = async (token) => {
     try {
       setError(null);
-      const response = await fetch(`${API_BASE}/api/auth/verify-email`, {
+      const { response, data } = await fetchJson('/api/auth/verify-email', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ token }),
       });
-
-      const data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.detail || 'Email verification failed');
       }
 
-      // Refresh user data
       if (user) {
         setUser({ ...user, is_verified: true });
       }
@@ -331,7 +276,6 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Higher-order component for protected routes
 export const withAuth = (Component) => {
   return (props) => {
     const { user, loading } = useAuth();

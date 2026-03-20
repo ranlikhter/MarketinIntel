@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.models import Base
 from database.connection import engine
+from database.secure_types import encrypt_existing_sensitive_values
 from sqlalchemy import text
 
 
@@ -158,6 +159,11 @@ def run_migrations():
             except Exception:
                 # Column already exists or table doesn't exist yet — safe to ignore
                 pass
+
+        encrypted_rows = encrypt_existing_sensitive_values(conn)
+        if encrypted_rows:
+            conn.commit()
+            print(f"[MIGRATION] Encrypted legacy sensitive rows: {encrypted_rows}")
 
 
 def create_tables():

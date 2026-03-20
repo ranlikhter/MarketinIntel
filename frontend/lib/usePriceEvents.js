@@ -1,5 +1,5 @@
 /**
- * usePriceEvents — real-time price change hook via Server-Sent Events
+ * usePriceEvents - real-time price change hook via Server-Sent Events.
  *
  * Connects to GET /api/events and fires a callback whenever a competitor
  * updates their price on any of the user's monitored products.
@@ -7,15 +7,14 @@
  * Usage:
  *   usePriceEvents({ onEvent: (ev) => addToast(...) })
  *
- * The connection is opened only when the user is authenticated (token present)
- * and is automatically closed when the component unmounts.
- * Reconnects with exponential back-off on error (max 60s).
+ * The connection uses the browser's secure auth cookie and reconnects
+ * with exponential backoff on error (max 60s).
  */
 
 import { useEffect, useRef } from 'react';
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-const MAX_BACKOFF = 60_000; // 60 seconds
+const MAX_BACKOFF = 60_000;
 
 export default function usePriceEvents({ onEvent, enabled = true }) {
   const esRef = useRef(null);
@@ -26,20 +25,11 @@ export default function usePriceEvents({ onEvent, enabled = true }) {
     if (!enabled) return;
 
     function connect() {
-      const token =
-        typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-
-      if (!token) return; // not authenticated — don't connect
-
-      // EventSource doesn't support custom headers, so we append the token
-      // as a query parameter. The backend reads it from the Authorization
-      // header OR from ?token= when the standard header isn't available.
-      const url = `${BASE}/api/events?token=${encodeURIComponent(token)}`;
-      const es = new EventSource(url);
+      const es = new EventSource(`${BASE}/api/events`, { withCredentials: true });
       esRef.current = es;
 
       es.onopen = () => {
-        backoffRef.current = 1000; // reset back-off on successful connect
+        backoffRef.current = 1000;
       };
 
       es.onmessage = (e) => {
@@ -49,14 +39,13 @@ export default function usePriceEvents({ onEvent, enabled = true }) {
             onEvent(ev);
           }
         } catch {
-          // malformed event — ignore
+          // Ignore malformed events.
         }
       };
 
       es.onerror = () => {
         es.close();
         esRef.current = null;
-        // Exponential back-off reconnect
         const delay = Math.min(backoffRef.current, MAX_BACKOFF);
         backoffRef.current = Math.min(backoffRef.current * 2, MAX_BACKOFF);
         timerRef.current = setTimeout(connect, delay);
@@ -74,5 +63,5 @@ export default function usePriceEvents({ onEvent, enabled = true }) {
         clearTimeout(timerRef.current);
       }
     };
-  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, onEvent]);
 }

@@ -1,29 +1,39 @@
 /**
  * MarketIntel API Client
- * Centralised fetch wrapper with auth header injection.
+ * Centralized fetch wrapper with secure cookie auth.
  */
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-function getToken() {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('accessToken');
+function buildHeaders(options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+  return headers;
 }
 
-function buildHeaders(extra = {}) {
-  const token = getToken();
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra,
-  };
-}
-
-async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: { ...buildHeaders(), ...(options.headers || {}) },
+async function tryRefreshSession() {
+  const response = await fetch(`${BASE}/api/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
   });
+  return response.ok;
+}
+
+async function request(path, options = {}, canRetry = true) {
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
+    ...options,
+    headers: buildHeaders(options),
+  });
+
+  if (res.status === 401 && canRetry && path !== '/api/auth/refresh') {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      return request(path, options, false);
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -50,9 +60,8 @@ const api = {
 
   // CSV export — returns a Blob for download
   exportProductCSV: async (id) => {
-    const token = getToken();
     const res = await fetch(`${BASE}/products/${id}/export.csv`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
     });
     if (!res.ok) throw new Error(`Export failed: ${res.status}`);
     return res.blob();
@@ -140,10 +149,9 @@ const api = {
     const formData = new FormData();
     formData.append('file', xmlFile);
     formData.append('format_type', formatType);
-    const token = getToken();
     const res = await fetch(`${BASE}/api/integrations/import/xml`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
       body: formData,
     });
     if (!res.ok) {
@@ -206,9 +214,8 @@ const api = {
 
   // ─── Excel export ─────────────────────────────────────────────────────────────
   exportProductXLSX: async (id) => {
-    const token = getToken();
     const res = await fetch(`${BASE}/products/${id}/export.xlsx`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
     });
     if (!res.ok) throw new Error(`Export failed: ${res.status}`);
     return res.blob();

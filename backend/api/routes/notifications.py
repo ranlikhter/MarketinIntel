@@ -13,6 +13,7 @@ from database.connection import get_db
 from database.models import User
 from services.auth_service import verify_token
 from services.email_service import email_service
+from services.webhook_service import normalize_discord_webhook_url, normalize_slack_webhook_url
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 security = HTTPBearer()
@@ -62,6 +63,37 @@ class PushUnsubscribeRequest(BaseModel):
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
+def _normalize_notification_prefs(prefs: NotificationPrefs) -> dict:
+    prefs_dict = prefs.model_dump()
+
+    slack_webhook = (prefs_dict.get("slackWebhook") or "").strip()
+    discord_webhook = (prefs_dict.get("discordWebhook") or "").strip()
+
+    if slack_webhook:
+        try:
+            prefs_dict["slackWebhook"] = normalize_slack_webhook_url(slack_webhook)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        prefs_dict["slackWebhook"] = ""
+
+    if discord_webhook:
+        try:
+            prefs_dict["discordWebhook"] = normalize_discord_webhook_url(discord_webhook)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        prefs_dict["discordWebhook"] = ""
+
+    if prefs_dict.get("enableSlack") and not prefs_dict["slackWebhook"]:
+        raise HTTPException(status_code=400, detail="A valid Slack webhook URL is required when Slack notifications are enabled")
+
+    if prefs_dict.get("enableDiscord") and not prefs_dict["discordWebhook"]:
+        raise HTTPException(status_code=400, detail="A valid Discord webhook URL is required when Discord notifications are enabled")
+
+    return prefs_dict
+
+
 @router.get("/preferences")
 async def get_notification_preferences(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -84,7 +116,7 @@ async def save_notification_preferences(
 ):
     """Save the current user's notification preferences"""
     user = _get_user(credentials, db)
-    user.notification_prefs = prefs.model_dump()
+    user.notification_prefs = _normalize_notification_prefs(prefs)
     db.commit()
     return {"success": True, "message": "Preferences saved"}
 

@@ -20,9 +20,41 @@ from database.connection import get_db
 from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
 from services.email_service import email_service
 from services.activity_service import log_activity
+from services.webhook_service import normalize_discord_webhook_url, normalize_slack_webhook_url
 from api.dependencies import get_current_user, check_usage_limit
 
 router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
+
+
+def _normalize_optional_webhook(url: Optional[str], provider: str) -> Optional[str]:
+    if url is None:
+        return None
+
+    candidate = url.strip()
+    if not candidate:
+        return None
+
+    try:
+        if provider == "slack":
+            return normalize_slack_webhook_url(candidate)
+        if provider == "discord":
+            return normalize_discord_webhook_url(candidate)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    raise HTTPException(status_code=400, detail="Unsupported webhook provider")
+
+
+def _validate_webhook_channels(
+    notify_slack: bool,
+    slack_webhook_url: Optional[str],
+    notify_discord: bool,
+    discord_webhook_url: Optional[str],
+) -> None:
+    if notify_slack and not slack_webhook_url:
+        raise HTTPException(status_code=400, detail="A valid Slack webhook URL is required when Slack alerts are enabled")
+    if notify_discord and not discord_webhook_url:
+        raise HTTPException(status_code=400, detail="A valid Discord webhook URL is required when Discord alerts are enabled")
 
 
 # Pydantic models
@@ -166,6 +198,15 @@ async def create_alert(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
+    slack_webhook_url = _normalize_optional_webhook(alert.slack_webhook_url, "slack")
+    discord_webhook_url = _normalize_optional_webhook(alert.discord_webhook_url, "discord")
+    _validate_webhook_channels(
+        alert.notify_slack,
+        slack_webhook_url,
+        alert.notify_discord,
+        discord_webhook_url,
+    )
+
     # Create alert with all new fields
     new_alert = PriceAlert(
         product_id=alert.product_id,
@@ -179,8 +220,8 @@ async def create_alert(
         notify_discord=alert.notify_discord,
         notify_push=alert.notify_push,
         phone_number=alert.phone_number,
-        slack_webhook_url=alert.slack_webhook_url,
-        discord_webhook_url=alert.discord_webhook_url,
+        slack_webhook_url=slack_webhook_url,
+        discord_webhook_url=discord_webhook_url,
         digest_frequency=alert.digest_frequency,
         quiet_hours_enabled=alert.quiet_hours_enabled,
         quiet_hours_start=alert.quiet_hours_start,
@@ -300,10 +341,54 @@ async def update_alert(
         alert.threshold_amount = update.threshold_amount
     if update.email is not None:
         alert.email = update.email
+    if update.notify_email is not None:
+        alert.notify_email = update.notify_email
+    if update.notify_sms is not None:
+        alert.notify_sms = update.notify_sms
+    if update.notify_push is not None:
+        alert.notify_push = update.notify_push
+    if update.phone_number is not None:
+        alert.phone_number = update.phone_number
     if update.enabled is not None:
         alert.enabled = update.enabled
     if update.cooldown_hours is not None:
         alert.cooldown_hours = update.cooldown_hours
+    if update.digest_frequency is not None:
+        alert.digest_frequency = update.digest_frequency
+    if update.quiet_hours_enabled is not None:
+        alert.quiet_hours_enabled = update.quiet_hours_enabled
+    if update.quiet_hours_start is not None:
+        alert.quiet_hours_start = update.quiet_hours_start
+    if update.quiet_hours_end is not None:
+        alert.quiet_hours_end = update.quiet_hours_end
+
+    slack_webhook_url = (
+        _normalize_optional_webhook(update.slack_webhook_url, "slack")
+        if update.slack_webhook_url is not None
+        else alert.slack_webhook_url
+    )
+    discord_webhook_url = (
+        _normalize_optional_webhook(update.discord_webhook_url, "discord")
+        if update.discord_webhook_url is not None
+        else alert.discord_webhook_url
+    )
+    notify_slack = update.notify_slack if update.notify_slack is not None else alert.notify_slack
+    notify_discord = update.notify_discord if update.notify_discord is not None else alert.notify_discord
+    _validate_webhook_channels(
+        notify_slack,
+        slack_webhook_url,
+        notify_discord,
+        discord_webhook_url,
+    )
+
+    if update.notify_slack is not None:
+        alert.notify_slack = update.notify_slack
+    if update.notify_discord is not None:
+        alert.notify_discord = update.notify_discord
+    if update.slack_webhook_url is not None:
+        alert.slack_webhook_url = slack_webhook_url
+    if update.discord_webhook_url is not None:
+        alert.discord_webhook_url = discord_webhook_url
 
     alert.updated_at = datetime.utcnow()
 

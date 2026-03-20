@@ -11,6 +11,8 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 import enum
 
+from database.secure_types import EncryptedJSON, EncryptedString
+
 # This creates a base class that all our models will inherit from
 Base = declarative_base()
 
@@ -318,8 +320,8 @@ class PriceAlert(Base):
 
     # Channel-specific settings
     phone_number = Column(String(20), nullable=True)  # For SMS
-    slack_webhook_url = Column(String(500), nullable=True)  # Slack webhook URL
-    discord_webhook_url = Column(String(500), nullable=True)  # Discord webhook URL
+    slack_webhook_url = Column(EncryptedString(), nullable=True)  # Slack webhook URL
+    discord_webhook_url = Column(EncryptedString(), nullable=True)  # Discord webhook URL
 
     # Delivery preferences
     digest_frequency = Column(String(20), default="instant")  # "instant", "daily", "weekly"
@@ -421,7 +423,7 @@ class User(Base):
     trial_ends_at = Column(DateTime, nullable=True)
 
     # Notification preferences (JSON blob)
-    notification_prefs = Column(JSON, nullable=True)
+    notification_prefs = Column(EncryptedJSON(), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -683,8 +685,8 @@ class StoreConnection(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     platform = Column(String(20), nullable=False)      # "shopify" | "woocommerce"
     store_url = Column(String(500), nullable=False)
-    api_key = Column(String(500), nullable=True)       # Shopify access_token / WC consumer_key
-    api_secret = Column(String(500), nullable=True)    # WC consumer_secret
+    api_key = Column(EncryptedString(), nullable=True)       # Shopify access_token / WC consumer_key
+    api_secret = Column(EncryptedString(), nullable=True)    # WC consumer_secret
     is_active = Column(Boolean, default=True)
     last_synced_at = Column(DateTime, nullable=True)
     sync_inventory = Column(Boolean, default=True)     # Include in periodic sync

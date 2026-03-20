@@ -16,8 +16,6 @@ export default function SsoCompletePage() {
         : window.location.hash;
       const params = new URLSearchParams(hash);
       const error = params.get('error');
-      const accessToken = params.get('access_token');
-      const refreshToken = params.get('refresh_token');
       const redirect = params.get('redirect') || '/dashboard';
       const safeRedirect = redirect.startsWith('/') && !redirect.startsWith('//')
         ? redirect
@@ -28,12 +26,7 @@ export default function SsoCompletePage() {
         return;
       }
 
-      if (!accessToken || !refreshToken) {
-        setMessage('SSO sign-in did not return valid tokens.');
-        return;
-      }
-
-      const result = await completeSSOLogin({ accessToken, refreshToken });
+      const result = await completeSSOLogin();
       if (!result.success) {
         setMessage(result.error || 'SSO sign-in failed.');
         return;

@@ -7,15 +7,23 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from pydantic import ConfigDict, BaseModel, EmailStr
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
+from api.auth_cookies import (
+    REFRESH_COOKIE_NAME,
+    clear_auth_cookies,
+    get_request_token,
+    set_access_cookie,
+    set_auth_cookies,
+)
+from api.dependencies import get_current_user
 from database.connection import get_db
 from database.models import User, SubscriptionTier, SubscriptionStatus
 from services.auth_service import (
@@ -40,7 +48,7 @@ from services.sso_service import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
 # Pydantic Models
@@ -126,8 +134,6 @@ def sanitize_return_to(return_to: Optional[str]) -> str:
 def build_frontend_sso_redirect(
     return_to: str,
     *,
-    access_token: Optional[str] = None,
-    refresh_token: Optional[str] = None,
     error: Optional[str] = None,
 ) -> str:
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
@@ -135,9 +141,6 @@ def build_frontend_sso_redirect(
 
     if error:
         params["error"] = error
-    else:
-        params["access_token"] = access_token or ""
-        params["refresh_token"] = refresh_token or ""
 
     return f"{frontend_url}/auth/sso-complete#{urlencode(params)}"
 
@@ -170,6 +173,16 @@ def build_token_response(user: User) -> TokenResponse:
             "created_at": user.created_at,
         },
     )
+
+
+def build_authenticated_response(response: Response, user: User) -> TokenResponse:
+    token_response = build_token_response(user)
+    set_auth_cookies(
+        response,
+        token_response.access_token,
+        token_response.refresh_token,
+    )
+    return token_response
 
 
 def upsert_sso_user(db: Session, provider: str, claims: dict) -> User:
@@ -236,7 +249,11 @@ def upsert_sso_user(db: Session, provider: str, claims: dict) -> User:
 
 @router.post("/signup", response_model=TokenResponse)
 @router.post("/register", response_model=TokenResponse)
-async def signup(request: SignupRequest, db: Session = Depends(get_db)):
+async def signup(
+    request: SignupRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Register a new user account
 
@@ -295,11 +312,15 @@ async def signup(request: SignupRequest, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"Failed to send welcome/verification email: {e}")
 
-    return build_token_response(new_user)
+    return build_authenticated_response(response, new_user)
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+async def login(
+    request: LoginRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Login to existing account
 
@@ -342,11 +363,15 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     user.last_login_at = datetime.utcnow()
     db.commit()
 
-    return build_token_response(user)
+    return build_authenticated_response(response, user)
 
 
 @router.post("/sso/google", response_model=TokenResponse)
-async def login_with_google(request: GoogleSSORequest, db: Session = Depends(get_db)):
+async def login_with_google(
+    request: GoogleSSORequest,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """
     Exchange a Google Identity Services credential for local JWT tokens.
     """
@@ -359,7 +384,7 @@ async def login_with_google(request: GoogleSSORequest, db: Session = Depends(get
         ) from exc
 
     user = upsert_sso_user(db, "google", claims)
-    return build_token_response(user)
+    return build_authenticated_response(response, user)
 
 
 @router.get("/sso/microsoft/start")
@@ -447,40 +472,47 @@ async def microsoft_sso_callback(
         )
 
     token_response = build_token_response(user)
-    return RedirectResponse(
-        build_frontend_sso_redirect(
-            safe_return_to,
-            access_token=token_response.access_token,
-            refresh_token=token_response.refresh_token,
-        ),
+    redirect_response = RedirectResponse(
+        build_frontend_sso_redirect(safe_return_to),
         status_code=status.HTTP_302_FOUND,
     )
+    set_auth_cookies(
+        redirect_response,
+        token_response.access_token,
+        token_response.refresh_token,
+    )
+    return redirect_response
 
 
 @router.post("/refresh")
 async def refresh_token_endpoint(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    request: Request,
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
 ):
     """
     Refresh access token using refresh token
 
-    Send refresh token in Authorization header
+    Accepts the refresh token from either Authorization header or secure cookie.
     """
-    token = credentials.credentials
-    payload = verify_token(token)
+    token = get_request_token(
+        request,
+        credentials,
+        cookie_name=REFRESH_COOKIE_NAME,
+    )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token is required"
+        )
+
+    payload = verify_token(token, expected_type="refresh")
 
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
-        )
-
-    # Check if it's a refresh token
-    if payload.get("type") != "refresh":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token type"
         )
 
     user_id = payload.get("sub")
@@ -494,6 +526,7 @@ async def refresh_token_endpoint(
 
     # Create new access token
     new_access_token = create_access_token(data={"sub": str(user.id)})
+    set_access_cookie(response, new_access_token)
 
     return {
         "access_token": new_access_token,
@@ -503,107 +536,52 @@ async def refresh_token_endpoint(
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get current authenticated user's information
 
-    Requires valid JWT token in Authorization header
+    Accepts a bearer token or the secure auth cookie.
     """
-    token = credentials.credentials
-    payload = verify_token(token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
-        )
-
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == int(user_id)).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
     return UserResponse(
-        **build_user_payload(user),
-        created_at=user.created_at
+        **build_user_payload(current_user),
+        created_at=current_user.created_at
     )
 
 
 @router.put("/me", response_model=UserResponse)
 async def update_profile(
     request: UpdateProfileRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Update current user's profile information (full name)"""
-    token = credentials.credentials
-    payload = verify_token(token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
-        )
-
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == int(user_id)).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
     if request.full_name is not None:
-        user.full_name = request.full_name
+        current_user.full_name = request.full_name
 
     db.commit()
-    db.refresh(user)
+    db.refresh(current_user)
 
     return UserResponse(
-        **build_user_payload(user),
-        created_at=user.created_at
+        **build_user_payload(current_user),
+        created_at=current_user.created_at
     )
 
 
 @router.post("/change-password")
 async def change_password(
     request: ChangePasswordRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Change password for authenticated user"""
-    token = credentials.credentials
-    payload = verify_token(token)
-
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials"
-        )
-
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == int(user_id)).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
-        )
-
-    if not user.password_login_enabled:
+    if not current_user.password_login_enabled:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This account uses SSO and does not have a password to change"
         )
 
-    if not verify_password(request.current_password, user.hashed_password):
+    if not verify_password(request.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current password is incorrect"
@@ -615,7 +593,7 @@ async def change_password(
             detail="New password must be at least 8 characters"
         )
 
-    user.hashed_password = hash_password(request.new_password)
+    current_user.hashed_password = hash_password(request.new_password)
     db.commit()
 
     return {"success": True, "message": "Password changed successfully"}
@@ -760,13 +738,11 @@ async def reset_password(request: PasswordResetConfirm, db: Session = Depends(ge
 
 
 @router.post("/logout")
-async def logout():
+async def logout(response: Response):
     """
-    Logout (client-side token removal)
-
-    Server doesn't maintain session state, so logout is handled client-side
-    by removing the JWT token from storage.
+    Clear browser auth cookies and end the current browser session.
     """
+    clear_auth_cookies(response)
     return {
         "success": True,
         "message": "Logged out successfully"
