@@ -396,6 +396,10 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
+    auth_provider = Column(String(50), nullable=False, default="local")
+    auth_provider_subject = Column(String(255), nullable=True, unique=True)
+    avatar_url = Column(Text, nullable=True)
+    password_login_enabled = Column(Boolean, nullable=False, default=True)
 
     # Subscription info
     subscription_tier = Column(Enum(SubscriptionTier), default=SubscriptionTier.FREE)

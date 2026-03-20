@@ -29,6 +29,11 @@ def run_migrations():
         "ALTER TABLE products_monitored ADD COLUMN my_price REAL",
         # v2
         "ALTER TABLE users ADD COLUMN notification_prefs TEXT",
+        "ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'",
+        "ALTER TABLE users ADD COLUMN auth_provider_subject TEXT",
+        "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+        "ALTER TABLE users ADD COLUMN password_login_enabled INTEGER DEFAULT 1",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_auth_provider_subject ON users(auth_provider_subject)",
         # v4 — match-rate identifiers + margin intelligence on products_monitored
         "ALTER TABLE products_monitored ADD COLUMN description TEXT",
         "ALTER TABLE products_monitored ADD COLUMN mpn TEXT",

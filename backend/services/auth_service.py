@@ -92,6 +92,36 @@ def create_refresh_token(data: dict) -> str:
     return encoded_jwt
 
 
+def create_sso_state_token(provider: str, return_to: str, nonce: str) -> str:
+    """
+    Create a short-lived signed state token for OAuth redirects.
+    """
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    data = {
+        "provider": provider,
+        "return_to": return_to,
+        "nonce": nonce,
+        "type": "sso_state",
+        "exp": expire,
+    }
+    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_sso_state_token(token: str, provider: str) -> Optional[dict]:
+    """
+    Verify the OAuth state token for a specific provider.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "sso_state":
+            return None
+        if payload.get("provider") != provider:
+            return None
+        return payload
+    except JWTError:
+        return None
+
+
 def verify_token(token: str, expected_type: str = "access") -> Optional[dict]:
     """
     Verify and decode a JWT token
