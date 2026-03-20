@@ -1,62 +1,3 @@
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-
-const NAV_ITEMS = [
-  {
-    href: '/', exact: true, label: 'Overview',
-    d: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
-  },
-  {
-    href: '/dashboard', label: 'Intelligence',
-    d: 'M2 12h4l3-9 4 18 3-9h6',
-  },
-  {
-    href: '/products', label: 'Products',
-    d: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z',
-  },
-  {
-    href: '/competitors', label: 'Competitors',
-    d: 'M12 2a10 10 0 100 20A10 10 0 0012 2zM2 12h20',
-  },
-  {
-    href: '/insights', label: 'Insights',
-    d: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-  },
-  {
-    href: '/integrations', label: 'Integrations',
-    d: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71',
-  },
-  {
-    href: '/scheduler', label: 'Scheduler',
-    d: 'M12 2a10 10 0 100 20A10 10 0 0012 2zM12 6v6l4 2',
-  },
-];
-
-const TICKER = [
-  { s: 'AMZN',  p: '189.42', c: '+1.23', up: true  },
-  { s: 'WMT',   p: '67.88',  c: '-0.45', up: false },
-  { s: 'SHOP',  p: '94.11',  c: '+2.87', up: true  },
-  { s: 'EBAY',  p: '44.33',  c: '+0.12', up: true  },
-  { s: 'TGT',   p: '139.50', c: '-1.09', up: false },
-  { s: 'COST',  p: '891.77', c: '+4.21', up: true  },
-  { s: 'ETSY',  p: '52.30',  c: '-0.88', up: false },
-  { s: 'CHEWY', p: '28.14',  c: '+0.67', up: true  },
-];
-
-function NavIcon({ d }) {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d={d} />
-    </svg>
-  );
-}
-
-export default function Layout({ children }) {
-  const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
-  const W = collapsed ? 64 : 220;
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -64,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePwa } from '../context/PwaContext';
 import usePriceEvents from '../lib/usePriceEvents';
 
-// ─── TIER CONFIG ──────────────────────────────────────────────────────────────
+// --- TIER CONFIG ---
 const TIER = {
   free:       { pill: 'bg-white/10 text-white/70',        label: 'Free'       },
   pro:        { pill: 'bg-amber-500/20 text-amber-300',   label: 'Pro'        },
@@ -72,7 +13,7 @@ const TIER = {
   enterprise: { pill: 'bg-orange-500/30 text-orange-200', label: 'Enterprise' },
 };
 
-// ─── ICONS ────────────────────────────────────────────────────────────────────
+// --- ICONS ---
 const Icon = {
   home:        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
   products:    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>,
@@ -100,7 +41,7 @@ const Icon = {
   wifi_off:    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M12 12h.01M3.636 18.364a9 9 0 010-12.728M6.464 15.536a5 5 0 010-7.072" /></svg>,
 };
 
-// ─── NAV ITEMS ────────────────────────────────────────────────────────────────
+// --- NAV ITEMS ---
 const NAV_ITEMS = [
   { href: '/',                 label: 'Home',           icon: Icon.home,      match: (p) => p === '/' },
   { href: '/products',         label: 'Products',       icon: Icon.products,  match: (p) => p.startsWith('/products') },
@@ -113,58 +54,48 @@ const NAV_ITEMS = [
   { href: '/alerts',           label: 'Alerts',         icon: Icon.bell,      match: (p) => p.startsWith('/alerts') },
   { href: '/competitor-intel', label: 'Rival Profiles', icon: Icon.users,     match: (p) => p.startsWith('/competitor-intel') },
   { href: '/competitor-dna',  label: 'Strategy DNA',   icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>, match: (p) => p.startsWith('/competitor-dna') },
-  { href: '/product-health',  label: 'Product Health',  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>, match: (p) => p.startsWith('/product-health') },
-  { href: '/seller-intel',    label: 'Seller Intel',    icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>, match: (p) => p.startsWith('/seller-intel') },
-  { href: '/keyword-ranks',   label: 'Keyword Ranks',  icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>, match: (p) => p.startsWith('/keyword-ranks') },
-  { href: '/competitors',      label: 'Competitors',    icon: Icon.globe,     match: (p) => p === '/competitors' || p === '/competitors/add' },
   { href: '/integrations',     label: 'Integrations',   icon: Icon.link,      match: (p) => p.startsWith('/integrations') },
   { href: '/scheduler',        label: 'Scheduler',      icon: Icon.clock,     match: (p) => p.startsWith('/scheduler') },
-  { href: '/analytics',        label: 'Analytics',      icon: Icon.chart,     match: (p) => p.startsWith('/analytics') },
-  { href: '/repricing',        label: 'Repricing',      icon: Icon.tag,       match: (p) => p.startsWith('/repricing') },
-  { href: '/promotions',       label: 'Promotions',     icon: Icon.lightning, match: (p) => p.startsWith('/promotions') },
-  { href: '/discovery',        label: 'Discovery',      icon: Icon.globe,     match: (p) => p.startsWith('/discovery') },
-  { href: '/settings/team',    label: 'Team',           icon: Icon.users,     match: (p) => p.startsWith('/settings/team'),     group: 'Settings' },
-  { href: '/settings/api-keys',label: 'API Keys',       icon: Icon.key,       match: (p) => p.startsWith('/settings/api-keys'), group: 'Settings' },
-  { href: '/settings',         label: 'Settings',       icon: Icon.gear,      match: (p) => p === '/settings',                  group: 'Settings' },
 ];
 
-const BOTTOM_NAV = [
-  { href: '/products',       label: 'Products', icon: Icon.products  },
-  { href: '/command-center', label: 'Battle',   icon: Icon.lightning },
-  null, // FAB slot
-  { href: '/alerts',         label: 'Alerts',   icon: Icon.bell      },
-  { href: '/settings',       label: 'Settings', icon: Icon.gear      },
+const TICKER = [
+  { s: 'AMZN',  p: '189.42', c: '+1.23', up: true  },
+  { s: 'WMT',   p: '67.88',  c: '-0.45', up: false },
+  { s: 'SHOP',  p: '94.11',  c: '+2.87', up: true  },
+  { s: 'EBAY',  p: '44.33',  c: '+0.12', up: true  },
+  { s: 'TGT',   p: '139.50', c: '-1.09', up: false },
+  { s: 'COST',  p: '891.77', c: '+4.21', up: true  },
+  { s: 'ETSY',  p: '52.30',  c: '-0.88', up: false },
+  { s: 'CHEWY', p: '28.14',  c: '+0.67', up: true  },
 ];
 
-// ─── LOGO ─────────────────────────────────────────────────────────────────────
-function Logo({ size = 'md' }) {
-  const sz = size === 'sm' ? 'w-7 h-7 rounded-lg' : 'w-9 h-9 rounded-xl';
-  return (
-    <Link href="/" className="flex items-center gap-2.5 group">
-      <div className={`${sz} gradient-brand flex items-center justify-center shadow-gradient shrink-0 transition-opacity group-hover:opacity-90`}>
-        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-        </svg>
-      </div>
-      <span className={`font-bold ${size === 'sm' ? 'text-sm' : 'text-base'} text-white`}>
-        Market<span className="gradient-text">Intel</span>
-      </span>
-    </Link>
-  );
-}
+export default function Layout({ children }) {
+  const router = useRouter();
+  const { user, tier, logout } = useAuth();
+  const { pwa, promptInstall } = usePwa();
+  const [collapsed, setCollapsed] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const prices = usePriceEvents();
+  const W = collapsed ? 80 : 240;
 
-// ─── SIDEBAR USER DROPDOWN ────────────────────────────────────────────────────
-function SidebarUser({ user, logout }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
+    document.body.style.backgroundColor = 'var(--color-light-background)';
+    document.documentElement.style.setProperty('--color-light-background', '#F0F0FA');
+    document.documentElement.style.setProperty('--color-light-surface', '#FFFFFF');
+    document.documentElement.style.setProperty('--color-light-border', '#E0E0E0');
+    document.documentElement.style.setProperty('--color-light-text', '#0A0A0F');
+    document.documentElement.style.setProperty('--color-light-textMuted', '#606080');
+    document.documentElement.style.setProperty('--color-amber-500', '#F59E0B');
+    document.documentElement.style.setProperty('--color-ink-900', '#0A0A0F');
+    document.documentElement.style.setProperty('--color-ink-300', '#606080');
+    document.documentElement.style.setProperty('--color-ink-400', '#3A3A58');
+    document.documentElement.style.setProperty('--color-signal-up', '#10B981');
+    document.documentElement.style.setProperty('--color-signal-down', '#EF4444');
+    document.documentElement.style.setProperty('--color-glass-light', 'rgba(255, 255, 255, 0.15)');
+    document.documentElement.style.setProperty('--color-glass-borderLight', 'rgba(255, 255, 255, 0.2)');
+    document.documentElement.style.setProperty('--box-shadow-glass', '0 4px 24px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.1)');
+    document.documentElement.style.setProperty('--box-shadow-gradient-lg', '0 6px 28px rgba(245,158,11,0.35)');
   }, []);
-
-  const isActive = (item) =>
-    item.exact ? router.pathname === item.href : router.pathname.startsWith(item.href);
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6' }}>
@@ -241,12 +172,19 @@ function SidebarUser({ user, logout }) {
               MarketIntel
             </span>
           )}
+    <div className="w-full h-screen flex bg-light-background text-light-text">
+      {/* --- Left Nav --- */}
+      <div style={{ width: W, transition: 'width 0.2s ease-out' }} className="flex-shrink-0 bg-glass-light border-r border-glass-borderLight flex flex-col z-20 backdrop-blur-lg">
+        <div style={{ height: 64 }} className="flex-shrink-0 flex items-center justify-center px-5 border-b border-glass-borderLight">
+          <Link href="/" className="flex items-center gap-2.5">
+            <img src="/favicon.svg" className="w-7 h-7" />
+            {!collapsed && <span className="font-display font-bold text-xl text-amber-500 tracking-tighter">MarketIntel</span>}
+          </Link>
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto', overflowX: 'hidden' }}>
-          {NAV_ITEMS.map((item) => {
-            const on = isActive(item);
+        <div className="flex-grow py-2.5 border-b border-glass-borderLight overflow-y-auto">
+          {NAV_ITEMS.map(item => {
+            const isActive = item.match(router.pathname);
             return (
               <Link key={item.href} href={item.href} legacyBehavior>
                 <a
@@ -354,13 +292,6 @@ function TopbarAvatar({ user, logout }) {
             </svg>
           </button>
         </div>
-      </aside>
-
-      {/* ── Main area ── */}
-      <div style={{
-        marginLeft: W, flex: 1, display: 'flex', flexDirection: 'column',
-        transition: 'margin-left 0.25s ease', minWidth: 0,
-      }}>
 
         {/* Topbar with live ticker */}
         <header style={{
@@ -435,262 +366,54 @@ function TopbarAvatar({ user, logout }) {
             <button onClick={() => { setOpen(false); logout(); }}
               className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
               {Icon.logout} Sign Out
+        <div className="flex-shrink-0 py-2.5">
+          <Link href="/settings" className={`flex items-center gap-3.5 px-6 py-2.5 text-sm font-medium transition-all duration-150 ease-out ${router.pathname.startsWith('/settings') ? 'text-light-text' : 'text-light-textMuted hover:text-light-text'}`}>
+            <div className={`w-1 h-6 rounded-full transition-all duration-150 ease-out ${router.pathname.startsWith('/settings') ? 'bg-amber-500' : 'bg-transparent'}`}></div>
+            <div className={`transition-all duration-150 ease-out ${router.pathname.startsWith('/settings') ? 'text-amber-500' : ''}`}>{Icon.gear}</div>
+            {!collapsed && <span className="whitespace-nowrap">Settings</span>}
+          </Link>
+        </div>
+      </div>
+
+      {/* --- Main Content --- */}
+      <div className="flex-grow flex flex-col bg-light-background">
+        <div style={{ height: 64 }} className="flex-shrink-0 border-b border-light-border flex items-center px-6 justify-between gap-5 bg-glass-light backdrop-blur-lg">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setCollapsed(!collapsed)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+              <svg className="w-5 h-5 text-light-textMuted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
             </button>
+            <span className="text-sm text-light-textMuted">Welcome back, <span className="font-semibold text-light-text">{user?.name}</span></span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setShowSearch(true)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+              {Icon.search}
+            </button>
+            <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+              {Icon.bell}
+            </button>
+            <div className="w-px h-6 bg-light-border"></div>
+            <div className={`text-xs font-mono tracking-widest uppercase px-2.5 py-1 rounded-full ${TIER[tier]?.pill}`}>{TIER[tier]?.label}</div>
+            <button onClick={logout} className="text-xs text-light-textMuted hover:text-light-text transition-colors">Logout</button>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-// ─── PWA INSTALL BUTTON ───────────────────────────────────────────────────────
-function InstallButton() {
-  const { canInstall, install } = usePwa();
-  if (!canInstall) return null;
-  return (
-    <button
-      onClick={install}
-      className="flex items-center justify-center gap-1.5 w-full py-2 rounded-xl text-amber-400 text-xs font-semibold hover:bg-amber-500/10 transition-colors"
-      style={{ border: '1px solid rgba(245,158,11,0.2)' }}
-    >
-      {Icon.download} Install App
-    </button>
-  );
-}
-
-// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
-function Sidebar({ pathname, user, logout }) {
-  return (
-    <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-60 glass-sidebar z-30">
-      {/* Logo */}
-      <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--border)' }}>
-        <Logo />
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto scrollbar-hide px-3 py-4 space-y-0.5">
-        {NAV_ITEMS.filter(i => !i.group).map(item => {
-          const active = item.match(pathname);
-          return (
-            <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                active
-                  ? 'gradient-brand text-white shadow-gradient'
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
-              }`}>
-              <span className={active ? 'text-white/90' : ''}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-
-        {/* Settings group */}
-        <div className="pt-3 pb-1">
-          <div className="h-px mx-2" style={{ background: 'var(--border)' }} />
+        <div className="flex-grow overflow-y-auto p-6 bg-light-background">
+          {children}
         </div>
-        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-white/20 uppercase tracking-widest">Settings</p>
-        {NAV_ITEMS.filter(i => i.group === 'Settings').map(item => {
-          const active = item.match(pathname);
-          return (
-            <Link key={item.href} href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                active
-                  ? 'gradient-brand text-white shadow-gradient'
-                  : 'text-white/50 hover:text-white hover:bg-white/5'
-              }`}>
-              <span className={active ? 'text-white/90' : ''}>
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
 
-      {/* Add Product + Install */}
-      <div className="px-3 pb-3 space-y-2">
-        <Link href="/products/add"
-          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl gradient-brand text-white text-sm font-semibold shadow-gradient hover:opacity-90 transition-opacity">
-          {Icon.plus} Add Product
-        </Link>
-        <InstallButton />
-      </div>
-
-      {/* User */}
-      <div className="px-3 pb-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-        {user
-          ? <SidebarUser user={user} logout={logout} />
-          : <Link href="/auth/login" className="text-sm text-white/50 hover:text-white px-3 py-2 rounded-xl hover:bg-white/5 flex items-center transition-colors">Sign In</Link>
-        }
-      </div>
-    </aside>
-  );
-}
-
-// ─── TOPBAR ───────────────────────────────────────────────────────────────────
-function Topbar({ user, logout }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  return (
-    <header className="fixed top-0 left-0 right-0 lg:left-60 h-16 glass-topbar z-20 flex items-center px-4 sm:px-5 gap-3">
-      {/* Mobile logo */}
-      <div className="lg:hidden shrink-0">
-        <Logo size="sm" />
-      </div>
-
-      {/* Desktop search */}
-      <div className="hidden lg:flex flex-1 max-w-sm">
-        <div className="relative w-full">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none">
-            {Icon.search}
-          </span>
-          <input type="text" placeholder="Search products, competitors…"
-            className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl focus:outline-none" />
-        </div>
-      </div>
-
-      <div className="flex-1" />
-
-      {/* Right */}
-      <div className="flex items-center gap-2">
-        <button onClick={() => setSearchOpen(s => !s)}
-          className="lg:hidden p-2.5 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-colors">
-          {Icon.search}
-        </button>
-        {user
-          ? <TopbarAvatar user={user} logout={logout} />
-          : <Link href="/auth/login" className="px-4 py-2 text-sm font-semibold gradient-brand text-white rounded-xl shadow-gradient hover:opacity-90 transition-opacity">Sign In</Link>
-        }
-      </div>
-
-      {/* Mobile search expand */}
-      {searchOpen && (
-        <div className="absolute top-full left-0 right-0 glass-topbar px-4 py-3 lg:hidden animate-fade-in">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30">{Icon.search}</span>
-            <input autoFocus type="text" placeholder="Search…"
-              onBlur={() => setSearchOpen(false)}
-              className="w-full pl-10 pr-4 py-2.5 text-sm glass-input rounded-xl focus:outline-none" />
+        <div style={{ height: 32 }} className="flex-shrink-0 border-t border-glass-borderLight bg-glass-light backdrop-blur-lg z-10 flex items-center px-6 gap-5 overflow-hidden">
+          <span className="text-xs font-mono uppercase text-ink-300">Live Market Data</span>
+          <div className="flex-grow flex items-center gap-5 animate-ticker">
+            {[...TICKER, ...TICKER].map((t, i) => (
+              <div key={i} className="flex items-center gap-2.5 flex-shrink-0">
+                <span className="text-xs font-mono text-light-textMuted">{t.s}</span>
+                <span className="text-xs font-semibold text-light-text">{t.p}</span>
+                <span className={`text-xs font-semibold ${t.up ? 'text-signal-up' : 'text-signal-down'}`}>{t.c}</span>
+              </div>
+            ))}
           </div>
         </div>
-      )}
-    </header>
-  );
-}
-
-// ─── BOTTOM NAV ───────────────────────────────────────────────────────────────
-function BottomNav({ pathname }) {
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 lg:hidden glass-nav z-30 safe-bottom">
-      <div className="flex items-center h-16 px-2">
-        {BOTTOM_NAV.map((item, i) => {
-          if (!item) {
-            return (
-              <div key="fab" className="flex-1 flex justify-center">
-                <Link href="/products/add"
-                  className="w-14 h-14 rounded-full gradient-brand flex items-center justify-center text-white shadow-gradient hover:opacity-90 active:scale-95 transition-all -mt-5">
-                  {Icon.plusSm}
-                </Link>
-              </div>
-            );
-          }
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-          return (
-            <Link key={item.href} href={item.href}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2 transition-colors ${
-                active ? 'text-amber-400' : 'text-white/30 hover:text-white/60'
-              }`}>
-              {item.icon}
-              <span className="text-[10px] font-semibold leading-none">{item.label}</span>
-            </Link>
-          );
-        })}
       </div>
-    </nav>
-  );
-}
-
-// ─── ROOT LAYOUT ──────────────────────────────────────────────────────────────
-export default function Layout({ children }) {
-  const router = useRouter();
-  const { user, logout } = useAuth();
-  const { isOnline } = usePwa();
-  const { pathname } = router;
-
-  const [liveAlerts, setLiveAlerts] = useState([]);
-
-  const handlePriceEvent = useCallback((ev) => {
-    const id = Date.now();
-    const alert = {
-      id,
-      product_title: ev.product_title,
-      competitor:    ev.competitor,
-      new_price:     ev.new_price,
-      change_pct:    ev.change_pct,
-      product_id:    ev.product_id,
-    };
-    setLiveAlerts(prev => [alert, ...prev].slice(0, 5));
-    setTimeout(() => setLiveAlerts(prev => prev.filter(a => a.id !== id)), 8000);
-  }, []);
-
-  usePriceEvents({ onEvent: handlePriceEvent, enabled: !!user });
-
-  return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-base)' }}>
-      {/* Offline banner */}
-      {!isOnline && (
-        <div className="fixed top-0 inset-x-0 z-[9999] bg-amber-500/95 backdrop-blur-sm text-white text-sm font-medium text-center py-2 px-4 flex items-center justify-center gap-2">
-          {Icon.wifi_off}
-          You&apos;re offline — showing cached data
-        </div>
-      )}
-
-      <Sidebar pathname={pathname} user={user} logout={logout} />
-      <Topbar  user={user} logout={logout} />
-
-      <main className="lg:pl-60 pt-16 pb-20 lg:pb-8 min-h-screen">
-        {children}
-      </main>
-
-      <BottomNav pathname={pathname} />
-
-      {/* Live price-change toasts */}
-      {liveAlerts.length > 0 && (
-        <div className="fixed bottom-24 lg:bottom-6 right-4 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none">
-          {liveAlerts.map(a => {
-            const isDown = a.change_pct != null ? a.change_pct < 0 : null;
-            return (
-              <div key={a.id}
-                className="pointer-events-auto rounded-2xl px-4 py-3 flex items-start gap-3 animate-fade-in"
-                style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
-                <span className="text-base shrink-0 mt-0.5">
-                  {isDown === true ? '📉' : isDown === false ? '📈' : '💰'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{a.competitor}</p>
-                  <p className="text-xs text-white/40 truncate">{a.product_title}</p>
-                  {a.new_price != null && (
-                    <p className={`text-xs font-bold mt-0.5 ${isDown === true ? 'text-red-400' : isDown === false ? 'text-emerald-400' : 'text-white'}`}>
-                      ${a.new_price.toFixed(2)}
-                      {a.change_pct != null && (
-                        <span className="font-normal ml-1 text-white/30">
-                          ({a.change_pct > 0 ? '+' : ''}{a.change_pct.toFixed(1)}%)
-                        </span>
-                      )}
-                    </p>
-                  )}
-                </div>
-                <Link href={`/products/${a.product_id}`}
-                  className="shrink-0 text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors">
-                  View
-                </Link>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
