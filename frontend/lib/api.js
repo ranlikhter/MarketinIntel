@@ -47,20 +47,21 @@ async function request(path, options = {}, canRetry = true) {
 
 const api = {
   // ─── Products ────────────────────────────────────────────────────────────────
-  getProducts: () => request('/products/'),
-  getProduct: (id) => request(`/products/${id}`),
+  getProducts: () => request('/api/products/'),
+  getHomeCatalogSummary: () => request('/api/products/summary'),
+  getProduct: (id) => request(`/api/products/${id}`),
   createProduct: (data) =>
-    request('/products/', { method: 'POST', body: JSON.stringify(data) }),
+    request('/api/products/', { method: 'POST', body: JSON.stringify(data) }),
   updateProduct: (id, data) =>
-    request(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+    request(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteProduct: (id) => request(`/api/products/${id}`, { method: 'DELETE' }),
 
-  getProductMatches: (id) => request(`/products/${id}/matches`),
-  getProductPriceHistory: (id) => request(`/products/${id}/price-history`),
+  getProductMatches: (id) => request(`/api/products/${id}/matches`),
+  getProductPriceHistory: (id) => request(`/api/products/${id}/price-history`),
 
   // CSV export — returns a Blob for download
   exportProductCSV: async (id) => {
-    const res = await fetch(`${BASE}/products/${id}/export.csv`, {
+    const res = await fetch(`${BASE}/api/products/${id}/export.csv`, {
       credentials: 'include',
     });
     if (!res.ok) throw new Error(`Export failed: ${res.status}`);
@@ -69,7 +70,7 @@ const api = {
 
   scrapeProduct: (id, website = 'amazon.com', maxResults = 5) =>
     request(
-      `/products/${id}/scrape?website=${encodeURIComponent(website)}&max_results=${maxResults}`,
+      `/api/products/${id}/scrape?website=${encodeURIComponent(website)}&max_results=${maxResults}`,
       { method: 'POST' }
     ),
 
@@ -80,7 +81,7 @@ const api = {
    * returns the full match object so the UI can render it immediately.
    */
   scrapeProductUrl: (productId, competitorUrl, competitorName = null) =>
-    request(`/products/${productId}/scrape-url`, {
+    request(`/api/products/${productId}/scrape-url`, {
       method: 'POST',
       body: JSON.stringify({
         competitor_url: competitorUrl,
@@ -90,15 +91,15 @@ const api = {
 
   // ─── Competitors ─────────────────────────────────────────────────────────────
   getCompetitors: (activeOnly = false) =>
-    request(`/competitors/?active_only=${activeOnly}`),
-  getCompetitor: (id) => request(`/competitors/${id}`),
+    request(`/api/competitors/?active_only=${activeOnly}`),
+  getCompetitor: (id) => request(`/api/competitors/${id}`),
   createCompetitor: (data) =>
-    request('/competitors/', { method: 'POST', body: JSON.stringify(data) }),
+    request('/api/competitors/', { method: 'POST', body: JSON.stringify(data) }),
   updateCompetitor: (id, data) =>
-    request(`/competitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteCompetitor: (id) => request(`/competitors/${id}`, { method: 'DELETE' }),
+    request(`/api/competitors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCompetitor: (id) => request(`/api/competitors/${id}`, { method: 'DELETE' }),
   toggleCompetitorStatus: (id) =>
-    request(`/competitors/${id}/toggle`, { method: 'POST' }),
+    request(`/api/competitors/${id}/toggle`, { method: 'POST' }),
 
   // ─── Analytics ───────────────────────────────────────────────────────────────
   getProductTrendline: (id, days = 30) =>
@@ -201,7 +202,7 @@ const api = {
     }),
 
   // ─── My Price History ─────────────────────────────────────────────────────────
-  getMyPriceHistory: (id) => request(`/products/${id}/my-price-history`),
+  getMyPriceHistory: (id) => request(`/api/products/${id}/my-price-history`),
 
   // ─── Competitor Intelligence ──────────────────────────────────────────────────
   getCompetitorComparison: (names = []) => {
@@ -214,7 +215,7 @@ const api = {
 
   // ─── Excel export ─────────────────────────────────────────────────────────────
   exportProductXLSX: async (id) => {
-    const res = await fetch(`${BASE}/products/${id}/export.xlsx`, {
+    const res = await fetch(`${BASE}/api/products/${id}/export.xlsx`, {
       credentials: 'include',
     });
     if (!res.ok) throw new Error(`Export failed: ${res.status}`);

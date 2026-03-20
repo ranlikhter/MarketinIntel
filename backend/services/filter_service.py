@@ -4,13 +4,15 @@ Advanced filtering and search for products
 """
 
 from sqlalchemy.orm import Session, Query
-from sqlalchemy import and_, or_, func, desc, select
+from sqlalchemy import or_, func, select
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 from database.models import (
-    ProductMonitored, CompetitorMatch, PriceHistory, User
+    ProductMonitored, CompetitorMatch, User
 )
+from services.product_catalog_service import fetch_latest_price_snapshots, fetch_price_history_rows
 
 
 class FilterService:
@@ -49,25 +51,9 @@ class FilterService:
         else:
             query = base_query
 
-        # Price Position Filter
-        if "price_position" in filters:
-            query = self._filter_by_price_position(query, filters["price_position"])
-
         # Competition Level Filter
         if "competition_level" in filters:
             query = self._filter_by_competition(query, filters["competition_level"])
-
-        # Activity Filter
-        if "activity" in filters:
-            query = self._filter_by_activity(query, filters["activity"])
-
-        # Opportunity Score Filter
-        if "opportunity_score" in filters:
-            query = self._filter_by_opportunity_score(
-                query,
-                filters["opportunity_score"].get("min", 0),
-                filters["opportunity_score"].get("max", 100)
-            )
 
         # Price Range Filter
         if "price_range" in filters:
@@ -115,12 +101,73 @@ class FilterService:
                 )
             )
 
+        snapshot = None
+        if any(key in filters for key in ("price_position", "activity", "opportunity_score")):
+            snapshot = self._build_filter_snapshot(query)
+
+        # Price Position Filter
+        if "price_position" in filters:
+            query = self._filter_by_price_position(query, filters["price_position"], snapshot=snapshot)
+
+        # Activity Filter
+        if "activity" in filters:
+            query = self._filter_by_activity(query, filters["activity"], snapshot=snapshot)
+
+        # Opportunity Score Filter
+        if "opportunity_score" in filters:
+            query = self._filter_by_opportunity_score(
+                query,
+                filters["opportunity_score"].get("min", 0),
+                filters["opportunity_score"].get("max", 100),
+                snapshot=snapshot,
+            )
+
         return query
 
-    def _filter_by_price_position(self, query: Query, position: str) -> Query:
+    def _build_filter_snapshot(self, query: Query) -> Dict[str, Any]:
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        products = query.all()
+        product_ids = [product.id for product in products]
+
+        if not product_ids:
+            return {
+                "products": [],
+                "matches_by_product": {},
+                "latest_prices_by_match": {},
+                "recent_history_by_match": {},
+            }
+
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids)
+        ).all()
+
+        matches_by_product: Dict[int, List[CompetitorMatch]] = defaultdict(list)
+        match_ids = []
+        for match in matches:
+            matches_by_product[match.monitored_product_id].append(match)
+            match_ids.append(match.id)
+
+        return {
+            "products": products,
+            "matches_by_product": matches_by_product,
+            "latest_prices_by_match": fetch_latest_price_snapshots(self.db, match_ids),
+            "recent_history_by_match": fetch_price_history_rows(
+                self.db,
+                match_ids,
+                since=week_ago,
+            ),
+        }
+
+    def _filter_by_price_position(
+        self,
+        query: Query,
+        position: str,
+        *,
+        snapshot: Optional[Dict[str, Any]] = None,
+    ) -> Query:
         """Filter by price position relative to competitors (cheapest, most_expensive, mid_range)"""
-        # Fetch all products with a known my_price and compare against competitor prices in Python
-        all_products = query.all()
+        snapshot = snapshot or self._build_filter_snapshot(query)
+        all_products = snapshot["products"]
         matching_ids = []
 
         for product in all_products:
@@ -128,10 +175,8 @@ class FilterService:
                 continue
 
             competitor_prices = []
-            for match in product.competitor_matches:
-                latest = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id
-                ).order_by(desc(PriceHistory.timestamp)).first()
+            for match in snapshot["matches_by_product"].get(product.id, []):
+                latest = snapshot["latest_prices_by_match"].get(match.id)
                 if latest and latest.in_stock:
                     competitor_prices.append(latest.price)
 
@@ -186,20 +231,23 @@ class FilterService:
 
         return query
 
-    def _filter_by_activity(self, query: Query, activity: str) -> Query:
+    def _filter_by_activity(
+        self,
+        query: Query,
+        activity: str,
+        *,
+        snapshot: Optional[Dict[str, Any]] = None,
+    ) -> Query:
         """Filter by recent activity"""
         week_ago = datetime.utcnow() - timedelta(days=7)
+        snapshot = snapshot or self._build_filter_snapshot(query)
 
         if activity == "price_dropped":
             # Products where any competitor dropped price in last 7 days
-            all_products = query.all()
             matching_ids = []
-            for product in all_products:
-                for match in product.competitor_matches:
-                    recent = self.db.query(PriceHistory).filter(
-                        PriceHistory.match_id == match.id,
-                        PriceHistory.timestamp >= week_ago
-                    ).order_by(PriceHistory.timestamp).all()
+            for product in snapshot["products"]:
+                for match in snapshot["matches_by_product"].get(product.id, []):
+                    recent = snapshot["recent_history_by_match"].get(match.id, [])
                     if len(recent) >= 2 and recent[-1].price < recent[0].price:
                         matching_ids.append(product.id)
                         break
@@ -207,21 +255,22 @@ class FilterService:
 
         elif activity == "new_competitor":
             # Products with new competitors in last 7 days
-            query = query.filter(
-                ProductMonitored.competitor_matches.any(
-                    CompetitorMatch.created_at >= week_ago
+            matching_ids = [
+                product.id
+                for product in snapshot["products"]
+                if any(
+                    match.created_at and match.created_at >= week_ago
+                    for match in snapshot["matches_by_product"].get(product.id, [])
                 )
-            )
+            ]
+            query = query.filter(ProductMonitored.id.in_(matching_ids))
 
         elif activity == "out_of_stock":
             # Products where any competitor is currently out of stock
-            all_products = query.all()
             matching_ids = []
-            for product in all_products:
-                for match in product.competitor_matches:
-                    latest = self.db.query(PriceHistory).filter(
-                        PriceHistory.match_id == match.id
-                    ).order_by(desc(PriceHistory.timestamp)).first()
+            for product in snapshot["products"]:
+                for match in snapshot["matches_by_product"].get(product.id, []):
+                    latest = snapshot["latest_prices_by_match"].get(match.id)
                     if latest and not latest.in_stock:
                         matching_ids.append(product.id)
                         break
@@ -229,13 +278,12 @@ class FilterService:
 
         elif activity == "trending":
             # Products with 5+ price changes in last 7 days
-            all_products = query.all()
             matching_ids = []
-            for product in all_products:
-                change_count = self.db.query(PriceHistory).join(CompetitorMatch).filter(
-                    CompetitorMatch.monitored_product_id == product.id,
-                    PriceHistory.timestamp >= week_ago
-                ).count()
+            for product in snapshot["products"]:
+                change_count = sum(
+                    len(snapshot["recent_history_by_match"].get(match.id, []))
+                    for match in snapshot["matches_by_product"].get(product.id, [])
+                )
                 if change_count >= 5:
                     matching_ids.append(product.id)
             query = query.filter(ProductMonitored.id.in_(matching_ids))
@@ -246,12 +294,15 @@ class FilterService:
         self,
         query: Query,
         min_score: int,
-        max_score: int
+        max_score: int,
+        *,
+        snapshot: Optional[Dict[str, Any]] = None,
     ) -> Query:
         """Filter by opportunity score range (calculated in Python)"""
         from services.insights_service import InsightsService
         insights = InsightsService(self.db, self.user)
-        all_products = query.all()
+        snapshot = snapshot or self._build_filter_snapshot(query)
+        all_products = snapshot["products"]
         matching_ids = [
             p.id for p in all_products
             if min_score <= insights.calculate_opportunity_score(p.id) <= max_score
@@ -311,6 +362,18 @@ class FilterService:
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()
+        product_ids = [product.id for product in products]
+        match_counts = {
+            product_id: count
+            for product_id, count in self.db.query(
+                CompetitorMatch.monitored_product_id,
+                func.count(CompetitorMatch.id),
+            ).filter(
+                CompetitorMatch.monitored_product_id.in_(product_ids or [-1])
+            ).group_by(
+                CompetitorMatch.monitored_product_id
+            ).all()
+        }
 
         # Get unique brands
         brands = list(set([p.brand for p in products if p.brand]))
@@ -324,7 +387,7 @@ class FilterService:
         }
 
         for product in products:
-            comp_count = len(product.competitor_matches)
+            comp_count = match_counts.get(product.id, 0)
             if comp_count == 0:
                 competition_counts["none"] += 1
             elif comp_count <= 2:
@@ -336,6 +399,11 @@ class FilterService:
 
         # Recent activity counts
         week_ago = datetime.utcnow() - timedelta(days=7)
+        snapshot = self._build_filter_snapshot(
+            self.db.query(ProductMonitored).filter(
+                ProductMonitored.id.in_(product_ids or [-1])
+            )
+        )
         activity_counts = {
             "new_competitor": 0,
             "price_dropped": 0,
@@ -343,11 +411,31 @@ class FilterService:
             "trending": 0
         }
 
-        for product in products:
-            # New competitors
-            new_comps = [m for m in product.competitor_matches if m.created_at and m.created_at >= week_ago]
-            if new_comps:
+        for product in snapshot["products"]:
+            matches = snapshot["matches_by_product"].get(product.id, [])
+            if any(match.created_at and match.created_at >= week_ago for match in matches):
                 activity_counts["new_competitor"] += 1
+
+            if any(
+                len(snapshot["recent_history_by_match"].get(match.id, [])) >= 2
+                and snapshot["recent_history_by_match"][match.id][-1].price
+                < snapshot["recent_history_by_match"][match.id][0].price
+                for match in matches
+            ):
+                activity_counts["price_dropped"] += 1
+
+            if any(
+                (latest := snapshot["latest_prices_by_match"].get(match.id)) is not None
+                and not latest.in_stock
+                for match in matches
+            ):
+                activity_counts["out_of_stock"] += 1
+
+            if sum(
+                len(snapshot["recent_history_by_match"].get(match.id, []))
+                for match in matches
+            ) >= 5:
+                activity_counts["trending"] += 1
 
         return {
             "brands": sorted(brands),

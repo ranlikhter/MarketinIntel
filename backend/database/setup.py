@@ -147,8 +147,12 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_ph_match_time ON price_history(match_id, timestamp DESC)",
         # price_alerts: every alert check filters on (product_id, enabled)
         "CREATE INDEX IF NOT EXISTS idx_pa_product_enabled ON price_alerts(product_id, enabled)",
+        # price_alerts: dashboards and scanners frequently filter enabled alerts per user
+        "CREATE INDEX IF NOT EXISTS idx_pa_user_enabled ON price_alerts(user_id, enabled)",
         # products_monitored: user owns many products; user_id queries are extremely common
         "CREATE INDEX IF NOT EXISTS idx_pm_user_created ON products_monitored(user_id, created_at DESC)",
+        # my_price_history: product detail pages always load price changes per product in time order
+        "CREATE INDEX IF NOT EXISTS idx_mph_product_changed ON my_price_history(product_id, changed_at)",
     ]
     with engine.connect() as conn:
         for sql in migrations:

@@ -4,15 +4,16 @@ Analyzes product and competitor data to provide actionable recommendations
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, desc
+from sqlalchemy import and_
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 from collections import defaultdict
 
 from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory,
-    PriceAlert, User, CompetitorWebsite
+    PriceAlert, User
 )
+from services.product_catalog_service import PriceSnapshot, fetch_latest_price_snapshots
 
 
 class InsightsService:
@@ -21,6 +22,15 @@ class InsightsService:
     def __init__(self, db: Session, user: User):
         self.db = db
         self.user = user
+        self._snapshot_loaded = False
+        self._products: List[ProductMonitored] = []
+        self._products_by_id: Dict[int, ProductMonitored] = {}
+        self._matches_by_product: Dict[int, List[CompetitorMatch]] = defaultdict(list)
+        self._latest_prices_by_match: Dict[int, PriceSnapshot] = {}
+        self._historical_prices_by_match: Dict[int, PriceSnapshot] = {}
+        self._recent_history_by_match: Dict[int, List[PriceHistory]] = defaultdict(list)
+        self._active_alerts_count = 0
+        self._recent_price_change_count = 0
 
     def get_dashboard_insights(self) -> Dict[str, Any]:
         """
@@ -192,13 +202,10 @@ class InsightsService:
         """
         Get key performance metrics
         """
-        # Get all user's products
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         total_products = len(products)
-        total_matches = sum(len(p.competitor_matches) for p in products)
+        total_matches = sum(len(self._get_product_matches(p.id)) for p in products)
 
         # Calculate competitive position
         cheapest_count = 0
@@ -214,25 +221,6 @@ class InsightsService:
             else:
                 mid_range_count += 1
 
-        # Active alerts
-        active_alerts = self.db.query(PriceAlert).filter(
-            and_(
-                PriceAlert.user_id == self.user.id,
-                PriceAlert.enabled == True
-            )
-        ).count()
-
-        # Recent price changes (last 7 days)
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        recent_changes = self.db.query(PriceHistory).join(
-            CompetitorMatch
-        ).join(
-            ProductMonitored
-        ).filter(
-            ProductMonitored.user_id == self.user.id,
-            PriceHistory.timestamp >= week_ago
-        ).count()
-
         return {
             "total_products": total_products,
             "total_competitors": total_matches,
@@ -242,8 +230,8 @@ class InsightsService:
                 "most_expensive": most_expensive_count,
                 "cheapest_pct": round((cheapest_count / total_products * 100) if total_products > 0 else 0, 1)
             },
-            "active_alerts": active_alerts,
-            "price_changes_last_week": recent_changes,
+            "active_alerts": self._active_alerts_count,
+            "price_changes_last_week": self._recent_price_change_count,
             "avg_competitors_per_product": round(total_matches / total_products, 1) if total_products > 0 else 0
         }
 
@@ -254,19 +242,13 @@ class InsightsService:
         trending = []
 
         # Products with most price changes in last 7 days
-        week_ago = datetime.utcnow() - timedelta(days=7)
-
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         for product in products[:20]:  # Limit to top 20
-            change_count = self.db.query(PriceHistory).join(
-                CompetitorMatch
-            ).filter(
-                CompetitorMatch.monitored_product_id == product.id,
-                PriceHistory.timestamp >= week_ago
-            ).count()
+            change_count = sum(
+                len(self._get_recent_history(match.id))
+                for match in self._get_product_matches(product.id)
+            )
 
             if change_count >= 5:  # Threshold for "trending"
                 trending.append({
@@ -283,10 +265,7 @@ class InsightsService:
         Calculate opportunity score (0-100) for a product
         Higher score = more opportunity for profit/action
         """
-        product = self.db.query(ProductMonitored).filter(
-            ProductMonitored.id == product_id,
-            ProductMonitored.user_id == self.user.id
-        ).first()
+        product = self._get_product_by_id(product_id)
 
         if not product:
             return 0
@@ -301,27 +280,25 @@ class InsightsService:
             score -= 20  # Need to lower price
 
         # Factor 2: Competitor count (-10 for high competition)
-        competitor_count = len(product.competitor_matches)
+        competitor_matches = self._get_product_matches(product.id)
+        competitor_count = len(competitor_matches)
         if competitor_count > 5:
             score -= 10
         elif competitor_count < 2:
             score += 10  # Low competition = opportunity
 
         # Factor 3: Recent price volatility (+15 if volatile)
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        changes = self.db.query(PriceHistory).join(
-            CompetitorMatch
-        ).filter(
-            CompetitorMatch.monitored_product_id == product.id,
-            PriceHistory.timestamp >= week_ago
-        ).count()
+        changes = sum(
+            len(self._get_recent_history(match.id))
+            for match in competitor_matches
+        )
 
         if changes >= 5:
             score += 15  # High activity = opportunity
 
         # Factor 4: Competitors out of stock (+25 bonus)
         out_of_stock = 0
-        for m in product.competitor_matches:
+        for m in competitor_matches:
             lp = self._get_latest_price(m.id)
             if lp and not lp.in_stock:
                 out_of_stock += 1
@@ -330,12 +307,82 @@ class InsightsService:
 
         return max(0, min(100, score))  # Clamp to 0-100
 
+    def _ensure_catalog_snapshot(self) -> None:
+        if self._snapshot_loaded:
+            return
+
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        self._products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).all()
+        self._products_by_id = {product.id: product for product in self._products}
+
+        self._active_alerts_count = self.db.query(PriceAlert).filter(
+            and_(
+                PriceAlert.user_id == self.user.id,
+                PriceAlert.enabled == True,
+            )
+        ).count()
+
+        product_ids = list(self._products_by_id.keys())
+        if not product_ids:
+            self._snapshot_loaded = True
+            return
+
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids)
+        ).all()
+
+        match_ids = []
+        for match in matches:
+            self._matches_by_product[match.monitored_product_id].append(match)
+            match_ids.append(match.id)
+
+        if match_ids:
+            self._latest_prices_by_match = fetch_latest_price_snapshots(self.db, match_ids)
+            self._historical_prices_by_match = fetch_latest_price_snapshots(
+                self.db,
+                match_ids,
+                before=week_ago,
+            )
+            recent_history_rows = self.db.query(PriceHistory).filter(
+                PriceHistory.match_id.in_(match_ids),
+                PriceHistory.timestamp >= week_ago,
+            ).order_by(
+                PriceHistory.match_id.asc(),
+                PriceHistory.timestamp.asc(),
+            ).all()
+
+            self._recent_price_change_count = len(recent_history_rows)
+            for row in recent_history_rows:
+                self._recent_history_by_match[row.match_id].append(row)
+
+        self._snapshot_loaded = True
+
+    def _get_user_products(self) -> List[ProductMonitored]:
+        self._ensure_catalog_snapshot()
+        return self._products
+
+    def _get_product_by_id(self, product_id: int) -> ProductMonitored | None:
+        self._ensure_catalog_snapshot()
+        return self._products_by_id.get(product_id)
+
+    def _get_product_matches(self, product_id: int) -> List[CompetitorMatch]:
+        self._ensure_catalog_snapshot()
+        return self._matches_by_product.get(product_id, [])
+
+    def _get_recent_history(self, match_id: int) -> List[PriceHistory]:
+        self._ensure_catalog_snapshot()
+        return self._recent_history_by_match.get(match_id, [])
+
+    def _get_historical_price(self, match_id: int) -> PriceSnapshot | None:
+        self._ensure_catalog_snapshot()
+        return self._historical_prices_by_match.get(match_id)
+
     # Helper methods
     def _get_overpriced_products(self) -> List[Dict[str, Any]]:
         """Get products where user is most expensive"""
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         overpriced = []
         for product in products:
@@ -343,21 +390,20 @@ class InsightsService:
                 overpriced.append({
                     "product_id": product.id,
                     "title": product.title,
-                    "competitor_count": len(product.competitor_matches)
+                    "competitor_count": len(self._get_product_matches(product.id))
                 })
 
         return overpriced
 
     def _get_out_of_stock_opportunities(self) -> List[Dict[str, Any]]:
         """Get products where competitors are out of stock"""
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         opportunities = []
         for product in products:
             out_of_stock_count = 0
-            for match in product.competitor_matches:
+            matches = self._get_product_matches(product.id)
+            for match in matches:
                 latest = self._get_latest_price(match.id)
                 if latest and not latest.in_stock:
                     out_of_stock_count += 1
@@ -367,7 +413,7 @@ class InsightsService:
                     "product_id": product.id,
                     "title": product.title,
                     "out_of_stock_count": out_of_stock_count,
-                    "total_competitors": len(product.competitor_matches)
+                    "total_competitors": len(matches)
                 })
 
         return opportunities
@@ -375,19 +421,17 @@ class InsightsService:
     def _detect_price_wars(self) -> List[Dict[str, Any]]:
         """Detect products in active price wars (3+ price drops in 24h)"""
         yesterday = datetime.utcnow() - timedelta(hours=24)
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         price_wars = []
         for product in products:
             # Count price drops in last 24h
             drops = 0
-            for match in product.competitor_matches:
-                recent_prices = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= yesterday
-                ).order_by(PriceHistory.timestamp).all()
+            for match in self._get_product_matches(product.id):
+                recent_prices = [
+                    row for row in self._get_recent_history(match.id)
+                    if row.timestamp >= yesterday
+                ]
 
                 # Check for price drops
                 for i in range(1, len(recent_prices)):
@@ -407,13 +451,15 @@ class InsightsService:
         """Get newly detected competitors (added in last 7 days)"""
         week_ago = datetime.utcnow() - timedelta(days=7)
 
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         new_comps = []
         for product in products:
-            new_matches = [m for m in product.competitor_matches if m.created_at and m.created_at >= week_ago]
+            new_matches = [
+                match
+                for match in self._get_product_matches(product.id)
+                if match.created_at and match.created_at >= week_ago
+            ]
             if new_matches:
                 new_comps.append({
                     "product_id": product.id,
@@ -427,15 +473,14 @@ class InsightsService:
         """Get products with stale data (no updates in 48h)"""
         threshold = datetime.utcnow() - timedelta(hours=48)
 
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         stale = []
         for product in products:
             # Check last crawl time
-            if product.competitor_matches:
-                crawl_times = [m.last_scraped_at for m in product.competitor_matches if m.last_scraped_at]
+            product_matches = self._get_product_matches(product.id)
+            if product_matches:
+                crawl_times = [m.last_scraped_at for m in product_matches if m.last_scraped_at]
                 if not crawl_times:
                     stale.append({
                         "product_id": product.id,
@@ -455,15 +500,16 @@ class InsightsService:
 
     def _get_underpriced_products(self) -> List[Dict[str, Any]]:
         """Get products where user is cheapest (could raise price)"""
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         underpriced = []
         for product in products:
             if self._get_price_position(product) == "cheapest":
                 # Calculate potential gain
-                latest_prices = [(m, self._get_latest_price(m.id)) for m in product.competitor_matches]
+                latest_prices = [
+                    (match, self._get_latest_price(match.id))
+                    for match in self._get_product_matches(product.id)
+                ]
                 prices = [lp.price for m, lp in latest_prices if lp]
                 if prices:
                     second_lowest = sorted(prices)[1] if len(prices) > 1 else prices[0]
@@ -480,17 +526,15 @@ class InsightsService:
 
     def _get_low_competition_products(self) -> List[Dict[str, Any]]:
         """Get products with few competitors (< 3)"""
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         return [
             {
                 "product_id": p.id,
                 "title": p.title,
-                "competitor_count": len(p.competitor_matches)
+                "competitor_count": len(self._get_product_matches(p.id))
             }
-            for p in products if len(p.competitor_matches) < 3
+            for p in products if len(self._get_product_matches(p.id)) < 3
         ]
 
     def _get_bundling_opportunities(self) -> List[Dict[str, Any]]:
@@ -499,16 +543,14 @@ class InsightsService:
         while we sell individual items (detected via title keywords).
         """
         bundle_keywords = {"bundle", "kit", "set", "pack", "combo", "collection", "multipack"}
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         opportunities = []
         for product in products:
             # Check if any competitor title contains bundle keywords
             bundled_competitors = [
                 m.competitor_name
-                for m in product.competitor_matches
+                for m in self._get_product_matches(product.id)
                 if m.competitor_product_title and
                 any(kw in m.competitor_product_title.lower() for kw in bundle_keywords)
             ]
@@ -527,19 +569,13 @@ class InsightsService:
         Find competitors who dropped their price 3+ times in the last 7 days
         across any of the user's products.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         competitor_drop_counts: Dict[str, int] = {}
 
         for product in products:
-            for match in product.competitor_matches:
-                prices = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= week_ago
-                ).order_by(PriceHistory.timestamp).all()
+            for match in self._get_product_matches(product.id):
+                prices = self._get_recent_history(match.id)
 
                 drops = sum(
                     1 for i in range(1, len(prices))
@@ -561,20 +597,13 @@ class InsightsService:
         """
         Find products where the average competitor price declined over the last 7 days.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         declining = []
         for product in products:
             old_prices, new_prices = [], []
-            for match in product.competitor_matches:
-                history = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= week_ago,
-                    PriceHistory.in_stock == True,
-                ).order_by(PriceHistory.timestamp).all()
+            for match in self._get_product_matches(product.id):
+                history = [row for row in self._get_recent_history(match.id) if row.in_stock]
 
                 if len(history) >= 2:
                     old_prices.append(history[0].price)
@@ -602,10 +631,7 @@ class InsightsService:
         Find products where we were cheapest 7 days ago but are no longer the cheapest now.
         Requires my_price to be set on the product.
         """
-        week_ago = datetime.utcnow() - timedelta(days=7)
-        products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
-        ).all()
+        products = self._get_user_products()
 
         lost = []
         for product in products:
@@ -615,16 +641,12 @@ class InsightsService:
             # Were we cheapest a week ago?
             old_comp_prices = []
             new_comp_prices = []
-            for match in product.competitor_matches:
-                old_ph = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp <= week_ago,
-                    PriceHistory.in_stock == True,
-                ).order_by(desc(PriceHistory.timestamp)).first()
+            for match in self._get_product_matches(product.id):
+                old_ph = self._get_historical_price(match.id)
 
                 new_ph = self._get_latest_price(match.id)
 
-                if old_ph:
+                if old_ph and old_ph.in_stock:
                     old_comp_prices.append(old_ph.price)
                 if new_ph and new_ph.in_stock:
                     new_comp_prices.append(new_ph.price)
@@ -647,11 +669,12 @@ class InsightsService:
 
     def _get_price_position(self, product: ProductMonitored) -> str:
         """Determine if product is cheapest, most expensive, or mid-range"""
-        if not product.competitor_matches:
+        product_matches = self._get_product_matches(product.id)
+        if not product_matches:
             return "no_data"
 
         prices = []
-        for match in product.competitor_matches:
+        for match in product_matches:
             latest = self._get_latest_price(match.id)
             if latest and latest.in_stock:
                 prices.append(latest.price)
@@ -674,11 +697,10 @@ class InsightsService:
         # Fallback when my_price is not set
         return "mid_range"
 
-    def _get_latest_price(self, match_id: int) -> PriceHistory:
+    def _get_latest_price(self, match_id: int) -> PriceSnapshot | None:
         """Get the most recent price for a competitor match"""
-        return self.db.query(PriceHistory).filter(
-            PriceHistory.match_id == match_id
-        ).order_by(desc(PriceHistory.timestamp)).first()
+        self._ensure_catalog_snapshot()
+        return self._latest_prices_by_match.get(match_id)
 
 
 # Singleton-like access

@@ -82,10 +82,13 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const [products, competitors] = await Promise.all([api.getProducts(), api.getCompetitors()]);
-        const totalMatches = products.reduce((s, p) => s + (p.competitor_count || 0), 0);
-        setStats({ products: products.length, competitors: competitors.length, matches: totalMatches });
-        setRecent(products.slice(0, 6));
+        const summary = await api.getHomeCatalogSummary();
+        setStats({
+          products: summary.total_products || 0,
+          competitors: summary.total_competitors || 0,
+          matches: summary.total_matches || 0,
+        });
+        setRecent(summary.recent_products || []);
       } catch { /* ignore */ } finally {
         setLoading(false);
       }

@@ -8,13 +8,66 @@ from sqlalchemy.orm import Session
 from pydantic import ConfigDict, BaseModel
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from database.connection import get_db
-from database.models import User, SavedView, ProductMonitored, WorkspaceMember, SubscriptionTier
+from database.models import (
+    User,
+    SavedView,
+    ProductMonitored,
+    WorkspaceMember,
+    SubscriptionTier,
+    CompetitorMatch,
+    PriceAlert,
+)
 from api.dependencies import get_current_user
 from services.filter_service import get_filter_service
 
 router = APIRouter(prefix="/filters", tags=["Filtering & Search"])
+
+
+def _serialize_products(db: Session, products: List[ProductMonitored]) -> List[Dict[str, Any]]:
+    product_ids = [product.id for product in products]
+    if not product_ids:
+        return []
+
+    competitor_counts = {
+        product_id: count
+        for product_id, count in db.query(
+            CompetitorMatch.monitored_product_id,
+            func.count(CompetitorMatch.id),
+        ).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids)
+        ).group_by(
+            CompetitorMatch.monitored_product_id
+        ).all()
+    }
+
+    alert_counts = {
+        product_id: count
+        for product_id, count in db.query(
+            PriceAlert.product_id,
+            func.count(PriceAlert.id),
+        ).filter(
+            PriceAlert.product_id.in_(product_ids),
+            PriceAlert.enabled == True,
+        ).group_by(
+            PriceAlert.product_id
+        ).all()
+    }
+
+    return [
+        {
+            "id": product.id,
+            "title": product.title,
+            "sku": product.sku,
+            "brand": product.brand,
+            "image_url": product.image_url,
+            "competitor_count": competitor_counts.get(product.id, 0),
+            "alert_count": alert_counts.get(product.id, 0),
+            "created_at": product.created_at,
+        }
+        for product in products
+    ]
 
 
 # Pydantic Models
@@ -123,19 +176,7 @@ async def apply_filters(
     products = query.offset(request.offset).limit(request.limit).all()
 
     return {
-        "products": [
-            {
-                "id": p.id,
-                "title": p.title,
-                "sku": p.sku,
-                "brand": p.brand,
-                "image_url": p.image_url,
-                "competitor_count": len(p.competitor_matches),
-                "alert_count": len([a for a in p.alerts if a.enabled]),
-                "created_at": p.created_at
-            }
-            for p in products
-        ],
+        "products": _serialize_products(db, products),
         "total": total,
         "limit": request.limit,
         "offset": request.offset,
@@ -162,18 +203,7 @@ async def search_products(
 
     return {
         "query": q,
-        "results": [
-            {
-                "id": p.id,
-                "title": p.title,
-                "sku": p.sku,
-                "brand": p.brand,
-                "image_url": p.image_url,
-                "competitor_count": len(p.competitor_matches),
-                "created_at": p.created_at
-            }
-            for p in products
-        ],
+        "results": _serialize_products(db, products),
         "total": len(products)
     }
 

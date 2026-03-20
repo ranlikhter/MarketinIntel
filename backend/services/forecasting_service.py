@@ -4,14 +4,19 @@ Historical analysis and price predictions
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
-from typing import List, Dict, Any, Optional, Tuple
+from sqlalchemy import func
+from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 from collections import defaultdict
 import statistics
 
 from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory, User
+)
+from services.product_catalog_service import (
+    fetch_first_price_history_rows,
+    fetch_latest_price_history_rows,
+    fetch_price_history_rows,
 )
 
 
@@ -53,6 +58,11 @@ class ForecastingService:
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id
         ).all()
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=cutoff_date,
+        )
 
         if not matches:
             return {
@@ -64,10 +74,7 @@ class ForecastingService:
         competitor_histories = {}
 
         for match in matches:
-            history = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= cutoff_date
-            ).order_by(PriceHistory.timestamp).all()
+            history = history_by_match.get(match.id, [])
 
             if history:
                 competitor_histories[match.competitor_name] = [
@@ -145,6 +152,11 @@ class ForecastingService:
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id
         ).all()
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=ninety_days_ago,
+        )
 
         if not matches:
             return {
@@ -156,10 +168,7 @@ class ForecastingService:
         all_price_points = []
 
         for match in matches:
-            history = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= ninety_days_ago
-            ).order_by(PriceHistory.timestamp).all()
+            history = history_by_match.get(match.id, [])
 
             for h in history:
                 if h.price > 0:
@@ -221,16 +230,18 @@ class ForecastingService:
         matches = self.db.query(CompetitorMatch).filter(
             CompetitorMatch.monitored_product_id == product_id
         ).all()
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=cutoff_date,
+        )
 
         # Collect price data grouped by time period
         day_of_week_prices = defaultdict(list)
         month_prices = defaultdict(list)
 
         for match in matches:
-            history = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= cutoff_date
-            ).all()
+            history = history_by_match.get(match.id, [])
 
             for h in history:
                 if h.price > 0:
@@ -311,19 +322,42 @@ class ForecastingService:
             ProductMonitored.user_id == self.user.id,
             func.lower(CompetitorMatch.competitor_name) == competitor_name.lower()
         ).all()
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=cutoff_date,
+        )
 
         if not matches:
             return {"error": "Competitor not found"}
+
+        product_ids = sorted({match.monitored_product_id for match in matches})
+        sibling_matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids or [-1])
+        ).all()
+        sibling_history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in sibling_matches],
+            since=cutoff_date - timedelta(hours=1),
+        )
+        sibling_history_by_product: Dict[int, List[PriceHistory]] = defaultdict(list)
+        for sibling_match in sibling_matches:
+            sibling_history_by_product[sibling_match.monitored_product_id].extend(
+                sibling_history_by_match.get(sibling_match.id, [])
+            )
+        product_titles = {
+            product.id: product.title
+            for product in self.db.query(ProductMonitored).filter(
+                ProductMonitored.id.in_(product_ids or [-1])
+            ).all()
+        }
 
         performance_data = []
         total_win_count = 0
         total_checks = 0
 
         for match in matches:
-            history = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= cutoff_date
-            ).order_by(PriceHistory.timestamp).all()
+            history = history_by_match.get(match.id, [])
 
             if not history:
                 continue
@@ -340,8 +374,8 @@ class ForecastingService:
 
                     # Get all competitor prices at this timestamp
                     all_prices = self._get_all_prices_at_time(
-                        match.monitored_product_id,
-                        h.timestamp
+                        sibling_history_by_product.get(match.monitored_product_id, []),
+                        h.timestamp,
                     )
 
                     if all_prices and h.price == min(all_prices):
@@ -350,7 +384,7 @@ class ForecastingService:
             # Calculate statistics for this product
             performance_data.append({
                 "product_id": match.monitored_product_id,
-                "product_title": match.monitored_product.title,
+                "product_title": product_titles.get(match.monitored_product_id, f"Product {match.monitored_product_id}"),
                 "avg_price": round(statistics.mean(prices), 2),
                 "price_volatility": round(statistics.stdev(prices), 2) if len(prices) > 1 else 0,
                 "price_changes": len(prices) - 1,
@@ -397,44 +431,49 @@ class ForecastingService:
         products = self.db.query(ProductMonitored).filter(
             ProductMonitored.user_id == self.user.id
         ).all()
+        product_ids = [product.id for product in products]
+        product_lookup = {product.id: product for product in products}
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids or [-1])
+        ).all()
+        first_prices_by_match = fetch_first_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=cutoff_date,
+        )
+        latest_prices_by_match = fetch_latest_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+        )
 
         price_drops = []
 
-        for product in products:
-            matches = self.db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product.id
-            ).all()
+        for match in matches:
+            product = product_lookup.get(match.monitored_product_id)
+            first_price = first_prices_by_match.get(match.id)
+            latest_price = latest_prices_by_match.get(match.id)
 
-            for match in matches:
-                # Get first and latest price
-                first_price = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= cutoff_date
-                ).order_by(PriceHistory.timestamp).first()
+            if not product or not first_price or not latest_price or first_price.price <= 0:
+                continue
 
-                latest_price = self.db.query(PriceHistory).filter(
-                    PriceHistory.match_id == match.id
-                ).order_by(desc(PriceHistory.timestamp)).first()
+            drop_pct = (
+                (first_price.price - latest_price.price) /
+                first_price.price * 100
+            )
 
-                if first_price and latest_price and first_price.price > 0:
-                    drop_pct = (
-                        (first_price.price - latest_price.price) /
-                        first_price.price * 100
-                    )
-
-                    if drop_pct >= min_drop_pct:
-                        price_drops.append({
-                            "product_id": product.id,
-                            "product_title": product.title,
-                            "competitor_name": match.competitor_name,
-                            "competitor_url": match.competitor_url,
-                            "original_price": float(first_price.price),
-                            "current_price": float(latest_price.price),
-                            "drop_amount": round(first_price.price - latest_price.price, 2),
-                            "drop_pct": round(drop_pct, 1),
-                            "first_seen": first_price.timestamp.isoformat(),
-                            "last_checked": latest_price.timestamp.isoformat()
-                        })
+            if drop_pct >= min_drop_pct:
+                price_drops.append({
+                    "product_id": product.id,
+                    "product_title": product.title,
+                    "competitor_name": match.competitor_name,
+                    "competitor_url": match.competitor_url,
+                    "original_price": float(first_price.price),
+                    "current_price": float(latest_price.price),
+                    "drop_amount": round(first_price.price - latest_price.price, 2),
+                    "drop_pct": round(drop_pct, 1),
+                    "first_seen": first_price.timestamp.isoformat(),
+                    "last_checked": latest_price.timestamp.isoformat()
+                })
 
         # Sort by drop percentage
         price_drops.sort(key=lambda x: x["drop_pct"], reverse=True)
@@ -444,6 +483,176 @@ class ForecastingService:
             "min_drop_threshold": min_drop_pct,
             "total_drops_found": len(price_drops),
             "significant_drops": price_drops[:20]  # Top 20 drops
+        }
+
+    def get_trends_summary(self, limit: int = 100) -> Dict[str, Any]:
+        """Get high-level trend and forecast signals across the user's catalog."""
+        now = datetime.utcnow()
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).limit(limit).all()
+        product_ids = [product.id for product in products]
+
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids or [-1])
+        ).all()
+        matches_by_product: Dict[int, List[CompetitorMatch]] = defaultdict(list)
+        for match in matches:
+            matches_by_product[match.monitored_product_id].append(match)
+
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=now - timedelta(days=90),
+        )
+
+        trends = {"increasing": 0, "decreasing": 0, "stable": 0}
+        high_volatility_products = []
+        predicted_drops = []
+
+        for product in products:
+            competitor_histories_30 = {}
+            all_price_points_90 = []
+
+            for match in matches_by_product.get(product.id, []):
+                history_90 = history_by_match.get(match.id, [])
+                history_30 = [
+                    row for row in history_90
+                    if row.timestamp >= now - timedelta(days=30)
+                ]
+
+                if history_30:
+                    competitor_histories_30[match.competitor_name] = [
+                        {
+                            "timestamp": row.timestamp.isoformat(),
+                            "price": float(row.price),
+                            "in_stock": row.in_stock,
+                        }
+                        for row in history_30
+                    ]
+
+                for row in history_90:
+                    if row.price > 0:
+                        all_price_points_90.append({
+                            "timestamp": row.timestamp,
+                            "price": float(row.price),
+                            "competitor": match.competitor_name,
+                        })
+
+            if competitor_histories_30:
+                trend = self._analyze_trend(competitor_histories_30, 30)
+                trends[trend["direction"]] = trends.get(trend["direction"], 0) + 1
+
+                all_prices_30 = [
+                    point["price"]
+                    for history in competitor_histories_30.values()
+                    for point in history
+                    if point["price"] > 0
+                ]
+                if all_prices_30 and self._calculate_volatility(all_prices_30) == "High":
+                    high_volatility_products.append({
+                        "product_id": product.id,
+                        "product_title": product.title,
+                        "volatility": "High",
+                    })
+
+            if len(all_price_points_90) >= 10:
+                forecast = self._simple_forecast(all_price_points_90, 30)
+                if forecast["price_change_pct"] < -5:
+                    predicted_drops.append({
+                        "product_id": product.id,
+                        "product_title": product.title,
+                        "predicted_drop_pct": forecast["price_change_pct"],
+                    })
+
+        predicted_drops.sort(key=lambda x: x["predicted_drop_pct"])
+
+        return {
+            "total_products_analyzed": len(products),
+            "trend_distribution": trends,
+            "high_volatility_products": high_volatility_products[:10],
+            "predicted_price_drops": predicted_drops[:10],
+            "summary": {
+                "market_trend": max(trends, key=trends.get) if products else "stable",
+                "volatile_products_count": len(high_volatility_products),
+                "predicted_drops_count": len(predicted_drops),
+            },
+        }
+
+    def get_best_time_to_buy_insights(
+        self,
+        limit: int = 50,
+        months: int = 12,
+    ) -> Dict[str, Any]:
+        """Aggregate day/month buying recommendations across the catalog."""
+        cutoff_date = datetime.utcnow() - timedelta(days=months * 30)
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == self.user.id
+        ).limit(limit).all()
+        product_ids = [product.id for product in products]
+
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids or [-1])
+        ).all()
+        matches_by_product: Dict[int, List[CompetitorMatch]] = defaultdict(list)
+        for match in matches:
+            matches_by_product[match.monitored_product_id].append(match)
+
+        history_by_match = fetch_price_history_rows(
+            self.db,
+            [match.id for match in matches],
+            since=cutoff_date,
+        )
+
+        day_recommendations = defaultdict(int)
+        month_recommendations = defaultdict(int)
+        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        month_names = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December",
+        ]
+
+        for product in products:
+            day_of_week_prices = defaultdict(list)
+            month_prices = defaultdict(list)
+
+            for match in matches_by_product.get(product.id, []):
+                for row in history_by_match.get(match.id, []):
+                    if row.price <= 0:
+                        continue
+                    day_of_week_prices[row.timestamp.weekday()].append(float(row.price))
+                    month_prices[row.timestamp.month].append(float(row.price))
+
+            if day_of_week_prices:
+                best_day_index = min(
+                    day_of_week_prices.items(),
+                    key=lambda item: statistics.mean(item[1]),
+                )[0]
+                day_recommendations[day_names[best_day_index]] += 1
+
+            if month_prices:
+                best_month_index = min(
+                    month_prices.items(),
+                    key=lambda item: statistics.mean(item[1]),
+                )[0]
+                month_recommendations[month_names[best_month_index - 1]] += 1
+
+        best_day = max(day_recommendations.items(), key=lambda item: item[1])[0] if day_recommendations else None
+        best_month = max(month_recommendations.items(), key=lambda item: item[1])[0] if month_recommendations else None
+
+        return {
+            "products_analyzed": len(products),
+            "overall_recommendations": {
+                "best_day_to_buy": best_day,
+                "best_month_to_buy": best_month,
+            },
+            "day_distribution": dict(day_recommendations),
+            "month_distribution": dict(month_recommendations),
+            "insights": [
+                f"Most products have lowest prices on {best_day}" if best_day else None,
+                f"Prices tend to be lowest in {best_month}" if best_month else None,
+                "Patterns detected across your catalog",
+            ],
         }
 
     # Helper methods
@@ -656,29 +865,16 @@ class ForecastingService:
 
     def _get_all_prices_at_time(
         self,
-        product_id: int,
+        history_rows: List[PriceHistory],
         timestamp: datetime
     ) -> List[float]:
         """Get all competitor prices at a specific time"""
         time_window = timedelta(hours=1)
-
-        matches = self.db.query(CompetitorMatch).filter(
-            CompetitorMatch.monitored_product_id == product_id
-        ).all()
-
-        prices = []
-
-        for match in matches:
-            price = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= timestamp - time_window,
-                PriceHistory.timestamp <= timestamp + time_window
-            ).first()
-
-            if price and price.price > 0:
-                prices.append(float(price.price))
-
-        return prices
+        return [
+            float(row.price)
+            for row in history_rows
+            if row.price > 0 and timestamp - time_window <= row.timestamp <= timestamp + time_window
+        ]
 
 
 def get_forecasting_service(db: Session, user: User) -> ForecastingService:

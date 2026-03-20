@@ -245,63 +245,8 @@ async def get_trends_summary(
 
     **Example:** `/api/forecasting/trends/summary`
     """
-    from database.models import ProductMonitored
-
-    products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == current_user.id
-    ).limit(100).all()  # Limit to first 100 for performance
-
     forecasting_service = get_forecasting_service(db, current_user)
-
-    trends = {
-        "increasing": 0,
-        "decreasing": 0,
-        "stable": 0
-    }
-
-    high_volatility_products = []
-    predicted_drops = []
-
-    for product in products:
-        # Get trend
-        analysis = forecasting_service.get_price_history_analysis(product.id, 30)
-
-        if "trend" in analysis:
-            direction = analysis["trend"]["direction"]
-            trends[direction] = trends.get(direction, 0) + 1
-
-            # Track high volatility
-            if "statistics" in analysis and analysis["statistics"].get("volatility") == "High":
-                high_volatility_products.append({
-                    "product_id": product.id,
-                    "product_title": product.title,
-                    "volatility": analysis["statistics"]["volatility"]
-                })
-
-        # Get forecast
-        forecast = forecasting_service.forecast_price(product.id, 30)
-
-        if "price_change_pct" in forecast and forecast["price_change_pct"] < -5:
-            predicted_drops.append({
-                "product_id": product.id,
-                "product_title": product.title,
-                "predicted_drop_pct": forecast["price_change_pct"]
-            })
-
-    # Sort predicted drops by magnitude
-    predicted_drops.sort(key=lambda x: x["predicted_drop_pct"])
-
-    return {
-        "total_products_analyzed": len(products),
-        "trend_distribution": trends,
-        "high_volatility_products": high_volatility_products[:10],
-        "predicted_price_drops": predicted_drops[:10],
-        "summary": {
-            "market_trend": max(trends, key=trends.get),
-            "volatile_products_count": len(high_volatility_products),
-            "predicted_drops_count": len(predicted_drops)
-        }
-    }
+    return forecasting_service.get_trends_summary(limit=100)
 
 
 @router.get("/insights/best-time-to-buy")
@@ -321,54 +266,5 @@ async def get_best_time_to_buy_insights(
 
     **Example:** `/api/forecasting/insights/best-time-to-buy`
     """
-    from database.models import ProductMonitored
-    from collections import defaultdict
-
-    products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == current_user.id
-    ).limit(50).all()  # Sample first 50 products
-
     forecasting_service = get_forecasting_service(db, current_user)
-
-    # Aggregate day of week recommendations
-    day_recommendations = defaultdict(int)
-    month_recommendations = defaultdict(int)
-
-    for product in products:
-        patterns = forecasting_service.get_seasonal_patterns(product.id, 12)
-
-        if "recommendations" in patterns:
-            best_day = patterns["recommendations"].get("best_day_to_buy")
-            best_month = patterns["recommendations"].get("best_month_to_buy")
-
-            if best_day:
-                day_recommendations[best_day] += 1
-
-            if best_month:
-                month_recommendations[best_month] += 1
-
-    # Find most common recommendations
-    best_day = max(
-        day_recommendations.items(),
-        key=lambda x: x[1]
-    )[0] if day_recommendations else None
-
-    best_month = max(
-        month_recommendations.items(),
-        key=lambda x: x[1]
-    )[0] if month_recommendations else None
-
-    return {
-        "products_analyzed": len(products),
-        "overall_recommendations": {
-            "best_day_to_buy": best_day,
-            "best_month_to_buy": best_month
-        },
-        "day_distribution": dict(day_recommendations),
-        "month_distribution": dict(month_recommendations),
-        "insights": [
-            f"Most products have lowest prices on {best_day}" if best_day else None,
-            f"Prices tend to be lowest in {best_month}" if best_month else None,
-            "Patterns detected across your catalog"
-        ]
-    }
+    return forecasting_service.get_best_time_to_buy_insights(limit=50, months=12)

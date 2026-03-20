@@ -937,7 +937,13 @@ Index("idx_cm_product_price", CompetitorMatch.monitored_product_id, CompetitorMa
 Index("idx_cm_last_scraped",  CompetitorMatch.last_scraped_at)
 
 # price_history — every alert and notification check sorts by (match_id, timestamp DESC)
-Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp)
+Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp.desc())
+
+# price_alerts — user dashboards and alert scans frequently filter active alerts per user
+Index("idx_pa_user_enabled", PriceAlert.user_id, PriceAlert.enabled)
+
+# my_price_history — product detail charts always load changes for one product over time
+Index("idx_mph_product_changed", MyPriceHistory.product_id, MyPriceHistory.changed_at)
 
 # review_snapshots — velocity queries always look at recent rows per match
 Index("idx_rs_match_time", ReviewSnapshot.match_id, ReviewSnapshot.scraped_at)

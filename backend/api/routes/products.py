@@ -25,6 +25,11 @@ from database.models import ProductMonitored, CompetitorMatch, PriceHistory, Com
 from scrapers.scraper_manager import scrape_url, search_products
 from api.dependencies import get_current_user, check_usage_limit
 from services.activity_service import log_activity
+from services.product_catalog_service import (
+    fetch_latest_price_history_rows,
+    get_home_catalog_summary,
+    get_product_summaries,
+)
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
@@ -144,6 +149,21 @@ class PriceHistoryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class HomeSummaryProduct(BaseModel):
+    id: int
+    title: str
+    brand: str | None = None
+    competitor_count: int = 0
+    created_at: datetime
+
+
+class HomeCatalogSummaryResponse(BaseModel):
+    total_products: int
+    total_matches: int
+    total_competitors: int
+    recent_products: List[HomeSummaryProduct]
+
+
 # API ENDPOINTS
 
 @router.post("/", response_model=ProductResponse, status_code=201)
@@ -230,87 +250,28 @@ def get_all_products(
     Use `limit` and `offset` for pages; default page size is 50, max is 200.
     Requires authentication.
     """
-    products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == current_user.id
-    ).order_by(ProductMonitored.created_at.desc()).offset(offset).limit(limit).all()
+    summaries = get_product_summaries(
+        db,
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+    return [ProductResponse(**summary) for summary in summaries]
 
-    from datetime import timedelta
 
-    response_products = []
-    for product in products:
-        # Collect latest prices from all competitor matches
-        latest_prices = []
-        stock_statuses = []
-        week_ago_prices = []
+@router.get("/summary", response_model=HomeCatalogSummaryResponse)
+def get_home_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    GET /products/summary
 
-        for match in product.competitor_matches:
-            latest = (
-                db.query(PriceHistory)
-                .filter(PriceHistory.match_id == match.id)
-                .order_by(PriceHistory.timestamp.desc())
-                .first()
-            )
-            if latest:
-                if latest.price:
-                    latest_prices.append(latest.price)
-                stock_statuses.append(bool(latest.in_stock))
-
-            # 7-day-old price for trend
-            week_ago = (
-                db.query(PriceHistory)
-                .filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp <= datetime.utcnow() - timedelta(days=7),
-                )
-                .order_by(PriceHistory.timestamp.desc())
-                .first()
-            )
-            if week_ago and week_ago.price:
-                week_ago_prices.append(week_ago.price)
-
-        lowest_price = min(latest_prices) if latest_prices else None
-        avg_price = (sum(latest_prices) / len(latest_prices)) if latest_prices else None
-        in_stock_count = sum(1 for s in stock_statuses if s)
-
-        # Price position relative to my_price
-        price_position = None
-        if product.my_price and lowest_price is not None:
-            if product.my_price <= lowest_price:
-                price_position = "cheapest"
-            elif avg_price and product.my_price > avg_price * 1.1:
-                price_position = "expensive"
-            else:
-                price_position = "mid"
-
-        # 7-day price change %
-        price_change_pct = None
-        if latest_prices and week_ago_prices:
-            current_avg = sum(latest_prices) / len(latest_prices)
-            old_avg = sum(week_ago_prices) / len(week_ago_prices)
-            if old_avg:
-                price_change_pct = round(((current_avg - old_avg) / old_avg) * 100, 1)
-
-        response_products.append(ProductResponse(
-            id=product.id,
-            title=product.title,
-            sku=product.sku,
-            brand=product.brand,
-            image_url=product.image_url,
-            my_price=product.my_price,
-            description=product.description,
-            mpn=product.mpn,
-            upc_ean=product.upc_ean,
-            cost_price=product.cost_price,
-            created_at=product.created_at,
-            competitor_count=len(product.competitor_matches),
-            lowest_price=round(lowest_price, 2) if lowest_price else None,
-            avg_price=round(avg_price, 2) if avg_price else None,
-            in_stock_count=in_stock_count,
-            price_position=price_position,
-            price_change_pct=price_change_pct,
-        ))
-
-    return response_products
+    Lightweight homepage summary.
+    Returns counts and a short recent-products list without loading the entire
+    product catalog into the browser.
+    """
+    return get_home_catalog_summary(db, user_id=current_user.id)
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -444,13 +405,12 @@ def get_product_matches(
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
+    latest_rows = fetch_latest_price_history_rows(db, [match.id for match in matches])
 
     # Convert to response format with latest price snapshot
     response_matches = []
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_rows.get(match.id)
 
         response_matches.append(CompetitorMatchResponse(
             id=match.id,
@@ -506,31 +466,37 @@ def get_price_history(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    # Get all price history records for this product's matches
-    history_records = []
-    for match in product.competitor_matches:
-        for price_record in match.price_history:
-            history_records.append(PriceHistoryResponse(
-                timestamp=price_record.timestamp,
-                price=price_record.price,
-                currency=price_record.currency,
-                in_stock=bool(price_record.in_stock),
-                competitor_name=match.competitor_name,
-                was_price=price_record.was_price,
-                discount_pct=price_record.discount_pct,
-                shipping_cost=price_record.shipping_cost,
-                total_price=price_record.total_price,
-                promotion_label=price_record.promotion_label,
-                seller_name=price_record.seller_name,
-                seller_count=price_record.seller_count,
-                is_buy_box_winner=price_record.is_buy_box_winner,
-                scrape_quality=price_record.scrape_quality,
-            ))
+    history_rows = db.query(
+        PriceHistory,
+        CompetitorMatch.competitor_name,
+    ).join(
+        CompetitorMatch,
+        PriceHistory.match_id == CompetitorMatch.id,
+    ).filter(
+        CompetitorMatch.monitored_product_id == product_id
+    ).order_by(
+        PriceHistory.timestamp.asc()
+    ).all()
 
-    # Sort by timestamp
-    history_records.sort(key=lambda x: x.timestamp)
-
-    return history_records
+    return [
+        PriceHistoryResponse(
+            timestamp=price_record.timestamp,
+            price=price_record.price,
+            currency=price_record.currency,
+            in_stock=bool(price_record.in_stock),
+            competitor_name=competitor_name,
+            was_price=price_record.was_price,
+            discount_pct=price_record.discount_pct,
+            shipping_cost=price_record.shipping_cost,
+            total_price=price_record.total_price,
+            promotion_label=price_record.promotion_label,
+            seller_name=price_record.seller_name,
+            seller_count=price_record.seller_count,
+            is_buy_box_winner=price_record.is_buy_box_winner,
+            scrape_quality=price_record.scrape_quality,
+        )
+        for price_record, competitor_name in history_rows
+    ]
 
 
 @router.post("/{product_id}/scrape")
@@ -970,6 +936,7 @@ def export_product_csv(
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
+    latest_rows = fetch_latest_price_history_rows(db, [match.id for match in matches])
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -989,9 +956,7 @@ def export_product_csv(
     ])
 
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_rows.get(match.id)
 
         price = match.latest_price
         shipping = latest.shipping_cost if latest else None
@@ -1074,6 +1039,7 @@ def export_product_xlsx(
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
     ).all()
+    latest_rows = fetch_latest_price_history_rows(db, [match.id for match in matches])
 
     headers = [
         "Competitor", "Product Title", "URL",
@@ -1089,9 +1055,7 @@ def export_product_xlsx(
 
     rows = []
     for match in matches:
-        latest = db.query(PriceHistory).filter(
-            PriceHistory.match_id == match.id
-        ).order_by(PriceHistory.timestamp.desc()).first()
+        latest = latest_rows.get(match.id)
 
         price = match.latest_price
         shipping = latest.shipping_cost if latest else None
