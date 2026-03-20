@@ -20,14 +20,21 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
+from services.auth_service import verify_token
 
 
 # ── 1. Global slowapi limiter ─────────────────────────────────────────────────
 
 def _rate_limit_key(request: Request) -> str:
-    """Key by authenticated user-id when available, otherwise by remote IP."""
-    user_id = request.headers.get("X-User-ID")
-    return f"user:{user_id}" if user_id else get_remote_address(request)
+    """Key by verified bearer token when available, otherwise by remote IP."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        payload = verify_token(token)
+        user_id = payload.get("sub") if payload else None
+        if user_id:
+            return f"user:{user_id}"
+    return get_remote_address(request)
 
 
 limiter = Limiter(key_func=_rate_limit_key, default_limits=["200/hour"])

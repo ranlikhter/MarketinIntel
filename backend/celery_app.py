@@ -6,9 +6,9 @@ Handles background tasks and scheduled scraping
 from celery import Celery
 from celery.schedules import crontab
 import os
-from dotenv import load_dotenv
+from env_loader import load_backend_env
 
-load_dotenv()
+load_backend_env()
 
 # Redis configuration
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')

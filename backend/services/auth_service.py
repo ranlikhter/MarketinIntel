@@ -8,9 +8,9 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 import os
-from dotenv import load_dotenv
+from env_loader import load_backend_env
 
-load_dotenv()
+load_backend_env()
 
 # Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY") or "your-secret-key-change-this-in-production"

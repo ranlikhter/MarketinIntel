@@ -8,10 +8,10 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import List, Optional
 import os
-from dotenv import load_dotenv
 import logging
+from env_loader import load_backend_env
 
-load_dotenv()
+load_backend_env()
 logger = logging.getLogger(__name__)
 
 
