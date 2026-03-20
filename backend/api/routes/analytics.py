@@ -3,12 +3,14 @@ Price Analytics API Endpoints
 Trendlines, comparisons, and insights
 """
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 
 from database.connection import get_db
+from database.models import ProductMonitored, User
+from api.dependencies import get_current_user
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
 
@@ -20,13 +22,27 @@ _COMPARE_TTL   = 3600   # 1 hour
 _ALERTS_TTL    = 300    # 5 min   — alert status is more time-sensitive
 
 
+def _ensure_product_owned_by_user(product_id: int, current_user: User, db: Session) -> None:
+    """
+    Ensure the requested product belongs to the authenticated user.
+    We return 404 to avoid leaking whether another user's product exists.
+    """
+    product = db.query(ProductMonitored.id).filter(
+        ProductMonitored.id == product_id,
+        ProductMonitored.user_id == current_user.id,
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+
 @router.get("/products/{product_id}/trendline")
 async def get_product_trendline(
     product_id: int,
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get daily price trendline for a product
@@ -39,6 +55,8 @@ async def get_product_trendline(
     Returns daily price trends, insights, and recommendations.
     Results are cached for 1 hour and invalidated on new scrape data.
     """
+    _ensure_product_owned_by_user(product_id, current_user, db)
+
     # If custom dates provided, calculate days between them
     if start_date and end_date:
         try:
@@ -61,7 +79,8 @@ async def get_product_trendline(
 async def compare_competitors(
     product_id: int,
     days: int = Query(7, ge=1, le=90, description="Days to analyze"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Compare prices across all competitors for a product
@@ -71,6 +90,8 @@ async def compare_competitors(
 
     Returns ranked comparison by average price. Cached for 1 hour.
     """
+    _ensure_product_owned_by_user(product_id, current_user, db)
+
     cache_key = f"analytics:compare:{product_id}:{days}"
     analytics = PriceAnalytics(db)
     return get_cached(cache_key, _COMPARE_TTL,
@@ -81,7 +102,8 @@ async def compare_competitors(
 async def get_price_alerts(
     product_id: int,
     threshold: float = Query(5.0, ge=1.0, le=50.0, description="Change threshold %"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get price change alerts for a product
@@ -91,6 +113,8 @@ async def get_price_alerts(
 
     Returns alerts for significant price changes in last 24h. Cached for 5 minutes.
     """
+    _ensure_product_owned_by_user(product_id, current_user, db)
+
     cache_key = f"analytics:alerts:{product_id}:{threshold}"
     analytics = PriceAnalytics(db)
     return get_cached(cache_key, _ALERTS_TTL,
@@ -104,13 +128,16 @@ async def get_date_range_comparison(
     end_date_1: str = Query(..., description="First period end (YYYY-MM-DD)"),
     start_date_2: str = Query(..., description="Second period start (YYYY-MM-DD)"),
     end_date_2: str = Query(..., description="Second period end (YYYY-MM-DD)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Compare two custom date ranges for a product
 
     Returns price comparison between two time periods
     """
+    _ensure_product_owned_by_user(product_id, current_user, db)
+
     analytics = PriceAnalytics(db)
 
     try:
@@ -183,7 +210,10 @@ async def get_date_range_comparison(
 
 
 @router.post("/snapshots")
-async def calculate_daily_snapshots(db: Session = Depends(get_db)):
+async def calculate_daily_snapshots(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Calculate daily price snapshots (async background task)"""
     from tasks.analytics_tasks import calculate_daily_snapshots as task
     t = task.delay()
@@ -191,7 +221,10 @@ async def calculate_daily_snapshots(db: Session = Depends(get_db)):
 
 
 @router.post("/update")
-async def update_analytics(db: Session = Depends(get_db)):
+async def update_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Recalculate all analytics (async background task)"""
     from tasks.analytics_tasks import update_all_analytics as task
     t = task.delay()

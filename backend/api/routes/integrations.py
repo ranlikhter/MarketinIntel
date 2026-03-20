@@ -45,6 +45,26 @@ class ImportResult(BaseModel):
     errors: List[str] = []
 
 
+def _find_existing_product_for_user(db: Session, user_id: int, sku: Optional[str], title: Optional[str]):
+    """
+    Deduplicate per user so identical SKUs/titles across different users do not collide.
+    """
+    existing = None
+    if sku:
+        existing = db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == user_id,
+            ProductMonitored.sku == sku,
+        ).first()
+
+    if not existing and title:
+        existing = db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == user_id,
+            ProductMonitored.title == title,
+        ).first()
+
+    return existing
+
+
 # XML Import
 @router.post("/import/xml", response_model=ImportResult)
 async def import_from_xml(
@@ -170,16 +190,12 @@ async def import_from_woocommerce(
         for product in products:
             try:
                 # Check if product already exists
-                existing = None
-                if product.get('sku'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.sku == product['sku']
-                    ).first()
-
-                if not existing and product.get('title'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.title == product['title']
-                    ).first()
+                existing = _find_existing_product_for_user(
+                    db,
+                    current_user.id,
+                    product.get('sku'),
+                    product.get('title'),
+                )
 
                 if existing:
                     skipped_count += 1
@@ -187,6 +203,7 @@ async def import_from_woocommerce(
 
                 # Create new product
                 new_product = ProductMonitored(
+                    user_id=current_user.id,
                     title=product['title'],
                     brand=product.get('brand'),
                     sku=product.get('sku'),
@@ -223,7 +240,8 @@ async def import_from_woocommerce(
 @router.post("/import/shopify", response_model=ImportResult)
 async def import_from_shopify(
     connection: ShopifyConnection,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Import products from Shopify store
@@ -255,16 +273,12 @@ async def import_from_shopify(
         for product in products:
             try:
                 # Check if product already exists
-                existing = None
-                if product.get('sku'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.sku == product['sku']
-                    ).first()
-
-                if not existing and product.get('title'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.title == product['title']
-                    ).first()
+                existing = _find_existing_product_for_user(
+                    db,
+                    current_user.id,
+                    product.get('sku'),
+                    product.get('title'),
+                )
 
                 if existing:
                     skipped_count += 1
@@ -272,6 +286,7 @@ async def import_from_shopify(
 
                 # Create new product
                 new_product = ProductMonitored(
+                    user_id=current_user.id,
                     title=product['title'],
                     brand=product.get('brand'),
                     sku=product.get('sku'),
