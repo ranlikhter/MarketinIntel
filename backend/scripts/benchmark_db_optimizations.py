@@ -26,7 +26,10 @@ sys.path.insert(0, str(BACKEND_DIR))
 from database.models import Base, CompetitorMatch, CompetitorWebsite, PriceHistory, ProductMonitored, User
 from services.filter_service import FilterService
 from services.forecasting_service import ForecastingService
+from services.product_health_service import ProductHealthService
 from services.product_catalog_service import get_product_summaries
+from services.seller_intel_service import SellerIntelService
+from database.models import ReviewSnapshot, SellerProfile
 
 
 SOURCE_DB = BACKEND_DIR / "marketintel.db"
@@ -67,6 +70,35 @@ def ensure_benchmark_data(SessionLocal) -> int:
         session.add_all(websites)
         session.flush()
 
+        sellers = [
+            ("Amazon.com", True),
+            ("Seller Alpha", False),
+            ("Seller Beta", False),
+            ("Seller Gamma", False),
+            ("Seller Delta", False),
+        ]
+        existing_sellers = {
+            row.seller_name
+            for row in session.query(SellerProfile.seller_name).filter(
+                SellerProfile.seller_name.in_([seller_name for seller_name, _ in sellers])
+            ).all()
+        }
+        for seller_name, is_amazon in sellers:
+            if seller_name in existing_sellers:
+                continue
+            session.add(
+                SellerProfile(
+                    seller_name=seller_name,
+                    amazon_is_1p=is_amazon,
+                    feedback_rating=4.8 if is_amazon else 4.5,
+                    feedback_count=1000 if is_amazon else 350,
+                    positive_feedback_pct=99.0 if is_amazon else 96.0,
+                    storefront_url=f"https://benchmark-stores.example/{seller_name.lower().replace(' ', '-')}",
+                    first_seen_at=datetime.utcnow() - timedelta(days=180),
+                    last_updated_at=datetime.utcnow() - timedelta(days=1),
+                )
+            )
+
         now = datetime.utcnow()
         for product_idx in range(80):
             product = ProductMonitored(
@@ -82,6 +114,7 @@ def ensure_benchmark_data(SessionLocal) -> int:
             session.flush()
 
             for match_idx in range(5):
+                seller_name, is_amazon = sellers[match_idx % len(sellers)]
                 match = CompetitorMatch(
                     monitored_product_id=product.id,
                     competitor_name=f"Competitor {match_idx + 1}",
@@ -93,6 +126,12 @@ def ensure_benchmark_data(SessionLocal) -> int:
                     created_at=now - timedelta(days=(product_idx + match_idx) % 10),
                     last_scraped_at=now - timedelta(hours=(product_idx + match_idx) % 36),
                     match_score=95,
+                    seller_name=seller_name,
+                    amazon_is_seller=is_amazon,
+                    seller_feedback_count=200 + (product_idx % 9) * 15 + match_idx,
+                    seller_positive_feedback_pct=98 - (match_idx * 0.7),
+                    listing_quality_score=90 - (match_idx * 3),
+                    questions_count=5 + match_idx,
                 )
                 session.add(match)
                 session.flush()
@@ -110,9 +149,40 @@ def ensure_benchmark_data(SessionLocal) -> int:
                             discount_pct=5 + (point_idx % 4),
                             was_price=price + 10,
                             promotion_label="Benchmark sale",
+                            seller_name=seller_name,
                             timestamp=timestamp,
                         )
                     )
+
+                base_reviews = 100 + (product_idx % 11) * 10 + match_idx
+                session.add_all(
+                    [
+                        ReviewSnapshot(
+                            match_id=match.id,
+                            review_count=base_reviews,
+                            rating=4.8,
+                            rating_distribution={"5": 82, "4": 13, "3": 5},
+                            questions_count=match.questions_count,
+                            scraped_at=now - timedelta(days=40),
+                        ),
+                        ReviewSnapshot(
+                            match_id=match.id,
+                            review_count=base_reviews + (8 if match_idx == 0 else 4),
+                            rating=4.7,
+                            rating_distribution={"5": 80, "4": 15, "3": 5},
+                            questions_count=match.questions_count,
+                            scraped_at=now - timedelta(days=8),
+                        ),
+                        ReviewSnapshot(
+                            match_id=match.id,
+                            review_count=base_reviews + (35 if match_idx == 0 else 10),
+                            rating=4.1 if match_idx == 0 else 4.6,
+                            rating_distribution={"5": 73, "4": 19, "3": 8},
+                            questions_count=match.questions_count,
+                            scraped_at=now - timedelta(days=1),
+                        ),
+                    ]
+                )
 
         session.commit()
         return user.id
@@ -240,6 +310,77 @@ def naive_best_time_to_buy(session, user):
     return recommendations
 
 
+def naive_amazon_threats(session, user):
+    matches = session.query(CompetitorMatch).join(
+        ProductMonitored,
+        CompetitorMatch.monitored_product_id == ProductMonitored.id,
+    ).filter(
+        ProductMonitored.user_id == user.id,
+        CompetitorMatch.amazon_is_seller.is_(True),
+    ).all()
+
+    threats = []
+    for match in matches:
+        product = session.query(ProductMonitored).filter(
+            ProductMonitored.id == match.monitored_product_id
+        ).first()
+        earliest_entry = session.query(PriceHistory).filter(
+            PriceHistory.match_id == match.id
+        ).order_by(PriceHistory.timestamp).first()
+        threats.append((product.title if product else None, earliest_entry.timestamp if earliest_entry else None))
+
+    return threats
+
+
+def naive_portfolio_health(session, user):
+    now = datetime.utcnow()
+    cutoff_7d = now - timedelta(days=7)
+    cutoff_30d = now - timedelta(days=30)
+    flagged = []
+
+    products = session.query(ProductMonitored).filter(
+        ProductMonitored.user_id == user.id
+    ).all()
+
+    for product in products:
+        matches = session.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id == product.id
+        ).all()
+
+        flags = []
+        for match in matches:
+            snapshots = session.query(ReviewSnapshot).filter(
+                ReviewSnapshot.match_id == match.id
+            ).order_by(ReviewSnapshot.scraped_at).all()
+
+            if not snapshots:
+                continue
+
+            latest = snapshots[-1]
+            snap_7d = None
+            snap_30d = None
+            for snapshot in snapshots:
+                if snapshot.scraped_at <= cutoff_30d:
+                    snap_30d = snapshot
+                if snapshot.scraped_at <= cutoff_7d:
+                    snap_7d = snapshot
+                else:
+                    break
+
+            if snap_7d and latest.review_count is not None and snap_7d.review_count is not None:
+                if latest.review_count - snap_7d.review_count > 20:
+                    flags.append(("surging_reviews", match.competitor_name))
+
+            if snap_30d and latest.rating is not None and snap_30d.rating is not None:
+                if float(snap_30d.rating) - float(latest.rating) > 0.2:
+                    flags.append(("rating_drop", match.competitor_name))
+
+        if flags:
+            flagged.append((product.id, len(flags)))
+
+    return flagged
+
+
 def benchmark_case(name, SessionLocal, user_id: int, runner):
     durations = []
     query_counts = []
@@ -306,6 +447,22 @@ def main() -> None:
             "best_time_to_buy_optimized",
             lambda session, user: ForecastingService(session, user).get_best_time_to_buy_insights(limit=50, months=12),
         ),
+        (
+            "amazon_threats_baseline",
+            lambda session, user: naive_amazon_threats(session, user),
+        ),
+        (
+            "amazon_threats_optimized",
+            lambda session, user: SellerIntelService(session, user).get_amazon_1p_threats(),
+        ),
+        (
+            "portfolio_health_baseline",
+            lambda session, user: naive_portfolio_health(session, user),
+        ),
+        (
+            "portfolio_health_optimized",
+            lambda session, user: ProductHealthService(session, user).get_portfolio_health(),
+        ),
     ]
 
     print(f"Benchmark DB copy: {BENCHMARK_DB}")
@@ -321,9 +478,15 @@ def main() -> None:
         ).join(
             ProductMonitored, CompetitorMatch.monitored_product_id == ProductMonitored.id
         ).filter(ProductMonitored.user_id == user_id).count()
+        review_count = session.query(ReviewSnapshot).join(
+            CompetitorMatch, ReviewSnapshot.match_id == CompetitorMatch.id
+        ).join(
+            ProductMonitored, CompetitorMatch.monitored_product_id == ProductMonitored.id
+        ).filter(ProductMonitored.user_id == user_id).count()
         print(f"  products_monitored: {product_count}")
         print(f"  competitor_matches: {match_count}")
         print(f"  price_history: {history_count}")
+        print(f"  review_snapshots: {review_count}")
     finally:
         session.close()
 

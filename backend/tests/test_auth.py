@@ -4,6 +4,8 @@ Tests for the Authentication API (/api/auth/*)
 
 import pytest
 
+from database.models import User, Workspace, WorkspaceMember, UserRole
+
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,34 @@ class TestRegistration:
             "email": "nopw@example.com",
         })
         assert resp.status_code == 422
+
+    def test_register_creates_default_workspace(self, client, db):
+        """New users should get a personal active workspace during signup."""
+        resp = client.post("/api/auth/register", json={
+            "email": "workspace.user@example.com",
+            "password": "SecurePass1!",
+            "full_name": "Workspace User",
+        })
+        assert resp.status_code in (200, 201), f"Got {resp.status_code}: {resp.text}"
+
+        body = resp.json()
+        assert body["user"]["active_workspace_id"] is not None
+
+        user = db.query(User).filter(User.email == "workspace.user@example.com").first()
+        assert user is not None
+        assert user.default_workspace_id is not None
+
+        workspace = db.query(Workspace).filter(Workspace.id == user.default_workspace_id).first()
+        assert workspace is not None
+        assert workspace.owner_id == user.id
+
+        membership = db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace.id,
+            WorkspaceMember.user_id == user.id,
+        ).first()
+        assert membership is not None
+        assert membership.is_active is True
+        assert membership.role == UserRole.ADMIN
 
 
 class TestLogin:

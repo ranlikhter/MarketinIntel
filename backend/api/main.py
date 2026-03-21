@@ -99,8 +99,13 @@ def create_app(app_env: str | None = None) -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     # Global 200 req/hr cap (keyed by user or IP)
     app.add_middleware(SlowAPIMiddleware)
-    # Strict 10 req/min cap on auth endpoints (brute-force protection)
-    app.add_middleware(AuthRateLimitMiddleware)
+    # Strict 10 req/min cap on auth endpoints (brute-force protection).
+    # Keep it disabled in automated test runs so middleware state does not
+    # leak between tests and cause false failures.
+    app.add_middleware(
+        AuthRateLimitMiddleware,
+        enabled=resolved_env not in {"test", "testing"},
+    )
 
     # Configure CORS (allows frontend to make requests to backend)
     # CORS = Cross-Origin Resource Sharing

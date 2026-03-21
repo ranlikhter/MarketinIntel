@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Layout from '../../components/Layout';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -135,10 +136,11 @@ function CreateWsModal({ onClose, onCreate }) {
 }
 
 // ─── Workspace Panel ──────────────────────────────────────────────────────────
-function WorkspacePanel({ ws, isOwner, onDeleted }) {
+function WorkspacePanel({ ws, isOwner, isActive, onDeleted, onSelected }) {
   const [members, setMembers] = useState(ws.members || []);
   const [showInvite, setShowInvite] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const { addToast } = useToast();
 
   async function removeMember(uid, memberName) {
@@ -174,15 +176,44 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
     }
   }
 
+  async function selectCurrentWorkspace() {
+    if (isActive || switching) return;
+    setSwitching(true);
+    try {
+      await onSelected(ws.id);
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   return (
     <div className="rounded-2xl shadow-sm overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       {/* Workspace header */}
       <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
         <div>
           <h3 className="font-semibold text-white">{ws.name}</h3>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{members.length} member{members.length !== 1 ? 's' : ''}</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {members.length} member{members.length !== 1 ? 's' : ''}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          {isActive ? (
+            <span
+              className="px-3 py-1 rounded-full text-xs font-semibold"
+              style={{ background: 'rgba(59,130,246,0.16)', color: '#93C5FD' }}
+            >
+              Active Workspace
+            </span>
+          ) : (
+            <button
+              onClick={selectCurrentWorkspace}
+              disabled={switching}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium text-white/80 hover:bg-white/5 transition-colors disabled:opacity-50"
+              style={{ border: '1px solid var(--border)' }}
+            >
+              {switching ? 'Switching…' : 'Set Active'}
+            </button>
+          )}
           {isOwner && (
             <button
               onClick={() => setShowInvite(true)}
@@ -284,32 +315,41 @@ function WorkspacePanel({ ws, isOwner, onDeleted }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function TeamPage() {
-  const [data, setData] = useState({ owned: [], member_of: [] });
-  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const { addToast } = useToast();
+  const {
+    user,
+    workspaces,
+    workspacesLoading,
+    refreshWorkspaces,
+    selectWorkspace,
+  } = useAuth();
 
   useEffect(() => {
-    api.getWorkspaces()
-      .then(setData)
-      .catch(() => addToast('Failed to load workspaces', 'error'))
-      .finally(() => setLoading(false));
-  }, []);
+    refreshWorkspaces().catch(() => addToast('Failed to load workspaces', 'error'));
+  }, [refreshWorkspaces, addToast]);
 
-  function handleCreated(ws) {
-    setData((prev) => ({ ...prev, owned: [ws, ...prev.owned] }));
+  async function handleCreated() {
+    await refreshWorkspaces();
   }
 
-  function handleDeleted(id) {
-    setData((prev) => ({
-      ...prev,
-      owned: prev.owned.filter((ws) => ws.id !== id),
-    }));
+  async function handleDeleted() {
+    await refreshWorkspaces();
+  }
+
+  async function handleSelectWorkspace(workspaceId) {
+    const result = await selectWorkspace(workspaceId);
+    if (!result.success) {
+      addToast(result.error || 'Failed to switch workspace', 'error');
+      return;
+    }
+    addToast('Active workspace updated', 'success');
+    await refreshWorkspaces();
   }
 
   const allWorkspaces = [
-    ...data.owned.map((ws) => ({ ...ws, isOwner: true })),
-    ...data.member_of.map((ws) => ({ ...ws, isOwner: false })),
+    ...(workspaces?.owned || []).map((ws) => ({ ...ws, isOwner: true })),
+    ...(workspaces?.member_of || []).map((ws) => ({ ...ws, isOwner: false })),
   ];
 
   return (
@@ -332,7 +372,7 @@ export default function TeamPage() {
           </button>
         </div>
 
-        {loading ? (
+        {workspacesLoading ? (
           <div className="text-center py-20" style={{ color: 'var(--text-muted)' }}>Loading…</div>
         ) : allWorkspaces.length === 0 ? (
           <div className="text-center py-20">
@@ -357,7 +397,9 @@ export default function TeamPage() {
                 key={ws.id}
                 ws={ws}
                 isOwner={ws.isOwner}
+                isActive={ws.id === user?.active_workspace_id}
                 onDeleted={handleDeleted}
+                onSelected={handleSelectWorkspace}
               />
             ))}
           </div>

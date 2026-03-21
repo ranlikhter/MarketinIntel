@@ -237,6 +237,7 @@ const api = {
   updateWorkspace: (id, name) =>
     request(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
   deleteWorkspace: (id) => request(`/api/workspaces/${id}`, { method: 'DELETE' }),
+  selectWorkspace: (id) => request(`/api/workspaces/${id}/select`, { method: 'POST' }),
   inviteMember: (wsId, email, role = 'viewer') =>
     request(`/api/workspaces/${wsId}/members`, {
       method: 'POST',

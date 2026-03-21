@@ -14,14 +14,16 @@ from database.models import (
     PriceAlert, User
 )
 from services.product_catalog_service import PriceSnapshot, fetch_latest_price_snapshots
+from services.workspace_service import build_scope_predicate
 
 
 class InsightsService:
     """Service for generating actionable insights and recommendations"""
 
-    def __init__(self, db: Session, user: User):
+    def __init__(self, db: Session, user: User, workspace_id: int | None = None):
         self.db = db
         self.user = user
+        self.workspace_id = workspace_id if workspace_id is not None else getattr(user, "default_workspace_id", None)
         self._snapshot_loaded = False
         self._products: List[ProductMonitored] = []
         self._products_by_id: Dict[int, ProductMonitored] = {}
@@ -313,13 +315,21 @@ class InsightsService:
 
         week_ago = datetime.utcnow() - timedelta(days=7)
         self._products = self.db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == self.user.id
+            build_scope_predicate(
+                ProductMonitored,
+                workspace_id=self.workspace_id,
+                user_id=self.user.id,
+            )
         ).all()
         self._products_by_id = {product.id: product for product in self._products}
 
         self._active_alerts_count = self.db.query(PriceAlert).filter(
             and_(
-                PriceAlert.user_id == self.user.id,
+                build_scope_predicate(
+                    PriceAlert,
+                    workspace_id=self.workspace_id,
+                    user_id=self.user.id,
+                ),
                 PriceAlert.enabled == True,
             )
         ).count()
@@ -704,6 +714,10 @@ class InsightsService:
 
 
 # Singleton-like access
-def get_insights_service(db: Session, user: User) -> InsightsService:
+def get_insights_service(
+    db: Session,
+    user: User,
+    workspace_id: int | None = None,
+) -> InsightsService:
     """Factory function to get insights service"""
-    return InsightsService(db, user)
+    return InsightsService(db, user, workspace_id=workspace_id)

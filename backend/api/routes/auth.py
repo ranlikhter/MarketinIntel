@@ -46,6 +46,7 @@ from services.sso_service import (
     exchange_microsoft_code_for_claims,
     validate_google_id_token,
 )
+from services.workspace_service import ensure_personal_workspace
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer(auto_error=False)
@@ -74,6 +75,7 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: Optional[str]
+    active_workspace_id: Optional[int]
     auth_provider: str
     avatar_url: Optional[str]
     password_login_enabled: bool
@@ -150,6 +152,7 @@ def build_user_payload(user: User) -> dict:
         "id": user.id,
         "email": user.email,
         "full_name": user.full_name,
+        "active_workspace_id": user.default_workspace_id,
         "auth_provider": user.auth_provider,
         "avatar_url": user.avatar_url,
         "password_login_enabled": user.password_login_enabled,
@@ -225,6 +228,7 @@ def upsert_sso_user(db: Session, provider: str, claims: dict) -> User:
             created_at=datetime.utcnow(),
         )
         db.add(user)
+        db.flush()
     else:
         user.auth_provider = provider
         user.auth_provider_subject = claims["sub"]
@@ -236,6 +240,7 @@ def upsert_sso_user(db: Session, provider: str, claims: dict) -> User:
             user.is_verified = True
             user.email_verified_at = datetime.utcnow()
 
+    ensure_personal_workspace(db, user)
     user.last_login_at = datetime.utcnow()
     db.commit()
     db.refresh(user)
@@ -296,6 +301,8 @@ async def signup(
     )
 
     db.add(new_user)
+    db.flush()
+    ensure_personal_workspace(db, new_user)
     db.commit()
     db.refresh(new_user)
 

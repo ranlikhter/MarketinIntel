@@ -2,16 +2,35 @@
 API dependencies shared by protected routes.
 """
 
+from dataclasses import dataclass
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from api.auth_cookies import ACCESS_COOKIE_NAME, get_request_token
 from database.connection import get_db
-from database.models import User
+from database.models import User, Workspace
 from services.auth_service import verify_token
+from services.workspace_service import (
+    WORKSPACE_HEADER_NAME,
+    get_accessible_workspace,
+    resolve_active_workspace,
+    build_scope_predicate,
+)
 
 security = HTTPBearer(auto_error=False)
+
+
+@dataclass(frozen=True)
+class ActiveWorkspace:
+    workspace_id: int | None
+    workspace: Workspace | None
+    membership_role: str | None = None
+
+    @property
+    def is_selected(self) -> bool:
+        return self.workspace_id is not None
 
 
 def _validate_access_token(
@@ -136,6 +155,62 @@ async def get_current_active_verified_user(
     return current_user
 
 
+async def get_current_workspace(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ActiveWorkspace:
+    """
+    Resolve the active workspace for this request.
+
+    Selection order:
+    1. ``X-Workspace-ID`` request header, if present and accessible.
+    2. ``current_user.default_workspace_id``.
+    3. First accessible owned/member workspace.
+    4. No workspace selected yet -> fall back to legacy user-owned scope.
+    """
+    requested_workspace_id: int | None = None
+    raw_workspace_id = request.headers.get(WORKSPACE_HEADER_NAME)
+    if raw_workspace_id is not None and raw_workspace_id.strip():
+        try:
+            requested_workspace_id = int(raw_workspace_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"{WORKSPACE_HEADER_NAME} must be an integer workspace ID",
+            ) from exc
+
+        workspace, membership = get_accessible_workspace(
+            db,
+            current_user,
+            requested_workspace_id,
+        )
+        if workspace is None:
+            existing_workspace = db.query(Workspace).filter(
+                Workspace.id == requested_workspace_id,
+                Workspace.is_active == True,
+            ).first()
+            if existing_workspace is None:
+                raise HTTPException(status_code=404, detail="Workspace not found")
+            raise HTTPException(status_code=403, detail="Access denied to workspace")
+
+        return ActiveWorkspace(
+            workspace_id=workspace.id,
+            workspace=workspace,
+            membership_role=membership.role.value if membership else "admin",
+        )
+
+    workspace, membership = resolve_active_workspace(db, current_user)
+    if workspace is None:
+        return ActiveWorkspace(workspace_id=None, workspace=None, membership_role=None)
+
+    return ActiveWorkspace(
+        workspace_id=workspace.id,
+        workspace=workspace,
+        membership_role=membership.role.value if membership else "admin",
+    )
+
+
 def _enforce_trial_limits(user: User) -> None:
     """
     Downgrade usage limits to FREE-tier values when a trial has expired.
@@ -160,7 +235,12 @@ def _enforce_trial_limits(user: User) -> None:
         user.matches_limit = min(user.matches_limit, 10)
 
 
-def check_usage_limit(user: User, resource_type: str, db: Session):
+def check_usage_limit(
+    user: User,
+    resource_type: str,
+    db: Session,
+    workspace_id: int | None = None,
+):
     """
     Check if user has reached their usage limit for a resource.
 
@@ -184,7 +264,11 @@ def check_usage_limit(user: User, resource_type: str, db: Session):
 
     if resource_type == "products":
         current_count = db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == user.id
+            build_scope_predicate(
+                ProductMonitored,
+                workspace_id=workspace_id,
+                user_id=user.id,
+            )
         ).count()
 
         if current_count >= user.products_limit:
@@ -195,7 +279,11 @@ def check_usage_limit(user: User, resource_type: str, db: Session):
 
     elif resource_type == "alerts":
         current_count = db.query(PriceAlert).filter(
-            PriceAlert.user_id == user.id
+            build_scope_predicate(
+                PriceAlert,
+                workspace_id=workspace_id,
+                user_id=user.id,
+            )
         ).count()
 
         if current_count >= user.alerts_limit:

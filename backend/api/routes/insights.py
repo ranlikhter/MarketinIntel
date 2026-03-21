@@ -12,9 +12,10 @@ from datetime import datetime, timedelta
 
 from database.connection import get_db
 from database.models import User, ProductMonitored, CompetitorMatch, PriceHistory, RepricingRule
-from api.dependencies import get_current_user
+from api.dependencies import ActiveWorkspace, get_current_user, get_current_workspace
 from services.insights_service import get_insights_service
 from services.cache_service import get_cached
+from services.workspace_service import build_scope_predicate
 
 router = APIRouter(prefix="/insights", tags=["Insights & Recommendations"])
 
@@ -78,6 +79,7 @@ class OpportunityScoreResponse(BaseModel):
 @router.get("/dashboard", response_model=DashboardInsightsResponse)
 async def get_dashboard_insights(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -92,8 +94,13 @@ async def get_dashboard_insights(
 
     Cached per user for 5 minutes.
     """
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:dashboard:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:dashboard:{scope_key}"
 
     try:
         return get_cached(cache_key, _DASHBOARD_TTL,
@@ -105,6 +112,7 @@ async def get_dashboard_insights(
 @router.get("/priorities", response_model=List[PriorityAction])
 async def get_priorities(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -115,8 +123,13 @@ async def get_priorities(
     - Medium severity: Review soon
     - Low severity: Can wait
     """
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:priorities:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:priorities:{scope_key}"
 
     try:
         return get_cached(cache_key, _INSIGHTS_TTL,
@@ -128,6 +141,7 @@ async def get_priorities(
 @router.get("/opportunities", response_model=List[Opportunity])
 async def get_opportunities(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -139,8 +153,13 @@ async def get_opportunities(
     - Bundling opportunities
     - Market gaps
     """
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:opportunities:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:opportunities:{scope_key}"
 
     try:
         return get_cached(cache_key, _INSIGHTS_TTL,
@@ -152,6 +171,7 @@ async def get_opportunities(
 @router.get("/threats", response_model=List[Threat])
 async def get_threats(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -163,8 +183,13 @@ async def get_threats(
     - Lost competitive position
     - Market share threats
     """
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:threats:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:threats:{scope_key}"
 
     try:
         return get_cached(cache_key, _INSIGHTS_TTL,
@@ -176,11 +201,17 @@ async def get_threats(
 @router.get("/metrics", response_model=KeyMetrics)
 async def get_key_metrics(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get key performance metrics"""
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:metrics:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:metrics:{scope_key}"
 
     try:
         return get_cached(cache_key, _INSIGHTS_TTL,
@@ -192,11 +223,17 @@ async def get_key_metrics(
 @router.get("/trending", response_model=List[TrendingProduct])
 async def get_trending_products(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get trending products with high activity"""
-    insights_service = get_insights_service(db, current_user)
-    cache_key = f"insights:trending:{current_user.id}"
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
+    scope_key = current_workspace.workspace_id or current_user.id
+    cache_key = f"insights:trending:{scope_key}"
 
     try:
         return get_cached(cache_key, _INSIGHTS_TTL,
@@ -209,6 +246,7 @@ async def get_trending_products(
 async def get_opportunity_score(
     product_id: int,
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -219,7 +257,11 @@ async def get_opportunity_score(
     - 50-79: Medium opportunity (monitor closely)
     - 0-49: Low opportunity (stable/competitive)
     """
-    insights_service = get_insights_service(db, current_user)
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
 
     try:
         score = insights_service.calculate_opportunity_score(product_id)
@@ -245,6 +287,7 @@ async def get_price_wars(
     hours: int = Query(72, ge=6, le=168, description="Look-back window in hours"),
     min_competitors: int = Query(3, ge=2, le=10, description="Min competitors needed to flag a price war"),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -260,7 +303,11 @@ async def get_price_wars(
 
     # Fetch user's products
     products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == current_user.id
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        )
     ).all()
 
     price_wars = []
@@ -351,6 +398,7 @@ _OOS_KEYWORDS = {"out of stock", "out_of_stock", "unavailable", "sold out",
 async def get_competitor_oos(
     min_hours: int = Query(24, ge=1, le=720, description="Minimum hours OOS to include"),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """
@@ -364,7 +412,11 @@ async def get_competitor_oos(
     oos_cutoff = now - timedelta(hours=min_hours)
 
     products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == current_user.id
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        )
     ).all()
 
     opportunities = []
@@ -452,10 +504,15 @@ async def get_competitor_oos(
 @router.get("/positioning")
 async def get_competitive_positioning(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get competitive positioning analysis"""
-    insights_service = get_insights_service(db, current_user)
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
     try:
         return insights_service.get_competitive_positioning()
     except Exception as e:
@@ -465,10 +522,15 @@ async def get_competitive_positioning(
 @router.get("/price-drops")
 async def get_price_drop_opportunities(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get price drop opportunities — competitors who recently lowered price"""
-    insights_service = get_insights_service(db, current_user)
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
     try:
         return insights_service.get_price_drop_opportunities()
     except Exception as e:
@@ -478,10 +540,15 @@ async def get_price_drop_opportunities(
 @router.get("/best-time-to-buy")
 async def get_best_time_to_buy(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get seasonal buying recommendations based on historical price patterns"""
-    insights_service = get_insights_service(db, current_user)
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
     try:
         return insights_service.get_best_time_to_buy()
     except Exception as e:
@@ -491,10 +558,15 @@ async def get_best_time_to_buy(
 @router.get("/suggestions")
 async def get_ai_suggestions(
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     db: Session = Depends(get_db)
 ):
     """Get AI-powered pricing suggestions"""
-    insights_service = get_insights_service(db, current_user)
+    insights_service = get_insights_service(
+        db,
+        current_user,
+        workspace_id=current_workspace.workspace_id,
+    )
     try:
         return insights_service.get_ai_suggestions()
     except Exception as e:

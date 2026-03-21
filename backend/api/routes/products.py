@@ -23,13 +23,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from database.connection import get_db
 from database.models import ProductMonitored, CompetitorMatch, PriceHistory, CompetitorWebsite, User, MyPriceHistory
 from scrapers.scraper_manager import scrape_url, search_products
-from api.dependencies import get_current_user, check_usage_limit
+from api.dependencies import ActiveWorkspace, get_current_user, get_current_workspace, check_usage_limit
 from services.activity_service import log_activity
+from services.enterprise_rollup_service import (
+    refresh_product_rollups,
+    refresh_workspace_rollups,
+    refresh_workspace_seller_rollups,
+)
 from services.product_catalog_service import (
     fetch_latest_price_history_rows,
     get_home_catalog_summary,
     get_product_summaries,
 )
+from services.workspace_service import build_scope_predicate
 
 # Create a router (a mini-app for product-related endpoints)
 router = APIRouter()
@@ -164,13 +170,33 @@ class HomeCatalogSummaryResponse(BaseModel):
     recent_products: List[HomeSummaryProduct]
 
 
+def _get_scoped_product_or_404(
+    db: Session,
+    product_id: int,
+    current_user: User,
+    current_workspace: ActiveWorkspace,
+) -> ProductMonitored:
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        ),
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
 # API ENDPOINTS
 
 @router.post("/", response_model=ProductResponse, status_code=201)
 def create_product(
     product: ProductCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     POST /products
@@ -186,7 +212,12 @@ def create_product(
     }
     """
     # Check if user has reached their product limit
-    check_usage_limit(current_user, "products", db)
+    check_usage_limit(
+        current_user,
+        "products",
+        db,
+        workspace_id=current_workspace.workspace_id,
+    )
 
     # Create a new ProductMonitored record
     db_product = ProductMonitored(
@@ -199,7 +230,8 @@ def create_product(
         mpn=product.mpn,
         upc_ean=product.upc_ean,
         cost_price=product.cost_price,
-        user_id=current_user.id  # Associate product with user
+        user_id=current_user.id,  # Keep legacy ownership during cutover
+        workspace_id=current_workspace.workspace_id,
     )
 
     db.add(db_product)
@@ -209,14 +241,23 @@ def create_product(
     if db_product.my_price is not None:
         db.add(MyPriceHistory(
             product_id=db_product.id,
+            workspace_id=current_workspace.workspace_id,
             old_price=None,
             new_price=db_product.my_price,
         ))
 
+    refresh_product_rollups(
+        db,
+        product_id=db_product.id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
+
     log_activity(db, current_user.id, "product.create", "product",
                  f"Added product '{db_product.title}' to monitoring",
                  entity_type="product", entity_id=db_product.id, entity_name=db_product.title,
-                 metadata={"sku": db_product.sku, "brand": db_product.brand, "my_price": db_product.my_price})
+                 metadata={"sku": db_product.sku, "brand": db_product.brand, "my_price": db_product.my_price},
+                 workspace_id=current_workspace.workspace_id)
     db.commit()
     db.refresh(db_product)  # Get the ID that was auto-generated
 
@@ -240,6 +281,7 @@ def create_product(
 def get_all_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
     limit: int = Query(50, ge=1, le=200, description="Max products to return"),
     offset: int = Query(0, ge=0, description="Number of products to skip"),
 ):
@@ -253,6 +295,7 @@ def get_all_products(
     summaries = get_product_summaries(
         db,
         user_id=current_user.id,
+        workspace_id=current_workspace.workspace_id,
         limit=limit,
         offset=offset,
     )
@@ -263,6 +306,7 @@ def get_all_products(
 def get_home_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/summary
@@ -271,14 +315,19 @@ def get_home_summary(
     Returns counts and a short recent-products list without loading the entire
     product catalog into the browser.
     """
-    return get_home_catalog_summary(db, user_id=current_user.id)
+    return get_home_catalog_summary(
+        db,
+        user_id=current_user.id,
+        workspace_id=current_workspace.workspace_id,
+    )
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}
@@ -286,13 +335,7 @@ def get_product(
     Get a specific product by ID.
     Requires authentication. Only returns products owned by the current user.
     """
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id  # Security: only show user's own products
-    ).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     return ProductResponse(
         id=product.id,
@@ -315,18 +358,14 @@ def update_product(
     product_id: int,
     product_update: ProductUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     PUT /products/{id}
     Update a product's fields (title, sku, brand, image_url, my_price).
     """
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     # Auto-record my_price change before applying the update
     updates = product_update.dict(exclude_none=True)
@@ -334,6 +373,7 @@ def update_product(
     if 'my_price' in updates and updates['my_price'] != product.my_price:
         price_record = MyPriceHistory(
             product_id=product.id,
+            workspace_id=current_workspace.workspace_id,
             old_price=product.my_price,
             new_price=updates['my_price'],
         )
@@ -352,14 +392,23 @@ def update_product(
             desc += f" ({'+' if pct > 0 else ''}{pct}%)"
         log_activity(db, current_user.id, "price.update", "price", desc,
                      entity_type="product", entity_id=product.id, entity_name=product.title,
-                     metadata={"old_price": old_price, "new_price": new_p, "change_pct": pct})
+                     metadata={"old_price": old_price, "new_price": new_p, "change_pct": pct},
+                     workspace_id=current_workspace.workspace_id)
     elif updates:
         changed = [k for k in updates if k != 'my_price']
         if changed:
             log_activity(db, current_user.id, "product.update", "product",
                          f"Updated product '{product.title}'",
                          entity_type="product", entity_id=product.id, entity_name=product.title,
-                         metadata={"fields_changed": changed})
+                         metadata={"fields_changed": changed},
+                         workspace_id=current_workspace.workspace_id)
+
+    refresh_product_rollups(
+        db,
+        product_id=product.id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
 
     db.commit()
     db.refresh(product)
@@ -384,7 +433,8 @@ def update_product(
 def get_product_matches(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}/matches
@@ -393,13 +443,7 @@ def get_product_matches(
     Includes the latest price for each match.
     Requires authentication. Only returns matches for products owned by the current user.
     """
-    # Check if product exists and belongs to current user
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     # Get all matches
     matches = db.query(CompetitorMatch).filter(
@@ -449,7 +493,8 @@ def get_product_matches(
 def get_price_history(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}/price-history
@@ -458,13 +503,7 @@ def get_price_history(
     Used to display the price chart.
     Requires authentication. Only returns data for products owned by the current user.
     """
-    # Check if product exists and belongs to current user
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     history_rows = db.query(
         PriceHistory,
@@ -506,7 +545,8 @@ async def trigger_scrape(
     website: str = "amazon.com",
     max_results: int = 5,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     POST /products/{id}/scrape
@@ -519,13 +559,7 @@ async def trigger_scrape(
     - website: Which site to search (default: amazon.com)
     - max_results: Max products to find (default: 5)
     """
-    # Check if product exists and belongs to current user
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     # Search for the product on the specified website
     try:
@@ -593,6 +627,7 @@ async def trigger_scrape(
                 # Create new match
                 new_match = CompetitorMatch(
                     monitored_product_id=product_id,
+                    workspace_id=current_workspace.workspace_id,
                     competitor_name=website.split('.')[0].capitalize(),
                     competitor_url=result['url'],
                     competitor_product_title=result.get('title', ''),
@@ -624,6 +659,7 @@ async def trigger_scrape(
             if new_price is not None:
                 price_record = PriceHistory(
                     match_id=match_id,
+                    workspace_id=current_workspace.workspace_id,
                     price=new_price,
                     currency=result.get('currency', 'USD'),
                     in_stock=stock,
@@ -642,7 +678,15 @@ async def trigger_scrape(
         log_activity(db, current_user.id, "product.scrape", "competitor",
                      f"Scraped {website} for '{product.title}' — {matches_created} new match{'es' if matches_created != 1 else ''} found",
                      entity_type="product", entity_id=product_id, entity_name=product.title,
-                     metadata={"website": website, "matches_found": len(search_results), "matches_created": matches_created})
+                     metadata={"website": website, "matches_found": len(search_results), "matches_created": matches_created},
+                     workspace_id=current_workspace.workspace_id)
+        refresh_product_rollups(
+            db,
+            product_id=product.id,
+            workspace_id=current_workspace.workspace_id,
+        )
+        refresh_workspace_seller_rollups(db, workspace_id=current_workspace.workspace_id)
+        refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
         db.commit()
 
         return {
@@ -673,7 +717,8 @@ async def scrape_competitor_url(
     product_id: int,
     body: ScrapeUrlBody,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     POST /products/{id}/scrape-url
@@ -692,13 +737,7 @@ async def scrape_competitor_url(
     if not competitor_url.startswith(("http://", "https://")):
         raise HTTPException(status_code=422, detail="competitor_url must be a full URL starting with http:// or https://")
 
-    # Check product exists and belongs to the current user
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     # Derive competitor name from URL hostname as a fallback
     from urllib.parse import urlparse
@@ -775,6 +814,7 @@ async def scrape_competitor_url(
         else:
             new_match = CompetitorMatch(
                 monitored_product_id=product_id,
+                workspace_id=current_workspace.workspace_id,
                 competitor_name=competitor_name,
                 competitor_url=competitor_url,
                 competitor_product_title=result.get('title', ''),
@@ -804,6 +844,7 @@ async def scrape_competitor_url(
         if scrape_price is not None:
             price_record = PriceHistory(
                 match_id=match_id,
+                workspace_id=current_workspace.workspace_id,
                 price=scrape_price,
                 currency=result.get('currency', 'USD'),
                 in_stock=scrape_stock,
@@ -823,9 +864,17 @@ async def scrape_competitor_url(
         action_desc = f"{'Updated' if existing else 'Added'} competitor '{competitor_name}' for '{product.title}'"
         if scrape_price:
             action_desc += f" (${scrape_price:.2f})"
+        refresh_product_rollups(
+            db,
+            product_id=product.id,
+            workspace_id=current_workspace.workspace_id,
+        )
+        refresh_workspace_seller_rollups(db, workspace_id=current_workspace.workspace_id)
+        refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
         log_activity(db, current_user.id, action_label, "competitor", action_desc,
                      entity_type="product", entity_id=product_id, entity_name=product.title,
-                     metadata={"competitor_name": competitor_name, "url": competitor_url, "price": scrape_price})
+                     metadata={"competitor_name": competitor_name, "url": competitor_url, "price": scrape_price},
+                     workspace_id=current_workspace.workspace_id)
         db.commit()
         db.refresh(existing if existing else new_match)
         match_obj = existing if existing else new_match
@@ -874,7 +923,8 @@ async def scrape_competitor_url(
 def get_my_price_history(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}/my-price-history
@@ -882,12 +932,7 @@ def get_my_price_history(
     Returns the log of MY OWN price changes for this product.
     Recorded automatically every time my_price is updated.
     """
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     records = (
         db.query(MyPriceHistory)
@@ -914,7 +959,8 @@ def get_my_price_history(
 def export_product_csv(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}/export.csv
@@ -926,12 +972,7 @@ def export_product_csv(
     import io
     from fastapi.responses import StreamingResponse
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
@@ -1018,7 +1059,8 @@ def export_product_csv(
 def export_product_xlsx(
     product_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     GET /products/{id}/export.xlsx
@@ -1029,12 +1071,7 @@ def export_product_xlsx(
     from fastapi.responses import Response
     from services.xlsx_writer import write_xlsx
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     matches = db.query(CompetitorMatch).filter(
         CompetitorMatch.monitored_product_id == product_id
@@ -1114,27 +1151,30 @@ def export_product_xlsx(
 
 
 @router.delete("/{product_id}")
-def delete_product(product_id: int, db: Session = Depends(get_db),
-                   current_user: User = Depends(get_current_user)):
+def delete_product(
+    product_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
+):
     """
     DELETE /products/{id}
 
     Delete a product and all its competitor matches.
     """
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     title = product.title
     match_count = len(product.competitor_matches)
     db.delete(product)
+    db.flush()
+    refresh_workspace_seller_rollups(db, workspace_id=current_workspace.workspace_id)
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
     log_activity(db, current_user.id, "product.delete", "product",
                  f"Deleted product '{title}' and {match_count} competitor match{'es' if match_count != 1 else ''}",
                  entity_type="product", entity_id=product_id, entity_name=title,
-                 metadata={"matches_removed": match_count})
+                 metadata={"matches_removed": match_count},
+                 workspace_id=current_workspace.workspace_id)
     db.commit()
 
     return {"status": "deleted", "product_id": product_id}

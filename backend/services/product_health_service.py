@@ -5,13 +5,15 @@ CompetitorMatch, and PriceHistory data.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from collections import defaultdict
 
 from database.models import (
-    ReviewSnapshot, SellerProfile, ListingQualitySnapshot, KeywordRank,
-    CompetitorMatch, ProductMonitored, PriceHistory, User
+    ReviewSnapshot,
+    CompetitorMatch,
+    ProductMonitored,
+    User,
 )
 
 
@@ -23,6 +25,61 @@ class ProductHealthService:
     def __init__(self, db: Session, user: User):
         self.db = db
         self.user = user
+
+    def _load_review_snapshots(self, match_ids: List[int], cutoff: datetime | None = None) -> Dict[int, List[ReviewSnapshot]]:
+        if not match_ids:
+            return {}
+
+        query = self.db.query(ReviewSnapshot).filter(
+            ReviewSnapshot.match_id.in_(match_ids)
+        )
+
+        if cutoff is not None:
+            query = query.filter(ReviewSnapshot.scraped_at >= cutoff)
+
+        snapshots_by_match: Dict[int, List[ReviewSnapshot]] = defaultdict(list)
+        for snapshot in query.order_by(ReviewSnapshot.match_id, ReviewSnapshot.scraped_at).all():
+            snapshots_by_match[snapshot.match_id].append(snapshot)
+
+        return snapshots_by_match
+
+    @staticmethod
+    def _build_velocity_metrics(
+        snapshots: List[ReviewSnapshot],
+        cutoff_7d: datetime,
+        cutoff_30d: datetime,
+    ) -> Dict[str, Any]:
+        latest_snapshot = snapshots[-1] if snapshots else None
+        latest_review_count = latest_snapshot.review_count if latest_snapshot else None
+        latest_rating = latest_snapshot.rating if latest_snapshot else None
+
+        snap_7d = None
+        snap_30d = None
+        for snapshot in snapshots:
+            if snapshot.scraped_at <= cutoff_30d:
+                snap_30d = snapshot
+            if snapshot.scraped_at <= cutoff_7d:
+                snap_7d = snapshot
+            else:
+                break
+
+        velocity_7d = None
+        if latest_review_count is not None and snap_7d is not None and snap_7d.review_count is not None:
+            velocity_7d = latest_review_count - snap_7d.review_count
+
+        velocity_30d = None
+        if latest_review_count is not None and snap_30d is not None and snap_30d.review_count is not None:
+            velocity_30d = latest_review_count - snap_30d.review_count
+
+        return {
+            "latest_snapshot": latest_snapshot,
+            "latest_review_count": latest_review_count,
+            "latest_rating": latest_rating,
+            "snap_7d": snap_7d,
+            "snap_30d": snap_30d,
+            "velocity_7d": velocity_7d,
+            "velocity_30d": velocity_30d,
+        }
 
     def get_product_health_summary(self, product_id: int) -> Dict[str, Any]:
         """
@@ -57,50 +114,25 @@ class ProductHealthService:
         now = datetime.utcnow()
         cutoff_7d = now - timedelta(days=7)
         cutoff_30d = now - timedelta(days=30)
+        snapshots_by_match = self._load_review_snapshots([match.id for match in matches])
 
         competitors = []
 
         for match in matches:
-            # Get all snapshots for this match ordered by scraped_at ascending
-            snapshots = self.db.query(ReviewSnapshot).filter(
-                ReviewSnapshot.match_id == match.id
-            ).order_by(ReviewSnapshot.scraped_at).all()
-
-            latest_snapshot = snapshots[-1] if snapshots else None
-            latest_review_count = latest_snapshot.review_count if latest_snapshot else None
-            latest_rating = latest_snapshot.rating if latest_snapshot else None
-
-            # 7-day velocity: find the oldest snapshot at or before 7 days ago
-            snap_7d = None
-            for s in snapshots:
-                if s.scraped_at <= cutoff_7d:
-                    snap_7d = s
-                else:
-                    break
-
-            velocity_7d = None
-            if latest_review_count is not None and snap_7d is not None and snap_7d.review_count is not None:
-                velocity_7d = latest_review_count - snap_7d.review_count
-
-            # 30-day velocity
-            snap_30d = None
-            for s in snapshots:
-                if s.scraped_at <= cutoff_30d:
-                    snap_30d = s
-                else:
-                    break
-
-            velocity_30d = None
-            if latest_review_count is not None and snap_30d is not None and snap_30d.review_count is not None:
-                velocity_30d = latest_review_count - snap_30d.review_count
+            metrics = self._build_velocity_metrics(
+                snapshots_by_match.get(match.id, []),
+                cutoff_7d,
+                cutoff_30d,
+            )
+            latest_snapshot = metrics["latest_snapshot"]
 
             competitors.append({
                 "match_id": match.id,
                 "competitor_name": match.competitor_name,
-                "latest_review_count": latest_review_count,
-                "latest_rating": float(latest_rating) if latest_rating is not None else None,
-                "review_velocity_7d": velocity_7d,
-                "review_velocity_30d": velocity_30d,
+                "latest_review_count": metrics["latest_review_count"],
+                "latest_rating": float(metrics["latest_rating"]) if metrics["latest_rating"] is not None else None,
+                "review_velocity_7d": metrics["velocity_7d"],
+                "review_velocity_30d": metrics["velocity_30d"],
                 "listing_quality_score": match.listing_quality_score,
                 "questions_count": match.questions_count,
                 "rating_distribution": latest_snapshot.rating_distribution if latest_snapshot else None,
@@ -132,6 +164,14 @@ class ProductHealthService:
         now = datetime.utcnow()
         cutoff_7d = now - timedelta(days=7)
         cutoff_30d = now - timedelta(days=30)
+        product_ids = [product.id for product in products]
+        matches = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids)
+        ).all()
+        matches_by_product: Dict[int, List[CompetitorMatch]] = defaultdict(list)
+        for match in matches:
+            matches_by_product[match.monitored_product_id].append(match)
+        snapshots_by_match = self._load_review_snapshots([match.id for match in matches])
 
         flagged_products = []
         total_products = len(products)
@@ -139,34 +179,22 @@ class ProductHealthService:
         quality_concern_count = 0
 
         for product in products:
-            matches = self.db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product.id
-            ).all()
-
             flags = []
 
-            for match in matches:
-                snapshots = self.db.query(ReviewSnapshot).filter(
-                    ReviewSnapshot.match_id == match.id
-                ).order_by(ReviewSnapshot.scraped_at).all()
-
-                if not snapshots:
+            for match in matches_by_product.get(product.id, []):
+                metrics = self._build_velocity_metrics(
+                    snapshots_by_match.get(match.id, []),
+                    cutoff_7d,
+                    cutoff_30d,
+                )
+                latest = metrics["latest_snapshot"]
+                if latest is None:
                     continue
 
-                latest = snapshots[-1]
-
-                # Check 7d surging velocity
-                snap_7d = None
-                for s in snapshots:
-                    if s.scraped_at <= cutoff_7d:
-                        snap_7d = s
-                    else:
-                        break
-
-                if (snap_7d is not None
+                if (metrics["snap_7d"] is not None
                         and latest.review_count is not None
-                        and snap_7d.review_count is not None):
-                    velocity_7d = latest.review_count - snap_7d.review_count
+                        and metrics["snap_7d"].review_count is not None):
+                    velocity_7d = latest.review_count - metrics["snap_7d"].review_count
                     if velocity_7d > 20:
                         flags.append({
                             "flag_type": "surging_reviews",
@@ -175,23 +203,15 @@ class ProductHealthService:
                             "latest_review_count": latest.review_count
                         })
 
-                # Check 30d rating drop
-                snap_30d = None
-                for s in snapshots:
-                    if s.scraped_at <= cutoff_30d:
-                        snap_30d = s
-                    else:
-                        break
-
-                if (snap_30d is not None
+                if (metrics["snap_30d"] is not None
                         and latest.rating is not None
-                        and snap_30d.rating is not None):
-                    rating_drop = float(snap_30d.rating) - float(latest.rating)
+                        and metrics["snap_30d"].rating is not None):
+                    rating_drop = float(metrics["snap_30d"].rating) - float(latest.rating)
                     if rating_drop > 0.2:
                         flags.append({
                             "flag_type": "rating_drop",
                             "competitor_name": match.competitor_name,
-                            "rating_30d_ago": float(snap_30d.rating),
+                            "rating_30d_ago": float(metrics["snap_30d"].rating),
                             "rating_now": float(latest.rating),
                             "rating_drop": round(rating_drop, 2)
                         })
@@ -233,6 +253,17 @@ class ProductHealthService:
         Returns list of {date, review_count, velocity} where velocity is
         the day-over-day change in review_count.
         """
+        match = self.db.query(CompetitorMatch.id).join(
+            ProductMonitored,
+            CompetitorMatch.monitored_product_id == ProductMonitored.id,
+        ).filter(
+            CompetitorMatch.id == match_id,
+            ProductMonitored.user_id == self.user.id,
+        ).first()
+
+        if not match:
+            return {"error": "Match not found", "match_id": match_id}
+
         cutoff = datetime.utcnow() - timedelta(days=days)
 
         snapshots = self.db.query(ReviewSnapshot).filter(

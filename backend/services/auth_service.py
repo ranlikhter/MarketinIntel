@@ -13,14 +13,24 @@ from env_loader import load_backend_env
 load_backend_env()
 
 # Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY") or "your-secret-key-change-this-in-production"
+SECRET_KEY = (
+    os.getenv("JWT_SECRET_KEY")
+    or os.getenv("SECRET_KEY")
+    or "your-secret-key-change-this-in-production"
+)
 # WARNING: The fallback above is for development only. Set JWT_SECRET_KEY in production.
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use a non-bcrypt primary scheme so long generated passwords and newer bcrypt
+# package variants do not break registration, while still accepting legacy bcrypt
+# hashes already stored in existing databases.
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256", "bcrypt"],
+    deprecated="auto",
+)
 
 
 def hash_password(password: str) -> str:

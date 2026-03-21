@@ -21,6 +21,7 @@ def log_activity(
     entity_name: str = None,
     metadata: dict = None,
     status: str = "success",
+    workspace_id: int | None = None,
 ):
     """
     Record one user action.
@@ -32,6 +33,7 @@ def log_activity(
     """
     entry = ActivityLog(
         user_id=user_id,
+        workspace_id=workspace_id,
         action=action,
         category=category,
         description=description,

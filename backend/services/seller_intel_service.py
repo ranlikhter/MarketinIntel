@@ -5,14 +5,16 @@ seller profiles, and buy-box volatility analysis.
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, and_
-from typing import List, Dict, Any, Optional
+from sqlalchemy import func
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
-from collections import defaultdict
 
 from database.models import (
-    ReviewSnapshot, SellerProfile, ListingQualitySnapshot, KeywordRank,
-    CompetitorMatch, ProductMonitored, PriceHistory, User
+    SellerProfile,
+    CompetitorMatch,
+    ProductMonitored,
+    PriceHistory,
+    User,
 )
 
 
@@ -24,6 +26,25 @@ class SellerIntelService:
     def __init__(self, db: Session, user: User):
         self.db = db
         self.user = user
+
+    def _get_first_history_timestamps(self, match_ids: List[int]) -> Dict[int, datetime]:
+        if not match_ids:
+            return {}
+
+        rows = self.db.query(
+            PriceHistory.match_id,
+            func.min(PriceHistory.timestamp).label("first_seen_at"),
+        ).filter(
+            PriceHistory.match_id.in_(match_ids)
+        ).group_by(
+            PriceHistory.match_id
+        ).all()
+
+        return {
+            row.match_id: row.first_seen_at
+            for row in rows
+            if row.first_seen_at is not None
+        }
 
     def get_seller_overview(self) -> List[Dict[str, Any]]:
         """
@@ -121,32 +142,35 @@ class SellerIntelService:
         Returns list with product_title, competitor_name, competitor_url,
         latest_price, and since (first scrape with amazon_is_seller).
         """
-        matches = self.db.query(CompetitorMatch).join(
-            ProductMonitored
+        matches = self.db.query(
+            CompetitorMatch.id,
+            CompetitorMatch.monitored_product_id,
+            CompetitorMatch.competitor_name,
+            CompetitorMatch.competitor_url,
+            CompetitorMatch.latest_price,
+            ProductMonitored.title.label("product_title"),
+        ).join(
+            ProductMonitored,
+            CompetitorMatch.monitored_product_id == ProductMonitored.id,
         ).filter(
             ProductMonitored.user_id == self.user.id,
-            CompetitorMatch.amazon_is_seller == True  # noqa: E712
+            CompetitorMatch.amazon_is_seller.is_(True),
         ).all()
+
+        first_seen_map = self._get_first_history_timestamps([match.id for match in matches])
 
         threats = []
 
         for match in matches:
-            product = self.db.query(ProductMonitored).filter(
-                ProductMonitored.id == match.monitored_product_id
-            ).first()
-
-            # Approximate "since" as the earliest PriceHistory entry for this match
-            earliest_entry = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id
-            ).order_by(PriceHistory.timestamp).first()
+            first_seen_at = first_seen_map.get(match.id)
 
             threats.append({
                 "product_id": match.monitored_product_id,
-                "product_title": product.title if product else None,
+                "product_title": match.product_title,
                 "competitor_name": match.competitor_name,
-                "competitor_url": getattr(match, "competitor_url", None),
+                "competitor_url": match.competitor_url,
                 "latest_price": float(match.latest_price) if match.latest_price is not None else None,
-                "since": earliest_entry.timestamp.isoformat() if earliest_entry else None,
+                "since": first_seen_at.isoformat() if first_seen_at else None,
             })
 
         threats.sort(key=lambda x: x["product_title"] or "")
@@ -159,30 +183,32 @@ class SellerIntelService:
         Includes their SellerProfile record, associated competitor listings,
         and products they compete on.
         """
+        normalized_name = seller_name.strip().lower()
+
         profile = self.db.query(SellerProfile).filter(
-            func.lower(SellerProfile.seller_name) == seller_name.lower()
+            func.lower(SellerProfile.seller_name) == normalized_name
         ).first()
 
-        matches = self.db.query(CompetitorMatch).join(
-            ProductMonitored
+        matches = self.db.query(
+            CompetitorMatch,
+            ProductMonitored.title.label("product_title"),
+        ).join(
+            ProductMonitored,
+            CompetitorMatch.monitored_product_id == ProductMonitored.id,
         ).filter(
             ProductMonitored.user_id == self.user.id,
-            func.lower(CompetitorMatch.seller_name) == seller_name.lower()
+            func.lower(CompetitorMatch.seller_name) == normalized_name,
         ).all()
 
         if not profile and not matches:
             return {"error": "Seller not found", "seller_name": seller_name}
 
         products = []
-        for match in matches:
-            product = self.db.query(ProductMonitored).filter(
-                ProductMonitored.id == match.monitored_product_id
-            ).first()
-
+        for match, product_title in matches:
             products.append({
                 "match_id": match.id,
                 "product_id": match.monitored_product_id,
-                "product_title": product.title if product else None,
+                "product_title": product_title,
                 "competitor_name": match.competitor_name,
                 "latest_price": float(match.latest_price) if match.latest_price is not None else None,
                 "amazon_is_seller": match.amazon_is_seller,
@@ -230,25 +256,48 @@ class SellerIntelService:
             CompetitorMatch.monitored_product_id == product_id
         ).all()
 
-        # Collect all price history entries with seller info across all matches
+        match_map = {match.id: match for match in matches}
+        if not match_map:
+            return {
+                "product_id": product_id,
+                "product_title": product.title,
+                "period_days": 30,
+                "total_observations": 0,
+                "seller_changes": 0,
+                "unique_sellers": [],
+                "unique_seller_count": 0,
+                "volatility_score": 0,
+                "volatility_label": "low",
+                "timeline": [],
+            }
+
+        entries = self.db.query(
+            PriceHistory.match_id,
+            PriceHistory.timestamp,
+            PriceHistory.price,
+            PriceHistory.seller_name,
+        ).filter(
+            PriceHistory.match_id.in_(list(match_map.keys())),
+            PriceHistory.timestamp >= cutoff,
+        ).order_by(
+            PriceHistory.timestamp,
+            PriceHistory.id,
+        ).all()
+
         all_entries = []
-        for match in matches:
-            entries = self.db.query(PriceHistory).filter(
-                PriceHistory.match_id == match.id,
-                PriceHistory.timestamp >= cutoff
-            ).order_by(PriceHistory.timestamp).all()
+        for entry in entries:
+            match = match_map.get(entry.match_id)
+            if not match:
+                continue
 
-            for entry in entries:
-                seller = getattr(entry, "seller_name", None) or match.seller_name
-                if seller:
-                    all_entries.append({
-                        "timestamp": entry.timestamp,
-                        "seller_name": seller,
-                        "price": float(entry.price) if entry.price is not None else None,
-                        "competitor_name": match.competitor_name,
-                    })
-
-        all_entries.sort(key=lambda x: x["timestamp"])
+            seller = entry.seller_name or match.seller_name
+            if seller:
+                all_entries.append({
+                    "timestamp": entry.timestamp,
+                    "seller_name": seller,
+                    "price": float(entry.price) if entry.price is not None else None,
+                    "competitor_name": match.competitor_name,
+                })
 
         # Count seller changes and unique sellers
         seller_changes = 0

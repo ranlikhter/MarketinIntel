@@ -155,14 +155,16 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_mph_product_changed ON my_price_history(product_id, changed_at)",
     ]
     with engine.connect() as conn:
-        for sql in migrations:
-            try:
-                conn.execute(text(sql))
-                conn.commit()
-                print(f"[MIGRATION] Applied: {sql}")
-            except Exception:
-                # Column already exists or table doesn't exist yet — safe to ignore
-                pass
+        if engine.dialect.name == "sqlite":
+            for sql in migrations:
+                try:
+                    conn.execute(text(sql))
+                    conn.commit()
+                    print(f"[MIGRATION] Applied: {sql}")
+                except Exception:
+                    conn.rollback()
+        else:
+            print("[MIGRATION] Skipping legacy additive SQL migrations on non-SQLite database")
 
         encrypted_rows = encrypt_existing_sensitive_values(conn)
         if encrypted_rows:

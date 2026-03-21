@@ -12,6 +12,7 @@ from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from database.models import CompetitorMatch, CompetitorWebsite, PriceHistory, ProductMonitored
+from services.workspace_service import build_scope_predicate
 
 
 @dataclass(frozen=True)
@@ -185,6 +186,7 @@ def get_product_summaries(
     db: Session,
     *,
     user_id: int,
+    workspace_id: int | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
@@ -192,7 +194,11 @@ def get_product_summaries(
     Fetch paginated product summaries for the products page with batch queries.
     """
     products = db.query(ProductMonitored).filter(
-        ProductMonitored.user_id == user_id
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=workspace_id,
+            user_id=user_id,
+        )
     ).order_by(
         ProductMonitored.created_at.desc()
     ).offset(offset).limit(limit).all()
@@ -286,6 +292,7 @@ def get_home_catalog_summary(
     db: Session,
     *,
     user_id: int,
+    workspace_id: int | None = None,
     recent_limit: int = 6,
 ) -> dict:
     """
@@ -293,14 +300,22 @@ def get_home_catalog_summary(
     catalog just to render counts and a short recent list.
     """
     total_products = db.query(func.count(ProductMonitored.id)).filter(
-        ProductMonitored.user_id == user_id
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=workspace_id,
+            user_id=user_id,
+        )
     ).scalar() or 0
 
     total_matches = db.query(func.count(CompetitorMatch.id)).join(
         ProductMonitored,
         CompetitorMatch.monitored_product_id == ProductMonitored.id,
     ).filter(
-        ProductMonitored.user_id == user_id
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=workspace_id,
+            user_id=user_id,
+        )
     ).scalar() or 0
 
     total_competitors = db.query(func.count(CompetitorWebsite.id)).scalar() or 0
@@ -308,6 +323,7 @@ def get_home_catalog_summary(
     recent_summaries = get_product_summaries(
         db,
         user_id=user_id,
+        workspace_id=workspace_id,
         limit=recent_limit,
         offset=0,
     )

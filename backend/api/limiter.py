@@ -55,25 +55,34 @@ _AUTH_WINDOW = 60      # per N seconds
 
 class AuthRateLimitMiddleware(BaseHTTPMiddleware):
     """
-    Caps login / signup / forgot-password at 10 requests per minute per IP.
+    Caps login / signup / forgot-password at 10 requests per minute per IP
+    for each sensitive auth endpoint.
     Applied before the global slowapi middleware so auth endpoints get both
     the strict per-path limit AND the global 200/hr cap.
     """
 
-    def __init__(self, app, max_calls: int = _AUTH_LIMIT, window_seconds: int = _AUTH_WINDOW):
+    def __init__(
+        self,
+        app,
+        max_calls: int = _AUTH_LIMIT,
+        window_seconds: int = _AUTH_WINDOW,
+        enabled: bool = True,
+    ):
         super().__init__(app)
         self._max_calls = max_calls
         self._window = window_seconds
+        self._enabled = enabled
         self._buckets: dict[str, deque] = {}
         self._lock = threading.Lock()
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in _AUTH_PATHS:
+        if self._enabled and request.url.path in _AUTH_PATHS:
             ip = get_remote_address(request)
+            bucket_key = f"{ip}:{request.url.path}"
             now = time.monotonic()
 
             with self._lock:
-                bucket = self._buckets.setdefault(ip, deque())
+                bucket = self._buckets.setdefault(bucket_key, deque())
                 # Evict timestamps outside the window
                 while bucket and bucket[0] < now - self._window:
                     bucket.popleft()

@@ -51,6 +51,7 @@ class ProductMonitored(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Owner of this product
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     title = Column(String(500), nullable=False)  # e.g., "Apple iPhone 13 128GB"
     sku = Column(String(100), nullable=True)      # e.g., "IPHONE13-128" (optional)
     brand = Column(String(100), nullable=True)    # e.g., "Apple"
@@ -73,6 +74,7 @@ class ProductMonitored(Base):
 
     # Relationships
     user = relationship("User", back_populates="products")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     competitor_matches = relationship("CompetitorMatch", back_populates="monitored_product", cascade="all, delete-orphan")
     my_price_history = relationship("MyPriceHistory", back_populates="product", cascade="all, delete-orphan", order_by="MyPriceHistory.changed_at")
 
@@ -89,6 +91,7 @@ class CompetitorMatch(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     monitored_product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     competitor_name = Column(String(100), nullable=False)    # e.g., "Amazon", "Walmart"
     competitor_url = Column(Text, nullable=False)            # Full URL to the product page
@@ -186,6 +189,7 @@ class CompetitorMatch(Base):
 
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     price_history = relationship("PriceHistory", back_populates="competitor_match", cascade="all, delete-orphan")
     promotions = relationship("CompetitorPromotion", back_populates="competitor_match", cascade="all, delete-orphan")
 
@@ -202,6 +206,7 @@ class PriceHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     price = Column(Float, nullable=False)                    # e.g., 799.99
     currency = Column(String(10), default="USD")             # e.g., "USD", "EUR"
@@ -246,6 +251,7 @@ class PriceHistory(Base):
 
     # Relationship
     competitor_match = relationship("CompetitorMatch", back_populates="price_history")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<PriceHistory(id={self.id}, price={self.price}, timestamp={self.timestamp})>"
@@ -303,6 +309,7 @@ class PriceAlert(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Owner of this alert
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False)
 
     # Alert configuration
@@ -346,6 +353,7 @@ class PriceAlert(Base):
 
     # Relationships
     user = relationship("User", back_populates="alerts")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     product = relationship("ProductMonitored")
     notification_logs = relationship("NotificationLog", back_populates="alert", cascade="all, delete-orphan")
 
@@ -397,6 +405,12 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
+    default_workspace_id = Column(
+        Integer,
+        ForeignKey("workspaces.id", use_alter=True, name="fk_users_default_workspace_id"),
+        nullable=True,
+        index=True,
+    )
     full_name = Column(String(255), nullable=True)
     auth_provider = Column(String(50), nullable=False, default="local")
     auth_provider_subject = Column(String(255), nullable=True, unique=True)
@@ -433,7 +447,8 @@ class User(Base):
     # Relationships
     products = relationship("ProductMonitored", back_populates="user", cascade="all, delete-orphan")
     alerts = relationship("PriceAlert", back_populates="user", cascade="all, delete-orphan")
-    workspaces_owned = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan")
+    default_workspace = relationship("Workspace", foreign_keys=[default_workspace_id], post_update=True)
+    workspaces_owned = relationship("Workspace", back_populates="owner", cascade="all, delete-orphan", foreign_keys="Workspace.owner_id")
     workspace_memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
     saved_views = relationship("SavedView", back_populates="user", cascade="all, delete-orphan")
     api_keys = relationship("ApiKey", back_populates="user", cascade="all, delete-orphan")
@@ -508,6 +523,7 @@ class RepricingRule(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=True)  # Null = applies to all
 
     # Rule configuration
@@ -577,7 +593,7 @@ class Workspace(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    owner = relationship("User", back_populates="workspaces_owned")
+    owner = relationship("User", back_populates="workspaces_owned", foreign_keys=[owner_id])
     members = relationship("WorkspaceMember", back_populates="workspace", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -620,12 +636,14 @@ class MyPriceHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     old_price = Column(Float, nullable=True)      # Previous price (null if first record)
     new_price = Column(Float, nullable=False)     # New price being set
     note = Column(String(300), nullable=True)     # Optional reason ("Black Friday", "matched Amazon")
     changed_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     product = relationship("ProductMonitored", back_populates="my_price_history")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<MyPriceHistory(product_id={self.product_id}, old={self.old_price}, new={self.new_price})>"
@@ -660,6 +678,7 @@ class ApiKey(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     name = Column(String(255), nullable=False)        # e.g., "My Shopify Automation"
     key_prefix = Column(String(12), nullable=False)   # First chars for display (e.g., "mi_a1b2c3")
     key_hash = Column(String(64), nullable=False, unique=True)  # SHA-256 of full key
@@ -683,6 +702,7 @@ class StoreConnection(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     platform = Column(String(20), nullable=False)      # "shopify" | "woocommerce"
     store_url = Column(String(500), nullable=False)
     api_key = Column(EncryptedString(), nullable=True)       # Shopify access_token / WC consumer_key
@@ -707,6 +727,7 @@ class ActivityLog(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     # What happened
     action = Column(String(50), nullable=False, index=True)   # e.g. "product.create", "price.update"
@@ -744,6 +765,7 @@ class NotificationLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     alert_id = Column(Integer, ForeignKey("price_alerts.id", ondelete="SET NULL"), nullable=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     channel = Column(String(20), nullable=False)   # email | sms | slack | discord | push
     status = Column(String(20), nullable=False)    # sent | failed | timeout
@@ -768,6 +790,7 @@ class PushSubscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     # Web Push subscription keys (from browser PushManager.subscribe())
     endpoint = Column(Text, nullable=False, unique=True)   # Push service delivery URL
@@ -803,6 +826,7 @@ class CompetitorPromotion(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     # Structured promotion data
     promo_type = Column(String(20), nullable=False)         # "bogo", "bundle", "pct_off", "free_item", "other"
@@ -818,6 +842,7 @@ class CompetitorPromotion(Base):
     is_active = Column(Boolean, default=True, index=True)
 
     competitor_match = relationship("CompetitorMatch", back_populates="promotions")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<CompetitorPromotion(id={self.id}, type='{self.promo_type}', desc='{self.description[:40]}')>"
@@ -834,6 +859,7 @@ class ReviewSnapshot(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     review_count = Column(Integer, nullable=True)
     rating = Column(Float, nullable=True)
@@ -842,6 +868,7 @@ class ReviewSnapshot(Base):
     scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     competitor_match = relationship("CompetitorMatch")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<ReviewSnapshot(match_id={self.match_id}, reviews={self.review_count}, at={self.scraped_at})>"
@@ -883,6 +910,7 @@ class ListingQualitySnapshot(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(Integer, ForeignKey("competitor_matches.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     image_count = Column(Integer, nullable=True)
     has_video = Column(Boolean, nullable=True)
@@ -896,6 +924,7 @@ class ListingQualitySnapshot(Base):
     scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     competitor_match = relationship("CompetitorMatch")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<ListingQualitySnapshot(match_id={self.match_id}, score={self.listing_score})>"
@@ -912,6 +941,7 @@ class KeywordRank(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products_monitored.id"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
 
     keyword = Column(String(300), nullable=False, index=True)
     organic_rank = Column(Integer, nullable=True)             # Position in organic results (1-based)
@@ -921,6 +951,7 @@ class KeywordRank(Base):
     scraped_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     product = relationship("ProductMonitored")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
 
     def __repr__(self):
         return f"<KeywordRank(product_id={self.product_id}, keyword='{self.keyword}', rank={self.organic_rank})>"

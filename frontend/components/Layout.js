@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useAuth } from '../context/AuthContext';
 
 const NAV = [
   {
@@ -48,10 +49,33 @@ const ChevronLeft = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" 
 export default function Layout({ children }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
+  const { user, workspaces, workspacesLoading, selectWorkspace } = useAuth();
   const width = collapsed ? 64 : 240;
+  const allWorkspaces = [
+    ...(workspaces?.owned || []).map((workspace) => ({ ...workspace, scopeLabel: 'Owned' })),
+    ...(workspaces?.member_of || []).map((workspace) => ({ ...workspace, scopeLabel: 'Shared' })),
+  ];
+  const activeWorkspaceId = user?.active_workspace_id || workspaces?.active_workspace_id || '';
 
   const isActive = (item) =>
     item.exact ? router.pathname === item.href : router.pathname.startsWith(item.href);
+
+  const handleWorkspaceChange = async (event) => {
+    const nextWorkspaceId = Number(event.target.value);
+    if (!nextWorkspaceId || nextWorkspaceId === activeWorkspaceId) {
+      return;
+    }
+
+    setSwitchingWorkspace(true);
+    const result = await selectWorkspace(nextWorkspaceId);
+    if (result.success) {
+      router.reload();
+      return;
+    }
+
+    setSwitchingWorkspace(false);
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F3F4F6' }}>
@@ -167,9 +191,39 @@ export default function Layout({ children }) {
 
           <div style={{ flex: 1 }} />
 
+          {allWorkspaces.length > 0 && (
+            <div style={{ minWidth: '220px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9CA3AF', fontWeight: 700 }}>
+                Active Workspace
+              </span>
+              <select
+                value={activeWorkspaceId}
+                onChange={handleWorkspaceChange}
+                disabled={workspacesLoading || switchingWorkspace}
+                style={{
+                  border: '1px solid #E5E7EB',
+                  background: '#FFFFFF',
+                  borderRadius: '8px',
+                  padding: '7px 10px',
+                  fontSize: '13px',
+                  color: '#111827',
+                  outline: 'none',
+                }}
+              >
+                {allWorkspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name} · {workspace.scopeLabel}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#10B981', display: 'inline-block', animation: 'pulse-dot 2s ease-in-out infinite' }} />
-            <span style={{ fontSize: '12px', color: '#6B7280', fontWeight: 500 }}>Live</span>
+            <span style={{ fontSize: '12px', color: '#6B7280', fontWeight: 500 }}>
+              {switchingWorkspace ? 'Switching…' : 'Live'}
+            </span>
           </div>
 
           <Link href="/products/add" legacyBehavior>

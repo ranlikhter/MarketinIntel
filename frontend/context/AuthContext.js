@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
 const AuthContext = createContext();
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 const MICROSOFT_CLIENT_ID = process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID || '';
+const EMPTY_WORKSPACES = { active_workspace_id: null, owned: [], member_of: [] };
 
 const jsonHeaders = {
   'Content-Type': 'application/json',
@@ -34,11 +35,13 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [workspaces, setWorkspaces] = useState(EMPTY_WORKSPACES);
+  const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
 
-  const loadCurrentUser = async () => {
+  const loadCurrentUser = useCallback(async () => {
     const { response, data } = await fetchJson('/api/auth/me', {
       method: 'GET',
     });
@@ -50,7 +53,34 @@ export const AuthProvider = ({ children }) => {
 
     setUser(data);
     return { success: true, user: data };
-  };
+  }, []);
+
+  const loadWorkspaces = useCallback(async () => {
+    if (!user) {
+      setWorkspaces(EMPTY_WORKSPACES);
+      setWorkspacesLoading(false);
+      return { success: true, workspaces: EMPTY_WORKSPACES };
+    }
+
+    setWorkspacesLoading(true);
+    try {
+      const { response, data } = await fetchJson('/api/workspaces', {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to load workspaces');
+      }
+
+      setWorkspaces(data);
+      return { success: true, workspaces: data };
+    } catch (err) {
+      setWorkspaces(EMPTY_WORKSPACES);
+      return { success: false, error: err.message };
+    } finally {
+      setWorkspacesLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -65,7 +95,20 @@ export const AuthProvider = ({ children }) => {
     };
 
     checkAuth();
-  }, []);
+  }, [loadCurrentUser]);
+
+  useEffect(() => {
+    if (!user) {
+      setWorkspaces(EMPTY_WORKSPACES);
+      setWorkspacesLoading(false);
+      return;
+    }
+
+    loadWorkspaces().catch((err) => {
+      console.error('Workspace load failed:', err);
+      setWorkspaces(EMPTY_WORKSPACES);
+    });
+  }, [user?.id, user?.active_workspace_id, loadWorkspaces]);
 
   const signup = async (email, password, fullName) => {
     try {
@@ -163,6 +206,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', err);
     } finally {
       setUser(null);
+      setWorkspaces(EMPTY_WORKSPACES);
       router.push('/auth/login');
     }
   };
@@ -230,6 +274,30 @@ export const AuthProvider = ({ children }) => {
     setUser((prev) => ({ ...(prev || {}), ...userData }));
   };
 
+  const selectWorkspace = async (workspaceId) => {
+    try {
+      setError(null);
+      const { response, data } = await fetchJson(`/api/workspaces/${workspaceId}/select`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to switch workspace');
+      }
+
+      setUser((prev) => (
+        prev
+          ? { ...prev, active_workspace_id: data.active_workspace_id }
+          : prev
+      ));
+      await loadWorkspaces();
+      return { success: true, activeWorkspaceId: data.active_workspace_id };
+    } catch (err) {
+      setError(err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
   const verifyEmail = async (token) => {
     try {
       setError(null);
@@ -268,6 +336,10 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     verifyEmail,
     updateUser,
+    workspaces,
+    workspacesLoading,
+    refreshWorkspaces: loadWorkspaces,
+    selectWorkspace,
     isAuthenticated: !!user,
     googleClientId: GOOGLE_CLIENT_ID,
     microsoftClientId: MICROSOFT_CLIENT_ID,

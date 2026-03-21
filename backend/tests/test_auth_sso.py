@@ -4,7 +4,7 @@ Tests for Google SSO authentication.
 
 from api.auth_cookies import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from api.routes import auth as auth_routes
-from database.models import User
+from database.models import User, WorkspaceMember, UserRole
 from services.auth_service import create_sso_state_token
 
 
@@ -66,6 +66,14 @@ class TestGoogleSSO:
         assert user.auth_provider_subject == "google-sub-123"
         assert user.is_verified is True
         assert user.password_login_enabled is False
+        assert user.default_workspace_id is not None
+
+        membership = db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == user.default_workspace_id,
+            WorkspaceMember.user_id == user.id,
+        ).first()
+        assert membership is not None
+        assert membership.role == UserRole.ADMIN
 
     def test_google_sso_links_existing_local_account(self, client, db, monkeypatch):
         _patch_password_helpers(monkeypatch)
@@ -157,3 +165,4 @@ class TestGoogleSSO:
         assert user.auth_provider == "microsoft"
         assert user.auth_provider_subject == "microsoft-sub-123"
         assert user.password_login_enabled is False
+        assert user.default_workspace_id is not None

@@ -20,8 +20,10 @@ from database.connection import get_db
 from database.models import PriceAlert, ProductMonitored, CompetitorMatch, PriceHistory, User
 from services.email_service import email_service
 from services.activity_service import log_activity
+from services.enterprise_rollup_service import refresh_product_rollups, refresh_workspace_rollups
 from services.webhook_service import normalize_discord_webhook_url, normalize_slack_webhook_url
-from api.dependencies import get_current_user, check_usage_limit
+from api.dependencies import ActiveWorkspace, get_current_user, get_current_workspace, check_usage_limit
+from services.workspace_service import build_scope_predicate
 
 router = APIRouter(prefix="/alerts", tags=["Price Alerts"])
 
@@ -55,6 +57,44 @@ def _validate_webhook_channels(
         raise HTTPException(status_code=400, detail="A valid Slack webhook URL is required when Slack alerts are enabled")
     if notify_discord and not discord_webhook_url:
         raise HTTPException(status_code=400, detail="A valid Discord webhook URL is required when Discord alerts are enabled")
+
+
+def _get_scoped_product_or_404(
+    db: Session,
+    product_id: int,
+    current_user: User,
+    current_workspace: ActiveWorkspace,
+) -> ProductMonitored:
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == product_id,
+        build_scope_predicate(
+            ProductMonitored,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        ),
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+
+def _get_scoped_alert_or_404(
+    db: Session,
+    alert_id: int,
+    current_user: User,
+    current_workspace: ActiveWorkspace,
+) -> PriceAlert:
+    alert = db.query(PriceAlert).filter(
+        PriceAlert.id == alert_id,
+        build_scope_predicate(
+            PriceAlert,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        ),
+    ).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return alert
 
 
 # Pydantic models
@@ -162,7 +202,8 @@ class AlertResponse(BaseModel):
 async def create_alert(
     alert: AlertCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Create a new smart alert rule with multi-channel notifications
@@ -187,16 +228,19 @@ async def create_alert(
     - Push (PWA push notifications)
     """
     # Check if user has reached their alerts limit
-    check_usage_limit(current_user, "alerts", db)
+    check_usage_limit(
+        current_user,
+        "alerts",
+        db,
+        workspace_id=current_workspace.workspace_id,
+    )
 
-    # Verify product exists and belongs to current user
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id,
-        ProductMonitored.user_id == current_user.id
-    ).first()
-
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
 
     slack_webhook_url = _normalize_optional_webhook(alert.slack_webhook_url, "slack")
     discord_webhook_url = _normalize_optional_webhook(alert.discord_webhook_url, "discord")
@@ -227,13 +271,31 @@ async def create_alert(
         quiet_hours_start=alert.quiet_hours_start,
         quiet_hours_end=alert.quiet_hours_end,
         cooldown_hours=alert.cooldown_hours,
-        user_id=current_user.id  # Associate alert with user
+        user_id=current_user.id,  # Keep legacy ownership during cutover
+        workspace_id=current_workspace.workspace_id,
     )
 
     db.add(new_alert)
     db.flush()
     product_title = product.title
-    log_activity(db, current_user.id, "alert.create", "alert", f"Created price alert for '{product_title}'", entity_type="alert", entity_id=new_alert.id, entity_name=product_title, metadata={"alert_type": new_alert.alert_type, "product_id": new_alert.product_id})
+    log_activity(
+        db,
+        current_user.id,
+        "alert.create",
+        "alert",
+        f"Created price alert for '{product_title}'",
+        entity_type="alert",
+        entity_id=new_alert.id,
+        entity_name=product_title,
+        metadata={"alert_type": new_alert.alert_type, "product_id": new_alert.product_id},
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_product_rollups(
+        db,
+        product_id=product.id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
     db.commit()
     db.refresh(new_alert)
 
@@ -251,7 +313,8 @@ async def get_alerts(
     product_id: Optional[int] = None,
     enabled_only: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Get all alert rules for the authenticated user
@@ -260,7 +323,13 @@ async def get_alerts(
     - **product_id**: Filter by product (optional)
     - **enabled_only**: Only return enabled alerts
     """
-    query = db.query(PriceAlert).filter(PriceAlert.user_id == current_user.id)
+    query = db.query(PriceAlert).filter(
+        build_scope_predicate(
+            PriceAlert,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        )
+    )
 
     if product_id:
         query = query.filter(PriceAlert.product_id == product_id)
@@ -273,9 +342,12 @@ async def get_alerts(
     # Add product titles
     result = []
     for alert in alerts:
-        product = db.query(ProductMonitored).filter(
-            ProductMonitored.id == alert.product_id
-        ).first()
+        product = _get_scoped_product_or_404(
+            db,
+            alert.product_id,
+            current_user,
+            current_workspace,
+        )
 
         result.append(AlertResponse(
             **alert.__dict__,
@@ -289,23 +361,21 @@ async def get_alerts(
 async def get_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Get a specific alert by ID
     Requires authentication. Only returns alerts owned by the current user.
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
 
     return AlertResponse(
         **alert.__dict__,
@@ -318,19 +388,14 @@ async def update_alert(
     alert_id: int,
     update: AlertUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Update an existing alert
     Requires authentication. Only allows updating alerts owned by the current user.
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
-
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
     # Update fields
     if update.alert_type is not None:
@@ -391,13 +456,22 @@ async def update_alert(
         alert.discord_webhook_url = discord_webhook_url
 
     alert.updated_at = datetime.utcnow()
+    refresh_product_rollups(
+        db,
+        product_id=alert.product_id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
 
     db.commit()
     db.refresh(alert)
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
 
     return AlertResponse(
         **alert.__dict__,
@@ -409,26 +483,41 @@ async def update_alert(
 async def delete_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Delete an alert
     Requires authentication. Only allows deleting alerts owned by the current user.
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
     product_title = product.title if product else "Unknown"
-    log_activity(db, current_user.id, "alert.delete", "alert", f"Deleted price alert for '{product_title}'", entity_type="alert", entity_id=alert_id, entity_name=product_title)
+    log_activity(
+        db,
+        current_user.id,
+        "alert.delete",
+        "alert",
+        f"Deleted price alert for '{product_title}'",
+        entity_type="alert",
+        entity_id=alert_id,
+        entity_name=product_title,
+        workspace_id=current_workspace.workspace_id,
+    )
     db.delete(alert)
+    db.flush()
+    refresh_product_rollups(
+        db,
+        product_id=product.id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
     db.commit()
 
     return {"success": True, "message": "Alert deleted successfully"}
@@ -438,28 +527,43 @@ async def delete_alert(
 async def toggle_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Enable/disable an alert
     Requires authentication. Only allows toggling alerts owned by the current user.
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
-
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
     alert.enabled = not alert.enabled
     alert.updated_at = datetime.utcnow()
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
     product_title = product.title if product else "Unknown"
-    log_activity(db, current_user.id, "alert.toggle", "alert", f"{'Enabled' if alert.enabled else 'Disabled'} alert for '{product_title}'", entity_type="alert", entity_id=alert.id, entity_name=product_title, metadata={"enabled": alert.enabled})
+    log_activity(
+        db,
+        current_user.id,
+        "alert.toggle",
+        "alert",
+        f"{'Enabled' if alert.enabled else 'Disabled'} alert for '{product_title}'",
+        entity_type="alert",
+        entity_id=alert.id,
+        entity_name=product_title,
+        metadata={"enabled": alert.enabled},
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_product_rollups(
+        db,
+        product_id=product.id,
+        workspace_id=current_workspace.workspace_id,
+    )
+    refresh_workspace_rollups(db, workspace_id=current_workspace.workspace_id)
     db.commit()
     db.refresh(alert)
 
@@ -477,14 +581,19 @@ async def toggle_alert(
 @router.post("/check")
 async def check_all_alerts(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Check enabled alerts for the authenticated user and send notifications if triggered
     """
     alerts = db.query(PriceAlert).filter(
         PriceAlert.enabled == True,
-        PriceAlert.user_id == current_user.id
+        build_scope_predicate(
+            PriceAlert,
+            workspace_id=current_workspace.workspace_id,
+            user_id=current_user.id,
+        )
     ).all()
 
     triggered = 0
@@ -501,9 +610,12 @@ async def check_all_alerts(
                     continue
 
             # Get product and matches
-            product = db.query(ProductMonitored).filter(
-                ProductMonitored.id == alert.product_id
-            ).first()
+            product = _get_scoped_product_or_404(
+                db,
+                alert.product_id,
+                current_user,
+                current_workspace,
+            )
 
             if not product:
                 continue
@@ -595,22 +707,20 @@ async def check_single_match(
 async def test_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Send a test email for this alert (ignores cooldown and thresholds)
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
-
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
 
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -722,7 +832,8 @@ async def get_alert_types():
 async def check_alert_now(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Manually trigger alert check (ignores cooldown)
@@ -732,13 +843,7 @@ async def check_alert_now(
     from services.smart_alert_service import get_smart_alert_service
 
     # Verify alert belongs to current user
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id
-    ).first()
-
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
     # Check alert conditions
     alert_service = get_smart_alert_service(db)
@@ -801,6 +906,7 @@ async def snooze_alert(
     hours: int = 24,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Temporarily silence an alert without deleting it.
@@ -812,25 +918,24 @@ async def snooze_alert(
     if hours < 1 or hours > 8760:  # max 1 year
         raise HTTPException(status_code=422, detail="hours must be between 1 and 8760")
 
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id,
-    ).first()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
     alert.snoozed_until = datetime.utcnow() + timedelta(hours=hours)
     alert.updated_at = datetime.utcnow()
 
-    product = db.query(ProductMonitored).filter(
-        ProductMonitored.id == alert.product_id
-    ).first()
+    product = _get_scoped_product_or_404(
+        db,
+        alert.product_id,
+        current_user,
+        current_workspace,
+    )
     product_title = product.title if product else "Unknown"
     log_activity(
         db, current_user.id, "alert.snooze", "alert",
         f"Snoozed alert for '{product_title}' for {hours}h",
         entity_type="alert", entity_id=alert_id, entity_name=product_title,
         metadata={"hours": hours, "snoozed_until": alert.snoozed_until.isoformat()},
+        workspace_id=current_workspace.workspace_id,
     )
     db.commit()
 
@@ -847,16 +952,12 @@ async def unsnooze_alert(
     alert_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Cancel an active snooze and resume the alert immediately.
     """
-    alert = db.query(PriceAlert).filter(
-        PriceAlert.id == alert_id,
-        PriceAlert.user_id == current_user.id,
-    ).first()
-    if not alert:
-        raise HTTPException(status_code=404, detail="Alert not found")
+    alert = _get_scoped_alert_or_404(db, alert_id, current_user, current_workspace)
 
     alert.snoozed_until = None
     alert.updated_at = datetime.utcnow()
