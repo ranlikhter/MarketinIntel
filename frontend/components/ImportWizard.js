@@ -4,6 +4,8 @@ import { useToast } from './Toast';
 import { LoadingSpinner } from './LoadingStates';
 import api from '../lib/api';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export default function ImportWizard({ onComplete }) {
   const { addToast } = useToast();
   const router = useRouter();
@@ -426,10 +428,41 @@ function WooCommerceImportForm({ data, onChange, onImport, importing }) {
 }
 
 function ShopifyImportForm({ data, onChange, onImport, importing }) {
+  const { addToast } = useToast();
+  const [connecting, setConnecting] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+
+  async function handleOAuthConnect() {
+    if (!data.shopUrl) {
+      addToast('Please enter your Shopify store URL first', 'warning');
+      return;
+    }
+    setConnecting(true);
+    try {
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('access_token') || '')
+        : '';
+      const res = await fetch(
+        `${API_URL}/api/integrations/shopify/oauth/start?shop=${encodeURIComponent(data.shopUrl)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to start Shopify OAuth');
+      }
+      const { auth_url } = await res.json();
+      window.location.href = auth_url;
+    } catch (err) {
+      addToast(err.message, 'error');
+      setConnecting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <h3 className="text-xl font-bold text-white">Connect Shopify</h3>
 
+      {/* Shop URL — always shown */}
       <div>
         <label className="block text-sm font-medium text-white/70 mb-2">
           Shop URL
@@ -443,47 +476,83 @@ function ShopifyImportForm({ data, onChange, onImport, importing }) {
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          Admin API Access Token
-        </label>
-        <input
-          type="password"
-          value={data.accessToken}
-          onChange={(e) => onChange({ ...data, accessToken: e.target.value })}
-          placeholder="shpat_xxxxx"
-          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-white/70 mb-2">
-          Import Limit
-        </label>
-        <input
-          type="number"
-          value={data.importLimit}
-          onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) || 100 })}
-          min="1"
-          max="1000"
-          className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
-        />
-      </div>
-
+      {/* One-Click OAuth button */}
       <button
-        onClick={onImport}
-        disabled={importing}
-        className="w-full inline-flex items-center justify-center px-6 py-3 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed gradient-brand hover:opacity-90"
+        onClick={handleOAuthConnect}
+        disabled={connecting || !data.shopUrl}
+        className="w-full inline-flex items-center justify-center gap-3 px-6 py-3 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        style={{ background: 'linear-gradient(135deg, #96bf48 0%, #5c8a1e 100%)' }}
       >
-        {importing ? (
+        {connecting ? (
           <>
             <LoadingSpinner size="sm" color="white" />
-            <span className="ml-2">Importing...</span>
+            <span>Redirecting to Shopify…</span>
           </>
         ) : (
-          'Import Products'
+          <>
+            {/* Shopify bag icon */}
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M15.337 2.094c-.07-.303-.344-.516-.653-.516h-.01c-.266 0-.5.157-.612.405l-.65 1.498A5.978 5.978 0 0012 3.375a5.978 5.978 0 00-1.412.106l-.65-1.498a.672.672 0 00-.612-.405h-.01c-.309 0-.583.213-.653.516L7.5 7.5H4.875A.875.875 0 004 8.375v.25c0 .276.101.527.267.72l1.608 9.28A1.75 1.75 0 007.594 20h8.812a1.75 1.75 0 001.719-1.375l1.608-9.28A1.12 1.12 0 0020 8.625v-.25A.875.875 0 0019.125 7.5H16.5l-1.163-5.406zM12 5.25c.357 0 .703.036 1.037.103l-.762 1.76a.375.375 0 00.344.512h2.256l.914 4.25H8.211l.914-4.25h2.256a.375.375 0 00.344-.512l-.762-1.76A5.28 5.28 0 0112 5.25z"/>
+            </svg>
+            Connect with Shopify
+          </>
         )}
       </button>
+
+      {/* Advanced toggle — manual token entry */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowManual(!showManual)}
+          className="text-xs text-white/40 hover:text-white/60 transition-colors flex items-center gap-1"
+        >
+          <svg className={`w-3 h-3 transition-transform ${showManual ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          Advanced: enter token manually
+        </button>
+
+        {showManual && (
+          <div className="mt-4 space-y-4 rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-xs text-white/50">Generate a token in your Shopify Admin → Apps → Develop apps → Admin API access tokens.</p>
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-2">Admin API Access Token</label>
+              <input
+                type="password"
+                value={data.accessToken}
+                onChange={(e) => onChange({ ...data, accessToken: e.target.value })}
+                placeholder="shpat_xxxxx"
+                className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-white/70 mb-2">Import Limit</label>
+              <input
+                type="number"
+                value={data.importLimit}
+                onChange={(e) => onChange({ ...data, importLimit: parseInt(e.target.value) || 100 })}
+                min="1"
+                max="1000"
+                className="glass-input block w-full rounded-xl focus:border-amber-500 focus:ring-amber-500 text-white"
+              />
+            </div>
+            <button
+              onClick={onImport}
+              disabled={importing || !data.accessToken}
+              className="w-full inline-flex items-center justify-center px-6 py-3 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed gradient-brand hover:opacity-90"
+            >
+              {importing ? (
+                <>
+                  <LoadingSpinner size="sm" color="white" />
+                  <span className="ml-2">Importing...</span>
+                </>
+              ) : (
+                'Import with Token'
+              )}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

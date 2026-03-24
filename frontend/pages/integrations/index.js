@@ -6,6 +6,8 @@ import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import api from '../../lib/api';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 const Ico = {
   xml:    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>,
   store:  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
@@ -54,31 +56,54 @@ function platformMeta(platform) {
 // ─── Add Connection Modal ──────────────────────────────────────────────────────
 function AddConnectionModal({ isOpen, onClose, onSaved }) {
   const { addToast } = useToast();
-  const [platform, setPlatform] = useState('woocommerce');
+  const [platform, setPlatform] = useState('shopify');
   const [form, setForm] = useState({ store_url: '', consumer_key: '', consumer_secret: '', api_key: '' });
   const [saving, setSaving] = useState(false);
+  const [oauthConnecting, setOauthConnecting] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const isWC = platform === 'woocommerce';
-  const canSubmit = isWC
-    ? (form.store_url && form.consumer_key && form.consumer_secret)
-    : (form.store_url && form.api_key);
+  const canSubmitWC = form.store_url && form.consumer_key && form.consumer_secret;
+  const canOAuth = !!form.store_url;
 
-  async function handleSave() {
-    if (!canSubmit) return;
+  // WooCommerce — manual save
+  async function handleSaveWC() {
+    if (!canSubmitWC) return;
     setSaving(true);
     try {
-      const payload = isWC
-        ? { platform: 'woocommerce', store_url: form.store_url, api_key: form.consumer_key, api_secret: form.consumer_secret }
-        : { platform: 'shopify',     store_url: form.store_url, api_key: form.api_key };
+      const payload = { platform: 'woocommerce', store_url: form.store_url, api_key: form.consumer_key, api_secret: form.consumer_secret };
       const conn = await api.saveStoreConnection(payload);
       onSaved(conn);
       onClose();
-      addToast(`${platformMeta(conn.platform).label} connection saved`, 'success');
+      addToast('WooCommerce connection saved', 'success');
     } catch (err) {
       addToast(err.message || 'Failed to save connection', 'error');
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Shopify — OAuth redirect
+  async function handleShopifyOAuth() {
+    if (!canOAuth) return;
+    setOauthConnecting(true);
+    try {
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('access_token') || '')
+        : '';
+      const res = await fetch(
+        `${API_URL}/api/integrations/shopify/oauth/start?shop=${encodeURIComponent(form.store_url)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to start Shopify OAuth');
+      }
+      const { auth_url } = await res.json();
+      window.location.href = auth_url;
+    } catch (err) {
+      addToast(err.message, 'error');
+      setOauthConnecting(false);
     }
   }
 
@@ -95,11 +120,12 @@ function AddConnectionModal({ isOpen, onClose, onSaved }) {
 
         <div className="p-5 space-y-4">
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Saved credentials enable automatic inventory syncing every 4 hours and instant price push-back.
+            Saved connections enable automatic inventory syncing every 4 hours and instant price push-back.
           </p>
 
+          {/* Platform tabs */}
           <div className="flex gap-2 p-1 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            {[['woocommerce', 'WooCommerce'], ['shopify', 'Shopify']].map(([val, lbl]) => (
+            {[['shopify', 'Shopify'], ['woocommerce', 'WooCommerce']].map(([val, lbl]) => (
               <button key={val} onClick={() => setPlatform(val)}
                 className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-colors ${platform === val ? 'bg-white/10 text-white shadow-sm' : 'hover:text-white'}`}
                 style={platform !== val ? { color: 'var(--text-muted)' } : {}}>
@@ -108,7 +134,40 @@ function AddConnectionModal({ isOpen, onClose, onSaved }) {
             ))}
           </div>
 
-          {isWC ? (
+          {/* Shopify — One-Click OAuth */}
+          {!isWC && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-white/70 mb-1.5">Shop URL</label>
+                <input type="text" value={form.store_url} onChange={(e) => set('store_url', e.target.value)}
+                  placeholder="yourstore.myshopify.com" className={inputCls} />
+              </div>
+              <button
+                onClick={handleShopifyOAuth}
+                disabled={oauthConnecting || !canOAuth}
+                className="w-full inline-flex items-center justify-center gap-2 py-2.5 text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'linear-gradient(135deg, #96bf48 0%, #5c8a1e 100%)' }}
+              >
+                {oauthConnecting ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Redirecting…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M15.337 2.094c-.07-.303-.344-.516-.653-.516h-.01c-.266 0-.5.157-.612.405l-.65 1.498A5.978 5.978 0 0012 3.375a5.978 5.978 0 00-1.412.106l-.65-1.498a.672.672 0 00-.612-.405h-.01c-.309 0-.583.213-.653.516L7.5 7.5H4.875A.875.875 0 004 8.375v.25c0 .276.101.527.267.72l1.608 9.28A1.75 1.75 0 007.594 20h8.812a1.75 1.75 0 001.719-1.375l1.608-9.28A1.12 1.12 0 0020 8.625v-.25A.875.875 0 0019.125 7.5H16.5l-1.163-5.406zM12 5.25c.357 0 .703.036 1.037.103l-.762 1.76a.375.375 0 00.344.512h2.256l.914 4.25H8.211l.914-4.25h2.256a.375.375 0 00.344-.512l-.762-1.76A5.28 5.28 0 0112 5.25z"/></svg>
+                    Connect with Shopify
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>
+                You'll be redirected to Shopify to authorize access — no tokens to copy.
+              </p>
+            </div>
+          )}
+
+          {/* WooCommerce — manual keys */}
+          {isWC && (
             <>
               <div>
                 <label className="block text-xs font-medium text-white/70 mb-1.5">Store URL</label>
@@ -123,28 +182,25 @@ function AddConnectionModal({ isOpen, onClose, onSaved }) {
                 <input type="password" value={form.consumer_secret} onChange={(e) => set('consumer_secret', e.target.value)} placeholder="cs_xxxxxxxxxxxxxxxx" className={inputCls} />
               </div>
             </>
-          ) : (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-white/70 mb-1.5">Shop URL</label>
-                <input type="text" value={form.store_url} onChange={(e) => set('store_url', e.target.value)} placeholder="yourstore.myshopify.com" className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-white/70 mb-1.5">Admin API Access Token</label>
-                <input type="password" value={form.api_key} onChange={(e) => set('api_key', e.target.value)} placeholder="shpat_xxxxxxxxxxxxxxxx" className={inputCls} />
-              </div>
-            </>
           )}
         </div>
 
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
-          <button onClick={onClose} className="text-sm font-medium hover:text-white transition-colors" style={{ color: 'var(--text-muted)' }}>Cancel</button>
-          <button onClick={handleSave} disabled={!canSubmit || saving}
-            className="px-5 py-2.5 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
-            {saving && <svg className="animate-spin w-4 h-4 border-amber-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
-            Save Connection
-          </button>
-        </div>
+        {/* Footer — only show Save button for WooCommerce; Shopify uses OAuth above */}
+        {isWC && (
+          <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <button onClick={onClose} className="text-sm font-medium hover:text-white transition-colors" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+            <button onClick={handleSaveWC} disabled={!canSubmitWC || saving}
+              className="px-5 py-2.5 gradient-brand text-white text-sm font-semibold rounded-xl transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+              {saving && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>}
+              Save Connection
+            </button>
+          </div>
+        )}
+        {!isWC && (
+          <div className="flex justify-start px-5 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <button onClick={onClose} className="text-sm font-medium hover:text-white transition-colors" style={{ color: 'var(--text-muted)' }}>Cancel</button>
+          </div>
+        )}
       </div>
     </div>
   );

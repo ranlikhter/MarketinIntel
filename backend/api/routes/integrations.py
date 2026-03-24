@@ -3,7 +3,8 @@ Integration API endpoints for importing products
 Supports CSV, XML, WooCommerce, and Shopify imports
 """
 
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -14,8 +15,12 @@ import io
 import ipaddress
 import re
 import socket
+import secrets
+import hmac
+import hashlib
+import httpx
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 
 from database.connection import get_db
 from database.models import ProductMonitored, StoreConnection, User
@@ -24,6 +29,7 @@ from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
 from api.dependencies import get_current_user
 from services.activity_service import log_activity
+from services.cache_service import _get_redis_client
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -845,3 +851,150 @@ def trigger_inventory_sync(
         return {"success": True, "task_id": task.id, "message": "Inventory sync queued"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Shopify OAuth (One-Click Connect) ────────────────────────────────────────
+
+_SHOPIFY_SCOPES = "read_products,write_products,read_inventory,write_inventory"
+_OAUTH_STATE_TTL = 600  # 10 minutes
+
+
+def _get_shopify_app_credentials():
+    client_id = os.getenv("SHOPIFY_APP_CLIENT_ID", "")
+    client_secret = os.getenv("SHOPIFY_APP_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        raise HTTPException(
+            status_code=501,
+            detail="Shopify OAuth app is not configured. Set SHOPIFY_APP_CLIENT_ID and SHOPIFY_APP_CLIENT_SECRET.",
+        )
+    return client_id, client_secret
+
+
+def _validate_shopify_hmac(params: dict, client_secret: str) -> bool:
+    """Validate the HMAC signature Shopify sends on the OAuth callback."""
+    provided_hmac = params.get("hmac", "")
+    filtered = {k: v for k, v in params.items() if k != "hmac"}
+    sorted_pairs = "&".join(f"{k}={v}" for k, v in sorted(filtered.items()))
+    computed = hmac.new(
+        client_secret.encode("utf-8"),
+        sorted_pairs.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return hmac.compare_digest(computed, provided_hmac)
+
+
+@router.get("/shopify/oauth/start")
+def shopify_oauth_start(
+    shop: str = Query(..., description="Shopify store domain, e.g. mystore.myshopify.com"),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Step 1 of Shopify OAuth — returns the Shopify authorization URL.
+    The frontend redirects the user there to grant access.
+    """
+    client_id, _ = _get_shopify_app_credentials()
+
+    # Normalise and validate shop domain
+    shop = _normalize_shopify_shop_url(shop)
+
+    # Generate a secure random state nonce and store user_id in Redis
+    state = secrets.token_urlsafe(32)
+    redis = _get_redis_client()
+    if redis:
+        redis.setex(f"shopify_oauth:{state}", _OAUTH_STATE_TTL, str(current_user.id))
+
+    redirect_uri = f"{os.getenv('APP_URL', 'http://localhost:8000')}/api/integrations/shopify/oauth/callback"
+    scopes = os.getenv("SHOPIFY_APP_SCOPES", _SHOPIFY_SCOPES)
+
+    params = urlencode({
+        "client_id": client_id,
+        "scope": scopes,
+        "redirect_uri": redirect_uri,
+        "state": state,
+        "grant_options[]": "per-user",
+    })
+    auth_url = f"https://{shop}/admin/oauth/authorize?{params}"
+    return {"auth_url": auth_url, "shop": shop, "state": state}
+
+
+@router.get("/shopify/oauth/callback")
+async def shopify_oauth_callback(
+    code: str = Query(...),
+    shop: str = Query(...),
+    state: str = Query(...),
+    hmac: str = Query(default=""),
+    db: Session = Depends(get_db),
+):
+    """
+    Step 2 of Shopify OAuth — Shopify redirects here after the merchant approves.
+    Exchanges the auth code for a permanent access token and saves the connection.
+    """
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    error_redirect = f"{frontend_url}/integrations/shopify-callback?success=false"
+
+    client_id, client_secret = _get_shopify_app_credentials()
+
+    # 1. Validate HMAC signature
+    all_params = {"code": code, "shop": shop, "state": state, "hmac": hmac}
+    if not _validate_shopify_hmac(all_params, client_secret):
+        return RedirectResponse(f"{error_redirect}&error=invalid_hmac")
+
+    # 2. Validate state nonce and retrieve user_id from Redis
+    redis = _get_redis_client()
+    user_id = None
+    if redis:
+        stored = redis.get(f"shopify_oauth:{state}")
+        if stored:
+            user_id = int(stored)
+            redis.delete(f"shopify_oauth:{state}")
+
+    if not user_id:
+        return RedirectResponse(f"{error_redirect}&error=invalid_state")
+
+    # 3. Normalise shop domain
+    try:
+        shop = _normalize_shopify_shop_url(shop)
+    except HTTPException:
+        return RedirectResponse(f"{error_redirect}&error=invalid_shop")
+
+    # 4. Exchange code for permanent access token
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"https://{shop}/admin/oauth/access_token",
+                json={"client_id": client_id, "client_secret": client_secret, "code": code},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            access_token = data.get("access_token")
+    except Exception:
+        return RedirectResponse(f"{error_redirect}&error=token_exchange_failed")
+
+    if not access_token:
+        return RedirectResponse(f"{error_redirect}&error=no_token")
+
+    # 5. Upsert StoreConnection
+    existing = db.query(StoreConnection).filter(
+        StoreConnection.user_id == user_id,
+        StoreConnection.platform == "shopify",
+        StoreConnection.store_url == shop,
+    ).first()
+
+    if existing:
+        existing.api_key = access_token
+        existing.is_active = True
+    else:
+        conn = StoreConnection(
+            user_id=user_id,
+            platform="shopify",
+            store_url=shop,
+            api_key=access_token,
+            sync_inventory=True,
+        )
+        db.add(conn)
+
+    db.commit()
+
+    return RedirectResponse(
+        f"{frontend_url}/integrations/shopify-callback?success=true&store={shop}"
+    )
