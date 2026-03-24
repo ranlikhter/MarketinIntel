@@ -10,6 +10,10 @@ from env_loader import load_backend_env
 
 load_backend_env()
 
+# Initialise Sentry for Celery workers (captures task failures + traces)
+from services.sentry_service import init_sentry
+init_sentry()
+
 # Redis configuration
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = os.getenv('REDIS_PORT', '6379')

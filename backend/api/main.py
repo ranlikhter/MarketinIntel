@@ -19,6 +19,11 @@ from env_loader import load_backend_env
 # Load environment variables
 load_backend_env()
 
+# Initialise Sentry as early as possible — before any routes are registered
+# so every request and startup error is captured.
+from services.sentry_service import init_sentry
+init_sentry()
+
 # Import our API routes
 from api.limiter import AuthRateLimitMiddleware, limiter
 from api.routes import (

@@ -122,6 +122,13 @@ async def get_current_user(
             detail="Account has been deactivated"
         )
 
+    # Tag every Sentry event in this request with the authenticated user
+    try:
+        from services.sentry_service import set_user_context
+        set_user_context(user.id, user.email)
+    except Exception:
+        pass  # Never let Sentry helpers break auth
+
     return user
 
 
