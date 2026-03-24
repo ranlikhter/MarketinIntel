@@ -6,7 +6,11 @@ Think of this as creating blueprints for our data storage.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, JSON, Index
+from sqlalchemy import (
+    Column, Integer, String, Float, Boolean, DateTime, Date,
+    ForeignKey, Text, Enum, JSON, Index, UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 import enum
@@ -192,6 +196,7 @@ class CompetitorMatch(Base):
     workspace = relationship("Workspace", foreign_keys=[workspace_id])
     price_history = relationship("PriceHistory", back_populates="competitor_match", cascade="all, delete-orphan")
     promotions = relationship("CompetitorPromotion", back_populates="competitor_match", cascade="all, delete-orphan")
+    daily_snapshots = relationship("PriceDailySnapshot", back_populates="match", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<CompetitorMatch(id={self.id}, competitor='{self.competitor_name}', match_score={self.match_score})>"
@@ -283,6 +288,17 @@ class CompetitorWebsite(Base):
     notes = Column(Text, nullable=True)                  # User notes about this competitor
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Multi-tenant: each user manages their own competitor list
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="competitor_websites")
+    matches = relationship("CompetitorMatch", back_populates="competitor_website")
+
+    __table_args__ = (
+        Index("idx_cw_user_active", "user_id", "is_active"),
+    )
 
     def __repr__(self):
         return f"<CompetitorWebsite(id={self.id}, name='{self.name}', url='{self.base_url}')>"
@@ -456,6 +472,8 @@ class User(Base):
     activity_logs = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
     push_subscriptions = relationship("PushSubscription", back_populates="user", cascade="all, delete-orphan")
     notification_logs = relationship("NotificationLog", back_populates="user", cascade="all, delete-orphan")
+    competitor_websites = relationship("CompetitorWebsite", back_populates="user", cascade="all, delete-orphan")
+    dashboards = relationship("Dashboard", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', tier='{self.subscription_tier.value}')>"
@@ -957,15 +975,21 @@ class KeywordRank(Base):
         return f"<KeywordRank(product_id={self.product_id}, keyword='{self.keyword}', rank={self.organic_rank})>"
 
 
-# ── Composite indexes ──────────────────────────────────────────────────────────
-# Defined here (not inside __table_args__) so they work with SQLAlchemy's
-# create_all() on fresh databases.  The same CREATE INDEX statements are also
-# in setup.py migrations so existing databases are upgraded automatically.
+class Dashboard(Base):
+    """
+    Table: dashboards
+    A named canvas that holds a collection of chart/KPI widgets.
+    Each user can own multiple dashboards (default one is shown on login).
+    """
+    __tablename__ = "dashboards"
 
-# competitor_matches — the two hottest query paths
-Index("idx_cm_product_url",   CompetitorMatch.monitored_product_id, CompetitorMatch.competitor_url)
-Index("idx_cm_product_price", CompetitorMatch.monitored_product_id, CompetitorMatch.latest_price)
-Index("idx_cm_last_scraped",  CompetitorMatch.last_scraped_at)
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    user_id     = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name        = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    is_default  = Column(Boolean, default=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 # price_history — every alert and notification check sorts by (match_id, timestamp DESC)
 Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp.desc())
@@ -976,14 +1000,155 @@ Index("idx_pa_user_enabled", PriceAlert.user_id, PriceAlert.enabled)
 # my_price_history — product detail charts always load changes for one product over time
 Index("idx_mph_product_changed", MyPriceHistory.product_id, MyPriceHistory.changed_at)
 
-# review_snapshots — velocity queries always look at recent rows per match
-Index("idx_rs_match_time", ReviewSnapshot.match_id, ReviewSnapshot.scraped_at)
+    def __repr__(self):
+        return f"<Dashboard(id={self.id}, name='{self.name}')>"
 
-# listing_quality_snapshots — trend queries per match
-Index("idx_lqs_match_time", ListingQualitySnapshot.match_id, ListingQualitySnapshot.scraped_at)
 
-# keyword_ranks — dashboard queries per product + recent rows
-Index("idx_kr_product_keyword_time", KeywordRank.product_id, KeywordRank.keyword, KeywordRank.scraped_at)
+class DashboardWidget(Base):
+    """
+    Table: dashboard_widgets
+    A single chart or KPI card placed on a dashboard.
 
-# products_monitored — user's product list is the most common list view
-Index("idx_pm_user_created", ProductMonitored.user_id, ProductMonitored.created_at)
+    widget_type options:
+      bubble_chart       — Competitive Positioning (price vs rating, sized by reviews)
+      price_history      — Multi-line price trendlines with event overlays
+      radar              — Listing Quality spider chart
+      calendar_heatmap   — Price-change calendar (GitHub-style intensity grid)
+      momentum_scatter   — Market Momentum (price Δ% vs review velocity)
+      kpi_cards          — Row of KPI summary cards
+      pie_chart          — Market share / distribution pie/doughnut
+      bar_chart          — Price comparison bar chart
+
+    size options: small | medium | large | tall-medium | tall-large
+
+    config JSON schema (all fields optional):
+      product_id      : int     — which product to visualize
+      days            : int     — lookback window (default 30)
+      metric          : str     — price | effective_price | bsr | rating | review_count
+      competitors     : [str]   — filter to specific competitor names (empty = all)
+      color_scheme    : str     — blue | green | purple | orange | rainbow
+      show_legend     : bool
+      pie_metric      : str     — fulfillment_type | price_range | stock_status | badges
+    """
+    __tablename__ = "dashboard_widgets"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id", ondelete="CASCADE"), nullable=False)
+    widget_type  = Column(String(50),  nullable=False)
+    title        = Column(String(200), nullable=True)
+    position     = Column(Integer,     nullable=False, default=0)
+    size         = Column(String(20),  nullable=False, default="medium")
+    config       = Column(JSON,        nullable=False, default=dict)
+    created_at   = Column(DateTime, default=datetime.utcnow)
+    updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dashboard = relationship("Dashboard", back_populates="widgets")
+
+    def __repr__(self):
+        return f"<DashboardWidget(type='{self.widget_type}', dashboard_id={self.dashboard_id})>"
+
+
+class PriceDailySnapshot(Base):
+    """
+    Table: price_daily_snapshots
+
+    Pre-aggregated daily OHLC-style price statistics computed by the Celery
+    nightly task.  The analytics service reads from this table instead of
+    running GROUP BY on the raw price_history table (which grows to millions
+    of rows and is expensive to aggregate on every API call).
+
+    Update pattern: UPSERT on (match_id, snapshot_date) every night.
+    Read pattern:   match_id + date range ordered DESC.
+    """
+    __tablename__ = "price_daily_snapshots"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    match_id         = Column(Integer, ForeignKey("competitor_matches.id", ondelete="CASCADE"),
+                              nullable=False)
+    snapshot_date    = Column(Date, nullable=False)
+
+    # OHLC price data for the day
+    open_price       = Column(Float, nullable=True)   # first recorded price of the day
+    close_price      = Column(Float, nullable=True)   # last recorded price of the day
+    avg_price        = Column(Float, nullable=True)
+    min_price        = Column(Float, nullable=True)
+    max_price        = Column(Float, nullable=True)
+
+    # Effective (post-coupon) aggregates — used by pricing recommendation engine
+    avg_effective_price = Column(Float, nullable=True)
+    min_effective_price = Column(Float, nullable=True)
+
+    # Market intelligence aggregates
+    sample_count     = Column(Integer, nullable=False, default=0)  # raw price_history rows for the day
+    in_stock_pct     = Column(Float, nullable=True)    # fraction of samples where in_stock = TRUE
+    avg_seller_count = Column(Float, nullable=True)    # average competing seller count
+    avg_bsr          = Column(Float, nullable=True)    # average best-seller rank
+
+    created_at       = Column(DateTime, default=datetime.utcnow)
+    updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    match = relationship("CompetitorMatch", back_populates="daily_snapshots")
+
+    __table_args__ = (
+        # Unique constraint enables efficient ON CONFLICT DO UPDATE upserts
+        UniqueConstraint("match_id", "snapshot_date", name="uq_pds_match_date"),
+        # Primary access pattern: trendline for a match over a date range
+        Index("idx_pds_match_date", "match_id", "snapshot_date"),
+    )
+
+    def __repr__(self):
+        return f"<PriceDailySnapshot(match_id={self.match_id}, date={self.snapshot_date}, avg={self.avg_price})>"
+
+
+# ── Composite & Covering Indexes ───────────────────────────────────────────────
+# Defined at module level so SQLAlchemy's create_all() picks them up on fresh
+# databases. The same DDL is duplicated in setup.py migrations for existing DBs.
+
+# ── competitor_matches ──────────────────────────────────────────────────────────
+# Hot path 1: list all matches for a product (dashboard / trendline)
+Index("idx_cm_product_url",      CompetitorMatch.monitored_product_id, CompetitorMatch.competitor_url)
+# Hot path 2: sort matches by latest_price for price-comparison view
+Index("idx_cm_product_price",    CompetitorMatch.monitored_product_id, CompetitorMatch.latest_price)
+# Scraping scheduler: find stale matches (last_scraped_at < threshold)
+Index("idx_cm_last_scraped",     CompetitorMatch.last_scraped_at)
+# Competitor filter / DISTINCT competitor name query
+Index("idx_cm_competitor_name",  CompetitorMatch.competitor_name)
+# Match quality filtering (e.g. WHERE match_score > 80)
+Index("idx_cm_match_score",      CompetitorMatch.monitored_product_id, CompetitorMatch.match_score)
+# Stale match detection for re-scrape scheduler
+Index("idx_cm_scraped_active",   CompetitorMatch.last_scraped_at, CompetitorMatch.monitored_product_id)
+
+# ── price_history ───────────────────────────────────────────────────────────────
+# THE most critical index: covers every alert check, trendline query, comparison
+# (match_id, timestamp DESC) with price/effective_price as include columns on PG
+Index("idx_ph_match_time_cov",   PriceHistory.match_id, PriceHistory.timestamp)
+# Source-specific filtering (e.g. "amazon_scraper" only rows)
+Index("idx_ph_match_source",     PriceHistory.match_id, PriceHistory.source, PriceHistory.timestamp)
+
+# ── products_monitored ─────────────────────────────────────────────────────────
+# User's product list — the single most-executed list query
+Index("idx_pm_user_created",     ProductMonitored.user_id, ProductMonitored.created_at)
+
+# ── price_alerts ────────────────────────────────────────────────────────────────
+# Alert background job: WHERE enabled = TRUE AND user_id = ?
+Index("idx_pa_product_enabled",  PriceAlert.product_id, PriceAlert.enabled)
+# Snooze management: find alerts that need un-snoozing
+Index("idx_pa_snoozed_until",    PriceAlert.snoozed_until)
+
+# ── snapshot tables ─────────────────────────────────────────────────────────────
+Index("idx_rs_match_time",          ReviewSnapshot.match_id,            ReviewSnapshot.scraped_at)
+Index("idx_lqs_match_time",         ListingQualitySnapshot.match_id,    ListingQualitySnapshot.scraped_at)
+Index("idx_kr_product_keyword_time",KeywordRank.product_id,             KeywordRank.keyword,       KeywordRank.scraped_at)
+Index("idx_kr_product_scraped",     KeywordRank.product_id,             KeywordRank.scraped_at)
+
+# ── activity / audit ────────────────────────────────────────────────────────────
+Index("idx_al_user_created",        ActivityLog.user_id,                ActivityLog.created_at)
+Index("idx_al_action_created",      ActivityLog.action,                 ActivityLog.created_at)
+
+# ── other tables ────────────────────────────────────────────────────────────────
+Index("idx_mph_product_changed",    MyPriceHistory.product_id,          MyPriceHistory.changed_at)
+Index("idx_nl_alert_sent",          NotificationLog.alert_id,           NotificationLog.sent_at)
+Index("idx_sc_user_platform",       StoreConnection.user_id,            StoreConnection.platform,  StoreConnection.is_active)
+Index("idx_wm_user_workspace",      WorkspaceMember.user_id,            WorkspaceMember.workspace_id)
+Index("idx_ak_key_active",          APIKey.key,                         APIKey.is_active)

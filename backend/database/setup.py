@@ -139,13 +139,10 @@ def run_migrations():
         "CREATE INDEX IF NOT EXISTS idx_nl_alert ON notification_logs(alert_id)",
         "CREATE INDEX IF NOT EXISTS idx_nl_user_sent ON notification_logs(user_id, sent_at DESC)",
         # v10 — composite indexes (biggest query performance win: eliminates full-table scans)
-        # competitor_matches: the two most-queried paths are (product→url) and (product→price)
         "CREATE INDEX IF NOT EXISTS idx_cm_product_url ON competitor_matches(monitored_product_id, competitor_url)",
         "CREATE INDEX IF NOT EXISTS idx_cm_product_price ON competitor_matches(monitored_product_id, latest_price)",
         "CREATE INDEX IF NOT EXISTS idx_cm_last_scraped ON competitor_matches(last_scraped_at)",
-        # price_history: every alert/notification check filters on match_id then sorts by timestamp
         "CREATE INDEX IF NOT EXISTS idx_ph_match_time ON price_history(match_id, timestamp DESC)",
-        # price_alerts: every alert check filters on (product_id, enabled)
         "CREATE INDEX IF NOT EXISTS idx_pa_product_enabled ON price_alerts(product_id, enabled)",
         # price_alerts: dashboards and scanners frequently filter enabled alerts per user
         "CREATE INDEX IF NOT EXISTS idx_pa_user_enabled ON price_alerts(user_id, enabled)",

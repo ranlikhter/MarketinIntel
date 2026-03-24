@@ -13,6 +13,7 @@ from database.models import ProductMonitored, User
 from api.dependencies import get_current_user
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
+from api.dependencies import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 

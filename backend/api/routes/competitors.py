@@ -1,8 +1,11 @@
 """
 Competitor Websites API Routes
 
-These endpoints allow clients to add and manage their own custom competitor websites
-(not just Amazon/eBay, but any private website they want to monitor).
+These endpoints allow clients to add and manage their own custom competitor
+websites (not just Amazon/eBay, but any private website they want to monitor).
+
+Security: All routes require authentication. Each user can only see and modify
+their own competitor entries (user_id scoping).
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,41 +14,32 @@ from typing import List
 from pydantic import ConfigDict, BaseModel, HttpUrl
 from datetime import datetime
 
-# Import our database stuff
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from database.connection import get_db
-from database.models import CompetitorWebsite
+from database.models import CompetitorWebsite, User
+from api.dependencies import get_current_user
+from services.ssrf_validator import validate_external_url
 
-# Create a router
 router = APIRouter()
 
 
-# Pydantic models for request/response validation
+# Pydantic models
+
 class CompetitorWebsiteCreate(BaseModel):
-    """
-    Schema for adding a new competitor website.
-    """
-    name: str                           # e.g., "Acme Electronics"
-    base_url: str                       # e.g., "https://www.acme-electronics.com"
-    website_type: str = "custom"        # "custom", "amazon", "walmart", etc.
-
-    # Optional: CSS selectors for scraping (advanced users can configure)
-    price_selector: str | None = None   # e.g., ".price", "#product-price"
-    title_selector: str | None = None   # e.g., "h1.title"
-    stock_selector: str | None = None   # e.g., ".stock-status"
-    image_selector: str | None = None   # e.g., "img.main-image"
-
-    notes: str | None = None            # Any notes about this competitor
+    name: str
+    base_url: str
+    website_type: str = "custom"
+    price_selector: str | None = None
+    title_selector: str | None = None
+    stock_selector: str | None = None
+    image_selector: str | None = None
+    notes: str | None = None
 
 
 class CompetitorWebsiteUpdate(BaseModel):
-    """
-    Schema for updating an existing competitor website.
-    All fields are optional.
-    """
     name: str | None = None
     base_url: str | None = None
     price_selector: str | None = None
@@ -57,9 +51,6 @@ class CompetitorWebsiteUpdate(BaseModel):
 
 
 class CompetitorWebsiteResponse(BaseModel):
-    """
-    Schema for returning competitor website data.
-    """
     id: int
     name: str
     base_url: str
@@ -79,34 +70,29 @@ class CompetitorWebsiteResponse(BaseModel):
 # API ENDPOINTS
 
 @router.post("/", response_model=CompetitorWebsiteResponse, status_code=201)
-def create_competitor_website(competitor: CompetitorWebsiteCreate, db: Session = Depends(get_db)):
-    """
-    POST /competitors
+def create_competitor_website(
+    competitor: CompetitorWebsiteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Add a new competitor website to monitor (scoped to the authenticated user)."""
+    # SSRF protection — prevent crawling internal/private hosts
+    validate_external_url(competitor.base_url, field_name="base_url")
 
-    Add a new competitor website to monitor.
-
-    Example request:
-    {
-        "name": "Acme Electronics",
-        "base_url": "https://www.acme-electronics.com",
-        "price_selector": ".product-price",
-        "title_selector": "h1.product-name",
-        "notes": "Our main competitor in the electronics space"
-    }
-    """
-    # Check if website already exists
+    # Scope uniqueness check to this user
     existing = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.base_url == competitor.base_url
+        CompetitorWebsite.base_url == competitor.base_url,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if existing:
         raise HTTPException(
             status_code=400,
-            detail=f"Competitor website with URL '{competitor.base_url}' already exists"
+            detail=f"Competitor website with URL '{competitor.base_url}' already exists",
         )
 
-    # Create new competitor website
     db_competitor = CompetitorWebsite(
+        user_id=current_user.id,
         name=competitor.name,
         base_url=competitor.base_url,
         website_type=competitor.website_type,
@@ -114,7 +100,7 @@ def create_competitor_website(competitor: CompetitorWebsiteCreate, db: Session =
         title_selector=competitor.title_selector,
         stock_selector=competitor.stock_selector,
         image_selector=competitor.image_selector,
-        notes=competitor.notes
+        notes=competitor.notes,
     )
 
     db.add(db_competitor)
@@ -127,32 +113,30 @@ def create_competitor_website(competitor: CompetitorWebsiteCreate, db: Session =
 @router.get("/", response_model=List[CompetitorWebsiteResponse])
 def get_all_competitors(
     active_only: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    GET /competitors
-
-    Get all competitor websites.
-    Use ?active_only=true to only show active competitors.
-    """
-    query = db.query(CompetitorWebsite)
+    """Get all competitor websites belonging to the authenticated user."""
+    query = db.query(CompetitorWebsite).filter(
+        CompetitorWebsite.user_id == current_user.id
+    )
 
     if active_only:
         query = query.filter(CompetitorWebsite.is_active == True)
 
-    competitors = query.order_by(CompetitorWebsite.name).all()
-    return competitors
+    return query.order_by(CompetitorWebsite.name).all()
 
 
 @router.get("/{competitor_id}", response_model=CompetitorWebsiteResponse)
-def get_competitor(competitor_id: int, db: Session = Depends(get_db)):
-    """
-    GET /competitors/{id}
-
-    Get a specific competitor website by ID.
-    """
+def get_competitor(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific competitor website by ID (must belong to the current user)."""
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
@@ -165,28 +149,24 @@ def get_competitor(competitor_id: int, db: Session = Depends(get_db)):
 def update_competitor(
     competitor_id: int,
     competitor_update: CompetitorWebsiteUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    PUT /competitors/{id}
-
-    Update a competitor website's details.
-
-    Example request (update CSS selectors):
-    {
-        "price_selector": ".new-price-class",
-        "notes": "They redesigned their website, updated selectors"
-    }
-    """
+    """Update a competitor website (must belong to the current user)."""
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
         raise HTTPException(status_code=404, detail="Competitor website not found")
 
-    # Update only fields that were provided
     update_data = competitor_update.model_dump(exclude_unset=True)
+
+    # Validate new base_url against SSRF if it changed
+    if "base_url" in update_data:
+        validate_external_url(update_data["base_url"], field_name="base_url")
+
     for field, value in update_data.items():
         setattr(competitor, field, value)
 
@@ -197,15 +177,15 @@ def update_competitor(
 
 
 @router.delete("/{competitor_id}")
-def delete_competitor(competitor_id: int, db: Session = Depends(get_db)):
-    """
-    DELETE /competitors/{id}
-
-    Delete a competitor website.
-    Warning: This will also remove all product matches from this competitor.
-    """
+def delete_competitor(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a competitor website (must belong to the current user)."""
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
@@ -218,21 +198,20 @@ def delete_competitor(competitor_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{competitor_id}/toggle")
-def toggle_competitor_status(competitor_id: int, db: Session = Depends(get_db)):
-    """
-    POST /competitors/{id}/toggle
-
-    Enable or disable a competitor website without deleting it.
-    Useful for temporarily stopping scraping without losing configuration.
-    """
+def toggle_competitor_status(
+    competitor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Enable or disable a competitor website without deleting it."""
     competitor = db.query(CompetitorWebsite).filter(
-        CompetitorWebsite.id == competitor_id
+        CompetitorWebsite.id == competitor_id,
+        CompetitorWebsite.user_id == current_user.id,
     ).first()
 
     if not competitor:
         raise HTTPException(status_code=404, detail="Competitor website not found")
 
-    # Toggle the status
     competitor.is_active = not competitor.is_active
     db.commit()
     db.refresh(competitor)
@@ -240,5 +219,5 @@ def toggle_competitor_status(competitor_id: int, db: Session = Depends(get_db)):
     return {
         "status": "active" if competitor.is_active else "inactive",
         "competitor_id": competitor_id,
-        "name": competitor.name
+        "name": competitor.name,
     }

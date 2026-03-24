@@ -603,7 +603,14 @@ async def change_password(
     current_user.hashed_password = hash_password(request.new_password)
     db.commit()
 
-    return {"success": True, "message": "Password changed successfully"}
+    # Revoke the current access token so it cannot be reused after a password
+    # change — the caller must log in again to get a fresh token.
+    jti = payload.get("jti")
+    exp = payload.get("exp")
+    if jti:
+        blocklist.revoke(jti, exp)
+
+    return {"success": True, "message": "Password changed successfully. Please log in again."}
 
 
 @router.post("/verify-email")

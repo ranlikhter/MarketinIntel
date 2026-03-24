@@ -385,6 +385,34 @@ const api = {
       body: JSON.stringify({ keyword }),
     }),
 
+  // ─── Custom Dashboards ────────────────────────────────────────────────────────
+  getDashboards: () =>
+    request('/api/dashboards'),
+  createDashboard: (data) =>
+    request('/api/dashboards', { method: 'POST', body: JSON.stringify(data) }),
+  getDashboard: (id) =>
+    request(`/api/dashboards/${id}`),
+  updateDashboard: (id, data) =>
+    request(`/api/dashboards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDashboard: (id) =>
+    request(`/api/dashboards/${id}`, { method: 'DELETE' }),
+
+  addWidget: (dashboardId, data) =>
+    request(`/api/dashboards/${dashboardId}/widgets`, { method: 'POST', body: JSON.stringify(data) }),
+  updateWidget: (dashboardId, widgetId, data) =>
+    request(`/api/dashboards/${dashboardId}/widgets/${widgetId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteWidget: (dashboardId, widgetId) =>
+    request(`/api/dashboards/${dashboardId}/widgets/${widgetId}`, { method: 'DELETE' }),
+  saveDashboardLayout: (dashboardId, layout) =>
+    request(`/api/dashboards/${dashboardId}/layout`, { method: 'PUT', body: JSON.stringify(layout) }),
+
+  getWidgetData: (widgetType, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+    ).toString();
+    return request(`/api/dashboards/widget-data/${widgetType}${qs ? '?' + qs : ''}`);
+  },
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };
