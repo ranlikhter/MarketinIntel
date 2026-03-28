@@ -14,6 +14,7 @@ Performance design:
 """
 
 import asyncio
+import base64
 import json
 import random
 import re
@@ -26,6 +27,12 @@ from fake_useragent import UserAgent
 from playwright.async_api import TimeoutError as PlaywrightTimeout
 
 from scrapers.browser_pool import BrowserPool
+
+try:
+    import html2text as _html2text
+    _HTML2TEXT_AVAILABLE = True
+except ImportError:
+    _HTML2TEXT_AVAILABLE = False
 
 
 class GenericWebScraper:
@@ -65,6 +72,8 @@ class GenericWebScraper:
         stock_selector: Optional[str] = None,
         image_selector: Optional[str] = None,
         use_javascript: Optional[bool] = None,
+        output_format: str = "json",
+        capture_screenshot: bool = False,
     ) -> Dict:
         """
         Scrape product data from a given URL.
@@ -72,23 +81,36 @@ class GenericWebScraper:
         use_javascript=None  → auto: try HTTP first, fall back to Playwright
         use_javascript=True  → always use Playwright
         use_javascript=False → always use httpx (no fallback)
+        output_format="json" → return structured product fields (default)
+        output_format="markdown" → return {"url", "markdown", "title"} instead
+        capture_screenshot=True → add base64 PNG under "screenshot" key
+                                  (requires Playwright path)
         """
-        if use_javascript is True:
+        # Screenshot or markdown always forces Playwright for full render
+        force_js = use_javascript is True or capture_screenshot or (
+            output_format == "markdown" and use_javascript is not False
+        )
+
+        if force_js:
             return await self._scrape_with_playwright(
-                url, price_selector, title_selector, stock_selector, image_selector
+                url, price_selector, title_selector, stock_selector, image_selector,
+                output_format=output_format, capture_screenshot=capture_screenshot,
             )
         if use_javascript is False:
             return await self._scrape_with_requests(
-                url, price_selector, title_selector, stock_selector, image_selector
+                url, price_selector, title_selector, stock_selector, image_selector,
+                output_format=output_format,
             )
 
         # Auto mode: try fast HTTP path; fall back to Playwright if needed
         result = await self._scrape_with_requests(
-            url, price_selector, title_selector, stock_selector, image_selector
+            url, price_selector, title_selector, stock_selector, image_selector,
+            output_format=output_format,
         )
         if result.get("_needs_js"):
             result = await self._scrape_with_playwright(
-                url, price_selector, title_selector, stock_selector, image_selector
+                url, price_selector, title_selector, stock_selector, image_selector,
+                output_format=output_format, capture_screenshot=capture_screenshot,
             )
         result.pop("_needs_js", None)
         return result
@@ -102,6 +124,7 @@ class GenericWebScraper:
         title_selector: Optional[str],
         stock_selector: Optional[str],
         image_selector: Optional[str],
+        output_format: str = "json",
     ) -> Dict:
         """
         Fast path: fetch the page with httpx (no browser overhead).
@@ -136,6 +159,11 @@ class GenericWebScraper:
                 result["_needs_js"] = True
                 return result
 
+            if output_format == "markdown":
+                result["markdown"] = self._html_to_markdown(response.text)
+                result["title"] = self._extract_title_fallback(soup)
+                return result
+
             self._populate_result(
                 result, soup, url,
                 price_selector, title_selector, stock_selector, image_selector,
@@ -160,6 +188,8 @@ class GenericWebScraper:
         title_selector: Optional[str],
         stock_selector: Optional[str],
         image_selector: Optional[str],
+        output_format: str = "json",
+        capture_screenshot: bool = False,
     ) -> Dict:
         """Full-browser scrape using a shared BrowserPool context."""
         result = self._empty_result(url)
@@ -177,7 +207,17 @@ class GenericWebScraper:
 
                 page_html = await page.content()
 
+                if capture_screenshot:
+                    png_bytes = await page.screenshot(full_page=True)
+                    result["screenshot"] = base64.b64encode(png_bytes).decode("ascii")
+
             soup = BeautifulSoup(page_html, "html.parser")
+
+            if output_format == "markdown":
+                result["markdown"] = self._html_to_markdown(page_html)
+                result["title"] = self._extract_title_fallback(soup)
+                return result
+
             self._populate_result(
                 result, soup, url,
                 price_selector, title_selector, stock_selector, image_selector,
@@ -257,6 +297,19 @@ class GenericWebScraper:
         result["mpn"], result["upc_ean"] = self._extract_identifiers_fallback(soup)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _html_to_markdown(html: str) -> str:
+        """Convert raw HTML to clean LLM-ready markdown."""
+        if not _HTML2TEXT_AVAILABLE:
+            # Fallback: strip tags with BeautifulSoup
+            return BeautifulSoup(html, "html.parser").get_text(separator="\n", strip=True)
+        h = _html2text.HTML2Text()
+        h.ignore_links = False
+        h.ignore_images = False
+        h.body_width = 0          # no line wrapping
+        h.ignore_emphasis = False
+        return h.handle(html)
 
     @staticmethod
     def _empty_result(url: str) -> Dict:
@@ -508,6 +561,8 @@ async def scrape_competitor_product(
     title_selector: Optional[str] = None,
     stock_selector: Optional[str] = None,
     image_selector: Optional[str] = None,
+    output_format: str = "json",
+    capture_screenshot: bool = False,
 ) -> Dict:
     """
     One-shot convenience wrapper.  Creates a single-use pool for this call.
@@ -518,7 +573,8 @@ async def scrape_competitor_product(
     try:
         scraper = GenericWebScraper(browser_pool=pool)
         return await scraper.scrape_product(
-            url, price_selector, title_selector, stock_selector, image_selector
+            url, price_selector, title_selector, stock_selector, image_selector,
+            output_format=output_format, capture_screenshot=capture_screenshot,
         )
     finally:
         await pool.close()

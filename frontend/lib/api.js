@@ -413,6 +413,17 @@ const api = {
     return request(`/api/dashboards/widget-data/${widgetType}${qs ? '?' + qs : ''}`);
   },
 
+  // ─── Scrape API (Firecrawl-compatible) ───────────────────────────────────────
+  scrapeUrl: (data) =>
+    request('/api/scrape', { method: 'POST', body: JSON.stringify(data) }),
+  startCrawl: (data) =>
+    request('/api/scrape/crawl', { method: 'POST', body: JSON.stringify(data) }),
+  getCrawlJob: (jobId) => request(`/api/scrape/jobs/${jobId}`),
+  mapSite: (data) =>
+    request('/api/scrape/map', { method: 'POST', body: JSON.stringify(data) }),
+  agentExtract: (data) =>
+    request('/api/scrape/agent', { method: 'POST', body: JSON.stringify(data) }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

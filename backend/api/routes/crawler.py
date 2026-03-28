@@ -6,50 +6,94 @@ Security:
 - All endpoints require authentication.
 - URLs are validated against SSRF to prevent crawling internal infrastructure.
 - Rate-limited to 10 crawl starts per hour (expensive operation).
+- Job state includes owner_id; status endpoints reject mismatched users.
+
+Async job system:
+- POST /crawler/start  enqueues a Celery task and returns job_id immediately.
+- GET  /crawler/status/{job_id} reads progress from Redis (async client).
 """
 
+import json
 import logging
+import os
+import uuid
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
-from sqlalchemy.orm import Session
+import redis.asyncio as _redis_async
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
-from typing import Optional, List
-from datetime import datetime
+from sqlalchemy.orm import Session
 
-from database.connection import get_db
-from database.models import ProductMonitored, CompetitorMatch, CompetitorWebsite, User
-from scrapers.site_crawler import SiteCrawler
 from api.dependencies import get_current_user
 from api.limiter import limiter
+from database.connection import get_db
+from database.models import CompetitorWebsite, User
+from scrapers.site_crawler import SiteCrawler
 from services.ssrf_validator import validate_external_url
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/crawler", tags=["crawler"])
 
+# ── Async Redis helpers (used in FastAPI route handlers) ─────────────────────
 
-# Pydantic models
+def _get_async_redis():
+    return _redis_async.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        db=int(os.getenv("REDIS_DB", "0")),
+        decode_responses=True,
+    )
+
+
+_JOB_TTL = 86_400
+
+
+async def _set_job(r, job_id: str, data: dict) -> None:
+    await r.set(f"crawl_jobs:{job_id}", json.dumps(data), ex=_JOB_TTL)
+
+
+async def _get_job(r, job_id: str) -> Optional[dict]:
+    raw = await r.get(f"crawl_jobs:{job_id}")
+    return json.loads(raw) if raw else None
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+
 class CrawlRequest(BaseModel):
     base_url: HttpUrl
     max_products: Optional[int] = 50
     max_depth: Optional[int] = 3
+    max_pages: Optional[int] = 500
     auto_import: Optional[bool] = True
     competitor_name: Optional[str] = None
 
 
-class CrawlStatus(BaseModel):
+class MapRequest(BaseModel):
+    base_url: HttpUrl
+    max_urls: Optional[int] = 500
+
+
+class CrawlJobResponse(BaseModel):
+    job_id: str
     status: str
     message: str
-    categories_found: int = 0
+
+
+class CrawlStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress_pct: float = 0.0
+    pages_visited: int = 0
     products_found: int = 0
+    categories_found: int = 0
     products_imported: int = 0
+    error: Optional[str] = None
 
 
-# In-process crawl status store (use Redis/DB in production for multi-worker envs)
-crawl_status = {}
+# ── Routes ────────────────────────────────────────────────────────────────────
 
-
-@router.post("/start", response_model=CrawlStatus)
+@router.post("/start", response_model=CrawlJobResponse)
 @limiter.limit("10/hour")
 async def start_site_crawl(
     request: Request,
@@ -59,102 +103,114 @@ async def start_site_crawl(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Start automatic site crawl to discover all products.
-
-    - **base_url**: Competitor website URL (must be a public, external host)
-    - **max_products**: Maximum products to discover (default: 50)
-    - **max_depth**: Crawl depth (default: 3)
-    - **auto_import**: Automatically import discovered products (default: true)
-    - **competitor_name**: Name for the competitor website entry
+    Enqueue an async site crawl. Returns **job_id** immediately.
+    Poll `GET /crawler/status/{job_id}` for live progress.
     """
-    try:
-        base_url_str = str(crawl_request.base_url)
+    base_url_str = str(crawl_request.base_url)
+    validate_external_url(base_url_str, field_name="base_url")
 
-        # SSRF protection — block private/internal URLs
-        validate_external_url(base_url_str, field_name="base_url")
-
-        # Look up or create the competitor entry scoped to this user
-        competitor = None
-        if crawl_request.competitor_name:
-            competitor = db.query(CompetitorWebsite).filter(
-                CompetitorWebsite.name == crawl_request.competitor_name,
-                CompetitorWebsite.user_id == current_user.id,
-            ).first()
-
-            if not competitor:
-                competitor = CompetitorWebsite(
-                    user_id=current_user.id,
-                    name=crawl_request.competitor_name,
-                    base_url=base_url_str,
-                    website_type="auto_discovered",
-                )
-                db.add(competitor)
-                db.commit()
-                db.refresh(competitor)
-
-        # Initialize crawler and run
-        crawler = SiteCrawler()
-        result = await crawler.crawl_site(
-            base_url=base_url_str,
-            max_products=crawl_request.max_products,
-            max_depth=crawl_request.max_depth,
-        )
-
-        if not result["success"]:
-            raise HTTPException(status_code=500, detail=result.get("error", "Crawl failed"))
-
-        # Auto-import discovered products
-        products_imported = 0
-        if crawl_request.auto_import and result.get("products"):
-            for product_data in result["products"]:
-                try:
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.title == product_data["title"],
-                        ProductMonitored.user_id == current_user.id,
-                    ).first()
-
-                    if not existing:
-                        new_product = ProductMonitored(
-                            user_id=current_user.id,
-                            title=product_data["title"],
-                            image_url=product_data.get("image_url"),
-                        )
-                        db.add(new_product)
-                        db.commit()
-                        db.refresh(new_product)
-
-                        if competitor:
-                            match = CompetitorMatch(
-                                monitored_product_id=new_product.id,
-                                competitor_website_id=competitor.id,
-                                competitor_name=competitor.name,
-                                competitor_url=product_data["url"],
-                                competitor_product_title=product_data["title"],
-                                latest_price=product_data.get("price"),
-                                stock_status=product_data.get("stock_status"),
-                                image_url=product_data.get("image_url"),
-                                last_scraped_at=datetime.utcnow(),
-                            )
-                            db.add(match)
-
-                        products_imported += 1
-
-                except Exception as e:
-                    logger.error("Error importing crawled product: %s", e)
-                    continue
-
+    competitor_id = None
+    if crawl_request.competitor_name:
+        competitor = db.query(CompetitorWebsite).filter(
+            CompetitorWebsite.name == crawl_request.competitor_name,
+            CompetitorWebsite.user_id == current_user.id,
+        ).first()
+        if not competitor:
+            competitor = CompetitorWebsite(
+                user_id=current_user.id,
+                name=crawl_request.competitor_name,
+                base_url=base_url_str,
+                website_type="auto_discovered",
+            )
+            db.add(competitor)
             db.commit()
+            db.refresh(competitor)
+        competitor_id = competitor.id
 
-        return CrawlStatus(
-            status="completed",
-            message=f"Successfully crawled {base_url_str}",
-            categories_found=result["categories_found"],
-            products_found=result["products_found"],
-            products_imported=products_imported,
-        )
+    job_id = str(uuid.uuid4())
+    r = _get_async_redis()
+    try:
+        await _set_job(r, job_id, {
+            "job_id": job_id,
+            "user_id": current_user.id,
+            "status": "running",
+            "progress_pct": 0.0,
+            "pages_visited": 0,
+            "products_found": 0,
+            "categories_found": 0,
+            "products_imported": 0,
+            "base_url": base_url_str,
+            "error": None,
+        })
+    finally:
+        await r.aclose()
 
-    except HTTPException:
-        raise
+    # Dispatch to Celery — survives process restarts
+    from tasks.crawl_tasks import crawl_site_task
+    crawl_site_task.delay(
+        job_id=job_id,
+        base_url=base_url_str,
+        max_products=crawl_request.max_products or 50,
+        max_depth=crawl_request.max_depth or 3,
+        max_pages=crawl_request.max_pages or 500,
+        auto_import=crawl_request.auto_import if crawl_request.auto_import is not None else True,
+        competitor_id=competitor_id,
+        user_id=current_user.id,
+    )
+
+    return CrawlJobResponse(
+        job_id=job_id,
+        status="running",
+        message=f"Crawl started for {base_url_str}. Poll /crawler/status/{job_id} for progress.",
+    )
+
+
+@router.get("/status/{job_id}", response_model=CrawlStatusResponse)
+async def get_crawl_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get live status of a crawl job from Redis."""
+    r = _get_async_redis()
+    try:
+        job = await _get_job(r, job_id)
+    finally:
+        await r.aclose()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Crawl job not found")
+    if job.get("user_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorised to view this job")
+
+    return CrawlStatusResponse(
+        job_id=job_id,
+        status=job.get("status", "unknown"),
+        progress_pct=float(job.get("progress_pct", 0)),
+        pages_visited=int(job.get("pages_visited", 0)),
+        products_found=int(job.get("products_found", 0)),
+        categories_found=int(job.get("categories_found", 0)),
+        products_imported=int(job.get("products_imported", 0)),
+        error=job.get("error"),
+    )
+
+
+@router.post("/map")
+@limiter.limit("30/hour")
+async def map_site(
+    request: Request,
+    map_request: MapRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Instantly discover all URLs on a website without scraping content.
+    Checks sitemap.xml first, then scrapes homepage links.
+    """
+    base_url_str = str(map_request.base_url)
+    validate_external_url(base_url_str, field_name="base_url")
+
+    try:
+        crawler = SiteCrawler()
+        return await crawler.map_site(base_url_str, max_urls=map_request.max_urls or 500)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -166,38 +222,18 @@ async def discover_categories(
     crawl_request: CrawlRequest,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Quickly discover category pages without scraping products.
+    """Quickly discover category pages without scraping products."""
+    base_url_str = str(crawl_request.base_url)
+    validate_external_url(base_url_str, field_name="base_url")
 
-    - **base_url**: Competitor website URL (must be a public, external host)
-    """
     try:
-        base_url_str = str(crawl_request.base_url)
-        validate_external_url(base_url_str, field_name="base_url")
-
         crawler = SiteCrawler()
         categories = await crawler.discover_categories(base_url_str)
-
         return {
             "success": True,
             "base_url": base_url_str,
             "categories_found": len(categories),
             "categories": categories,
         }
-
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/status/{crawl_id}")
-async def get_crawl_status(
-    crawl_id: str,
-    current_user: User = Depends(get_current_user),
-):
-    """Get status of an ongoing crawl job."""
-    if crawl_id not in crawl_status:
-        raise HTTPException(status_code=404, detail="Crawl not found")
-
-    return crawl_status[crawl_id]

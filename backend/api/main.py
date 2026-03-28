@@ -53,6 +53,7 @@ from api.routes import (
     promotions,
     repricing,
     scheduler,
+    scrape,
     seller_intel,
     workspaces,
 )
@@ -153,6 +154,7 @@ def create_app(app_env: str | None = None) -> FastAPI:
     app.include_router(seller_intel.router, prefix="/api", tags=["Seller Intelligence"])
     app.include_router(listing_quality.router, prefix="/api", tags=["Listing Quality Intelligence"])
     app.include_router(keyword_ranks.router, prefix="/api", tags=["Keyword Rank Tracking"])
+    app.include_router(scrape.router, prefix="/api", tags=["Scrape API (Firecrawl-compatible)"])
 
     @app.get("/")
     def read_root():

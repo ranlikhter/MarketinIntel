@@ -12,10 +12,17 @@ import asyncio
 import contextlib
 import itertools
 import logging
+import random
 import time
 from typing import Dict, List, Optional
 
 from playwright.async_api import async_playwright
+
+try:
+    from playwright_stealth import stealth_async as _stealth_async
+    _STEALTH_AVAILABLE = True
+except ImportError:
+    _STEALTH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +94,12 @@ class BrowserPool:
         if not self._started:
             await self.start()
 
-        viewport = viewport or {"width": 1920, "height": 1080}
+        # Randomize viewport slightly so each context has a unique fingerprint
+        if viewport is None:
+            viewport = {
+                "width": random.randint(1366, 1920),
+                "height": random.randint(768, 1080),
+            }
         async with self._semaphore:
             browser = next(self._browser_cycle)
             ctx_kwargs: dict = {"viewport": viewport}
@@ -97,6 +109,9 @@ class BrowserPool:
             if extra_headers:
                 await context.set_extra_http_headers(extra_headers)
             page = await context.new_page()
+            # Apply stealth patches to hide automation signals
+            if _STEALTH_AVAILABLE:
+                await _stealth_async(page)
             try:
                 yield page
             finally:
