@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 
 from scrapers.amazon_scraper import AmazonScraper
 from scrapers.apify_scraper import ApifyScraper
+from scrapers.ebay_scraper import EbayScraper
 from scrapers.generic_scraper import GenericWebScraper
+from scrapers.walmart_scraper import WalmartScraper
 from scrapers.browser_pool import (
     BrowserPool,
     circuit_breaker,
@@ -48,13 +50,29 @@ class ScraperManager:
         self._pool = browser_pool
         self.amazon_scraper = AmazonScraper(browser_pool=browser_pool)
         self.apify_scraper = ApifyScraper()
+        self.walmart_scraper = WalmartScraper(browser_pool=browser_pool)
+        self.ebay_scraper = EbayScraper(browser_pool=browser_pool)
         self.generic_scraper = GenericWebScraper(browser_pool=browser_pool)
 
         self.specialized_scrapers = {
+            # Amazon — all major locales
             "amazon.com": self.amazon_scraper,
             "amazon.co.uk": self.amazon_scraper,
             "amazon.ca": self.amazon_scraper,
             "amazon.de": self.amazon_scraper,
+            "amazon.fr": self.amazon_scraper,
+            "amazon.es": self.amazon_scraper,
+            "amazon.it": self.amazon_scraper,
+            "amazon.co.jp": self.amazon_scraper,
+            "amazon.com.au": self.amazon_scraper,
+            # Walmart
+            "walmart.com": self.walmart_scraper,
+            # eBay — major locales
+            "ebay.com": self.ebay_scraper,
+            "ebay.co.uk": self.ebay_scraper,
+            "ebay.de": self.ebay_scraper,
+            "ebay.fr": self.ebay_scraper,
+            "ebay.com.au": self.ebay_scraper,
         }
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -99,7 +117,7 @@ class ScraperManager:
 
         for attempt in range(max_retries):
             try:
-                if isinstance(scraper, AmazonScraper):
+                if isinstance(scraper, (AmazonScraper, WalmartScraper, EbayScraper)):
                     result = await scraper.scrape_product(url)
                 else:
                     result = await scraper.scrape_product(
@@ -152,6 +170,9 @@ class ScraperManager:
             if isinstance(results, dict) and "CAPTCHA" in results.get("error", ""):
                 if self.apify_scraper.is_configured:
                     return await self.apify_scraper.search_products(query, max_results)
+            return results if isinstance(results, list) else []
+        if isinstance(scraper, (WalmartScraper, EbayScraper)):
+            results = await scraper.search_products(query, max_results)
             return results if isinstance(results, list) else []
         logger.warning("Search not implemented for %s", website)
         return []
