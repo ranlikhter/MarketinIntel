@@ -27,7 +27,7 @@ from database.models import ProductMonitored, StoreConnection, User
 from integrations.xml_parser import XMLProductParser
 from integrations.woocommerce_integration import WooCommerceIntegration
 from integrations.shopify_integration import ShopifyIntegration
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, get_current_workspace, ActiveWorkspace, build_scope_predicate
 from services.activity_service import log_activity
 from services.cache_service import _get_redis_client
 
@@ -55,24 +55,51 @@ class ImportResult(BaseModel):
     errors: List[str] = []
 
 
-def _find_existing_product_for_user(db: Session, user_id: int, sku: Optional[str], title: Optional[str]):
+def _find_existing_product(
+    db: Session,
+    user_id: int,
+    workspace_id: Optional[int],
+    sku: Optional[str],
+    title: Optional[str],
+    source_id: Optional[str] = None,
+    source: Optional[str] = None,
+):
     """
-    Deduplicate per user so identical SKUs/titles across different users do not collide.
+    Workspace-scoped deduplication.
+
+    Checks (in priority order):
+    1. Same source + source_id  → definitive external-ID match
+    2. Same SKU within the workspace scope
+    3. Same title within the workspace scope
     """
-    existing = None
+    scope = build_scope_predicate(ProductMonitored, workspace_id=workspace_id, user_id=user_id)
+
+    if source and source_id:
+        existing = db.query(ProductMonitored).filter(
+            scope,
+            ProductMonitored.source == source,
+            ProductMonitored.source_id == source_id,
+        ).first()
+        if existing:
+            return existing
+
     if sku:
         existing = db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == user_id,
+            scope,
             ProductMonitored.sku == sku,
         ).first()
+        if existing:
+            return existing
 
-    if not existing and title:
+    if title:
         existing = db.query(ProductMonitored).filter(
-            ProductMonitored.user_id == user_id,
+            scope,
             ProductMonitored.title == title,
         ).first()
+        if existing:
+            return existing
 
-    return existing
+    return None
 
 
 def _require_public_ip(ip_text: str) -> None:
@@ -163,6 +190,7 @@ async def import_from_xml(
     format_type: str = Form('auto'),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Import products from XML file
@@ -194,28 +222,26 @@ async def import_from_xml(
 
         for product in valid_products:
             try:
-                # Check if product already exists (by SKU or title)
-                existing = None
-                if product.get('sku'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.sku == product['sku']
-                    ).first()
-
-                if not existing and product.get('title'):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.title == product['title']
-                    ).first()
-
+                existing = _find_existing_product(
+                    db,
+                    current_user.id,
+                    aw.workspace_id,
+                    product.get('sku'),
+                    product.get('title'),
+                )
                 if existing:
                     skipped_count += 1
                     continue
 
                 # Create new product
                 new_product = ProductMonitored(
+                    user_id=current_user.id,
+                    workspace_id=aw.workspace_id,
                     title=product['title'],
                     brand=product.get('brand'),
                     sku=product.get('sku'),
-                    image_url=product.get('image_url')
+                    image_url=product.get('image_url'),
+                    source="xml",
                 )
 
                 db.add(new_product)
@@ -247,7 +273,8 @@ async def import_from_xml(
 async def import_from_woocommerce(
     connection: WooCommerceConnection,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Import products from WooCommerce store
@@ -282,27 +309,29 @@ async def import_from_woocommerce(
 
         for product in products:
             try:
-                # Check if product already exists
-                existing = _find_existing_product_for_user(
+                existing = _find_existing_product(
                     db,
                     current_user.id,
+                    aw.workspace_id,
                     product.get('sku'),
                     product.get('title'),
+                    source_id=str(product['id']) if product.get('id') else None,
+                    source="woocommerce",
                 )
-
                 if existing:
                     skipped_count += 1
                     continue
 
-                # Create new product
                 new_product = ProductMonitored(
                     user_id=current_user.id,
+                    workspace_id=aw.workspace_id,
                     title=product['title'],
                     brand=product.get('brand'),
                     sku=product.get('sku'),
-                    image_url=product.get('image_url')
+                    image_url=product.get('image_url'),
+                    source="woocommerce",
+                    source_id=str(product['id']) if product.get('id') else None,
                 )
-
                 db.add(new_product)
                 imported_count += 1
 
@@ -335,6 +364,7 @@ async def import_from_shopify(
     connection: ShopifyConnection,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Import products from Shopify store
@@ -367,27 +397,29 @@ async def import_from_shopify(
 
         for product in products:
             try:
-                # Check if product already exists
-                existing = _find_existing_product_for_user(
+                existing = _find_existing_product(
                     db,
                     current_user.id,
+                    aw.workspace_id,
                     product.get('sku'),
                     product.get('title'),
+                    source_id=str(product['id']) if product.get('id') else None,
+                    source="shopify_api",
                 )
-
                 if existing:
                     skipped_count += 1
                     continue
 
-                # Create new product
                 new_product = ProductMonitored(
                     user_id=current_user.id,
+                    workspace_id=aw.workspace_id,
                     title=product['title'],
                     brand=product.get('brand'),
                     sku=product.get('sku'),
-                    image_url=product.get('image_url')
+                    image_url=product.get('image_url'),
+                    source="shopify_api",
+                    source_id=str(product['id']) if product.get('id') else None,
                 )
-
                 db.add(new_product)
                 imported_count += 1
 
@@ -579,6 +611,7 @@ async def import_from_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Import products from a CSV file.
@@ -637,18 +670,13 @@ async def import_from_csv(
                 continue
 
             try:
-                # Dedup: same SKU or same title
-                existing = None
-                if mapped.get("sku"):
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.user_id == current_user.id,
-                        ProductMonitored.sku == mapped["sku"]
-                    ).first()
-                if not existing:
-                    existing = db.query(ProductMonitored).filter(
-                        ProductMonitored.user_id == current_user.id,
-                        ProductMonitored.title == title
-                    ).first()
+                existing = _find_existing_product(
+                    db,
+                    current_user.id,
+                    aw.workspace_id,
+                    mapped.get("sku"),
+                    title,
+                )
                 if existing:
                     skipped_count += 1
                     continue
@@ -661,6 +689,7 @@ async def import_from_csv(
 
                 new_product = ProductMonitored(
                     user_id=current_user.id,
+                    workspace_id=aw.workspace_id,
                     title=title,
                     sku=mapped.get("sku"),
                     brand=mapped.get("brand"),
@@ -674,6 +703,7 @@ async def import_from_csv(
                     image_url=mapped.get("image_url"),
                     model_number=mapped.get("model_number"),
                     keywords=mapped.get("keywords"),
+                    source="csv",
                 )
                 db.add(new_product)
                 imported_count += 1
@@ -775,10 +805,11 @@ def _fmt_conn(c: StoreConnection) -> dict:
 def list_store_connections(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
-    """List all saved store connections for the current user."""
+    """List all saved store connections visible to the active workspace (shop)."""
     conns = db.query(StoreConnection).filter(
-        StoreConnection.user_id == current_user.id
+        build_scope_predicate(StoreConnection, workspace_id=aw.workspace_id, user_id=current_user.id)
     ).order_by(StoreConnection.created_at.desc()).all()
     return [_fmt_conn(c) for c in conns]
 
@@ -788,6 +819,7 @@ def save_store_connection(
     body: StoreConnectionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """Persist store credentials so the server can sync inventory on a schedule."""
     platform = body.platform.lower()
@@ -802,6 +834,7 @@ def save_store_connection(
 
     conn = StoreConnection(
         user_id=current_user.id,
+        workspace_id=aw.workspace_id,
         platform=platform,
         store_url=store_url,
         api_key=body.api_key,
@@ -819,10 +852,11 @@ def delete_store_connection(
     conn_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     conn = db.query(StoreConnection).filter(
         StoreConnection.id == conn_id,
-        StoreConnection.user_id == current_user.id,
+        build_scope_predicate(StoreConnection, workspace_id=aw.workspace_id, user_id=current_user.id),
     ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Store connection not found")
@@ -836,11 +870,12 @@ def trigger_inventory_sync(
     conn_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """Trigger an immediate inventory sync for one store connection."""
     conn = db.query(StoreConnection).filter(
         StoreConnection.id == conn_id,
-        StoreConnection.user_id == current_user.id,
+        build_scope_predicate(StoreConnection, workspace_id=aw.workspace_id, user_id=current_user.id),
     ).first()
     if not conn:
         raise HTTPException(status_code=404, detail="Store connection not found")
@@ -974,6 +1009,13 @@ async def shopify_oauth_callback(
         return RedirectResponse(f"{error_redirect}&error=no_token")
 
     # 5. Upsert StoreConnection
+    # Resolve workspace for this user (use default workspace if any)
+    from services.workspace_service import resolve_active_workspace
+    from database.models import User as UserModel
+    oauth_user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    oauth_workspace, _ = resolve_active_workspace(db, oauth_user) if oauth_user else (None, None)
+    oauth_workspace_id = oauth_workspace.id if oauth_workspace else None
+
     existing = db.query(StoreConnection).filter(
         StoreConnection.user_id == user_id,
         StoreConnection.platform == "shopify",
@@ -983,9 +1025,12 @@ async def shopify_oauth_callback(
     if existing:
         existing.api_key = access_token
         existing.is_active = True
+        if oauth_workspace_id and not existing.workspace_id:
+            existing.workspace_id = oauth_workspace_id
     else:
         conn = StoreConnection(
             user_id=user_id,
+            workspace_id=oauth_workspace_id,
             platform="shopify",
             store_url=shop,
             api_key=access_token,

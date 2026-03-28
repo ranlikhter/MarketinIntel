@@ -74,6 +74,9 @@ class ProductMonitored(Base):
     cost_price = Column(Float, nullable=True)     # User's cost / COGS — enables margin calculation
     # Inventory (synced from connected store)
     inventory_quantity = Column(Integer, nullable=True)  # Units in stock
+    # Import provenance — tracks where this product came from and how to re-sync it
+    source = Column(String(30), nullable=True)      # "shopify_api" | "woocommerce" | "xml" | "csv" | "manual" | "shopify_scraper"
+    source_id = Column(String(200), nullable=True)  # Platform product ID (Shopify product ID, WC product ID, etc.)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -289,14 +292,17 @@ class CompetitorWebsite(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Multi-tenant: each user manages their own competitor list
+    # Multi-tenant: scoped to workspace (preferred) with user_id fallback for legacy rows
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Relationships
     user = relationship("User", back_populates="competitor_websites")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     matches = relationship("CompetitorMatch", back_populates="competitor_website")
 
     __table_args__ = (
+        Index("idx_cw_workspace_active", "workspace_id", "is_active"),
         Index("idx_cw_user_active", "user_id", "is_active"),
     )
 
@@ -895,14 +901,19 @@ class ReviewSnapshot(Base):
 class SellerProfile(Base):
     """
     Table: seller_profiles
-    Aggregated intelligence about each unique seller encountered across all matches.
-    One row per seller name — updated on every scrape where that seller appears.
-    Enables cross-product seller analysis (e.g. which sellers compete on most products).
+    Aggregated seller intelligence, scoped per workspace so Shop A's data never
+    leaks to Shop B.  One row per (workspace_id, seller_name) pair.
+
+    Rows with workspace_id=NULL are legacy global rows kept for backwards
+    compatibility; all new rows created by the scraping pipeline include a
+    workspace_id.
     """
     __tablename__ = "seller_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    seller_name = Column(String(200), nullable=False, unique=True, index=True)
+    # Workspace scope — isolates seller intelligence per shop (SaaS multi-tenancy)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True)
+    seller_name = Column(String(200), nullable=False, index=True)
 
     amazon_is_1p = Column(Boolean, default=False)             # Is this Amazon itself?
     feedback_rating = Column(Float, nullable=True)            # Seller feedback score (0-5 or 0-100)
@@ -913,8 +924,15 @@ class SellerProfile(Base):
     first_seen_at = Column(DateTime, default=datetime.utcnow)
     last_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    __table_args__ = (
+        # Unique seller name per workspace (NULL workspace_id = legacy global row)
+        UniqueConstraint("workspace_id", "seller_name", name="uq_seller_workspace_name"),
+    )
+
     def __repr__(self):
-        return f"<SellerProfile(name='{self.seller_name}', 1p={self.amazon_is_1p})>"
+        return f"<SellerProfile(name='{self.seller_name}', workspace={self.workspace_id}, 1p={self.amazon_is_1p})>"
 
 
 class ListingQualitySnapshot(Base):

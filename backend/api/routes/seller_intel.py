@@ -8,16 +8,21 @@ from sqlalchemy.orm import Session
 
 from database.connection import get_db
 from database.models import User
-from api.dependencies import get_current_user
+from api.dependencies import get_current_user, get_current_workspace, ActiveWorkspace
 from services.seller_intel_service import get_seller_intel_service
 
 router = APIRouter(prefix="/seller-intel", tags=["Seller Intelligence"])
+
+
+def _svc(db, current_user, aw):
+    return get_seller_intel_service(db, current_user, workspace_id=aw.workspace_id)
 
 
 @router.get("/overview")
 def get_seller_overview(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Get a high-level overview of all sellers tracked across the portfolio.
@@ -25,9 +30,8 @@ def get_seller_overview(
     Returns aggregate seller metrics including total unique sellers, Buy Box
     win rates, Amazon 1P presence, and the top sellers by product coverage.
     """
-    svc = get_seller_intel_service(db, current_user)
     try:
-        return svc.get_seller_overview()
+        return _svc(db, current_user, aw).get_seller_overview()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -36,6 +40,7 @@ def get_seller_overview(
 def get_amazon_1p_threats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Identify products where Amazon is selling as a first-party (1P) retailer.
@@ -44,9 +49,8 @@ def get_amazon_1p_threats(
     the Buy Box, ranked by threat severity. Use this to prioritise defensive
     pricing or MAP-enforcement actions.
     """
-    svc = get_seller_intel_service(db, current_user)
     try:
-        return svc.get_amazon_1p_threats()
+        return _svc(db, current_user, aw).get_amazon_1p_threats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -56,6 +60,7 @@ def get_seller_profile(
     seller_name: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Get a detailed intelligence profile for a specific seller.
@@ -65,11 +70,10 @@ def get_seller_profile(
     Returns the seller's product count, Buy Box win rate, pricing behaviour,
     fulfilment type (FBA/FBM), feedback rating, and recent activity.
 
-    Raises 404 if the seller is not found in the current user's tracked data.
+    Raises 404 if the seller is not found in the current workspace's tracked data.
     """
-    svc = get_seller_intel_service(db, current_user)
     try:
-        result = svc.get_seller_profile(seller_name)
+        result = _svc(db, current_user, aw).get_seller_profile(seller_name)
         if result is None or (isinstance(result, dict) and "error" in result):
             raise HTTPException(
                 status_code=404,
@@ -87,6 +91,7 @@ def get_buybox_volatility(
     product_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
     Analyse Buy Box ownership volatility for a specific product.
@@ -96,11 +101,10 @@ def get_buybox_volatility(
     Returns the Buy Box change history, current owner, number of competing
     sellers, and a volatility score indicating how frequently ownership flips.
 
-    Raises 404 if the product is not found or does not belong to the current user.
+    Raises 404 if the product is not found or does not belong to the current workspace.
     """
-    svc = get_seller_intel_service(db, current_user)
     try:
-        result = svc.get_buybox_volatility(product_id)
+        result = _svc(db, current_user, aw).get_buybox_volatility(product_id)
         if result is None or (isinstance(result, dict) and "error" in result):
             raise HTTPException(
                 status_code=404,
