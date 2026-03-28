@@ -991,6 +991,10 @@ class Dashboard(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    def __repr__(self):
+        return f"<Dashboard(id={self.id}, name='{self.name}')>"
+
+
 # price_history — every alert and notification check sorts by (match_id, timestamp DESC)
 Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp.desc())
 
@@ -999,9 +1003,6 @@ Index("idx_pa_user_enabled", PriceAlert.user_id, PriceAlert.enabled)
 
 # my_price_history — product detail charts always load changes for one product over time
 Index("idx_mph_product_changed", MyPriceHistory.product_id, MyPriceHistory.changed_at)
-
-    def __repr__(self):
-        return f"<Dashboard(id={self.id}, name='{self.name}')>"
 
 
 class DashboardWidget(Base):
