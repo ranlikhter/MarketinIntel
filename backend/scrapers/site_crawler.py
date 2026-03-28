@@ -100,6 +100,7 @@ class SiteCrawler:
         base_url: str,
         max_products: int = 100,
         max_depth: int = 3,
+        max_pages: int = 500,
         category_only: bool = False,
         progress_callback=None,
     ) -> Dict:
@@ -111,6 +112,7 @@ class SiteCrawler:
         each page is crawled, useful for streaming job status to Redis.
         """
         self.max_depth = max_depth
+        self.max_pages = max_pages
         self.visited_urls.clear()
         self.product_urls.clear()
         self.category_urls.clear()
@@ -169,29 +171,50 @@ class SiteCrawler:
         then returns a flat list of discovered absolute URLs.
         """
         import httpx as _httpx
-        from xml.etree import ElementTree
+        try:
+            import defusedxml.ElementTree as _ET
+        except ImportError:
+            from xml.etree import ElementTree as _ET  # fallback
 
         urls: Set[str] = set()
         parsed_base = urlparse(base_url)
         origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+        _SM_NS = "http://www.sitemaps.org/schemas/sitemap/0.9"
 
-        # 1. Try sitemap.xml first (fastest)
-        for sitemap_path in ("/sitemap.xml", "/sitemap_index.xml", "/sitemap/sitemap.xml"):
-            sitemap_url = origin + sitemap_path
+        async def _fetch_sitemap(sitemap_url: str, depth: int = 0):
+            """Recursively fetch a sitemap or sitemap-index, adding page URLs to `urls`."""
+            if depth > 3 or len(urls) >= max_urls:
+                return
             try:
                 async with _httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
                     resp = await client.get(sitemap_url)
-                if resp.status_code == 200 and "xml" in resp.headers.get("content-type", ""):
-                    root = ElementTree.fromstring(resp.text)
-                    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-                    for loc in root.findall(".//sm:loc", ns):
+                if resp.status_code != 200:
+                    return
+                ct = resp.headers.get("content-type", "")
+                if "xml" not in ct and not sitemap_url.endswith((".xml", ".gz")):
+                    return
+                root = _ET.fromstring(resp.text)
+                tag = root.tag.split("}")[-1] if "}" in root.tag else root.tag
+                ns = {"sm": _SM_NS}
+                if tag == "sitemapindex":
+                    # Recurse into child sitemaps
+                    for loc in root.findall("sm:sitemap/sm:loc", ns):
+                        if loc.text and len(urls) < max_urls:
+                            await _fetch_sitemap(loc.text.strip(), depth + 1)
+                else:
+                    # Regular urlset — extract page URLs
+                    for loc in root.findall("sm:url/sm:loc", ns):
                         if loc.text and len(urls) < max_urls:
                             urls.add(loc.text.strip())
-                    if urls:
-                        logger.info("map_site: found %d URLs from sitemap", len(urls))
-                        break
             except Exception:
                 pass
+
+        # 1. Try sitemap.xml first (fastest)
+        for sitemap_path in ("/sitemap.xml", "/sitemap_index.xml", "/sitemap/sitemap.xml"):
+            await _fetch_sitemap(origin + sitemap_path)
+            if urls:
+                logger.info("map_site: found %d URLs from sitemap", len(urls))
+                break
 
         # 2. Always also scrape links from the start page
         pool = BrowserPool(pool_size=1)

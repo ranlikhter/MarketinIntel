@@ -51,6 +51,17 @@ class AIExtractor:
         self._scraper = GenericWebScraper(browser_pool=browser_pool)
         self.ua = UserAgent()
 
+    async def close(self):
+        """Close the underlying browser pool if one was lazily created."""
+        if self._scraper._pool is not None:
+            await self._scraper._pool.close()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        await self.close()
+
     async def extract(
         self,
         url: str,

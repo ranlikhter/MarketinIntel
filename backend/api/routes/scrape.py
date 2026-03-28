@@ -1,10 +1,8 @@
 """
 Unified Scrape API — Firecrawl-compatible surface
 
-Provides a clean, Firecrawl-equivalent API:
-
   POST /scrape            – Single URL extraction (JSON, markdown, or screenshot)
-  POST /scrape/crawl      – Async full-site crawl, returns job_id immediately
+  POST /scrape/crawl      – Async full-site crawl via Celery, returns job_id
   POST /scrape/map        – Fast URL map (no content scraping)
   POST /scrape/agent      – Natural-language AI extraction via Claude
   GET  /scrape/jobs/{id}  – Poll async crawl job status
@@ -13,30 +11,29 @@ Security:
   - All endpoints require authentication.
   - URLs validated against SSRF.
   - Rate limited per endpoint cost.
+  - Crawl job status checks ownership.
 """
 
-import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Literal, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, HttpUrl
 
 from api.dependencies import get_current_user
 from api.limiter import limiter
-from database.models import User
-from scrapers.ai_extractor import AIExtractor
-from scrapers.generic_scraper import GenericWebScraper
-from scrapers.site_crawler import SiteCrawler
-from scrapers.browser_pool import BrowserPool
 from api.routes.crawler import (
-    _get_redis,
+    CrawlStatusResponse,
+    _get_async_redis,
     _get_job,
     _set_job,
-    _run_crawl_job,
-    CrawlStatusResponse,
 )
+from database.models import User
+from scrapers.ai_extractor import AIExtractor
+from scrapers.browser_pool import BrowserPool
+from scrapers.generic_scraper import GenericWebScraper
+from scrapers.site_crawler import SiteCrawler
 from services.ssrf_validator import validate_external_url
 
 logger = logging.getLogger(__name__)
@@ -48,15 +45,12 @@ router = APIRouter(prefix="/scrape", tags=["scrape"])
 
 class ScrapeRequest(BaseModel):
     url: HttpUrl
-    # Selectors (optional — auto-detect if omitted)
     price_selector: Optional[str] = None
     title_selector: Optional[str] = None
     stock_selector: Optional[str] = None
     image_selector: Optional[str] = None
-    # Render mode
-    use_javascript: Optional[bool] = None   # None = auto
-    # Output options
-    output_format: str = "json"             # "json" | "markdown"
+    use_javascript: Optional[bool] = None
+    output_format: Literal["json", "markdown"] = "json"
     capture_screenshot: bool = False
 
 
@@ -89,14 +83,8 @@ async def scrape(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Scrape a single URL and return structured product data, markdown, or a
-    base64 screenshot — equivalent to Firecrawl's `/scrape` endpoint.
-
-    **output_format**:
-    - `json` (default) – returns structured product fields (price, title, …)
-    - `markdown` – returns clean LLM-ready markdown of the page content
-
-    **capture_screenshot**: include a base64 full-page PNG in the response.
+    Scrape a single URL — returns structured JSON, LLM-ready markdown, or
+    a base64 screenshot.  Equivalent to Firecrawl's `/scrape`.
     """
     url_str = str(body.url)
     validate_external_url(url_str, field_name="url")
@@ -119,7 +107,6 @@ async def scrape(
 
     if result.get("error"):
         raise HTTPException(status_code=502, detail=result["error"])
-
     return result
 
 
@@ -128,38 +115,41 @@ async def scrape(
 async def crawl(
     request: Request,
     body: CrawlRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
     """
-    Start an async full-site crawl. Returns a **job_id** immediately.
-
+    Enqueue an async full-site crawl via Celery. Returns **job_id** immediately.
     Poll `GET /scrape/jobs/{job_id}` for live progress.
-    Equivalent to Firecrawl's `/crawl` endpoint.
+    Equivalent to Firecrawl's `/crawl`.
     """
     url_str = str(body.url)
     validate_external_url(url_str, field_name="url")
 
     job_id = str(uuid.uuid4())
-    r = _get_redis()
-    _set_job(r, job_id, {
-        "job_id": job_id,
-        "status": "running",
-        "progress_pct": 0.0,
-        "pages_visited": 0,
-        "products_found": 0,
-        "categories_found": 0,
-        "products_imported": 0,
-        "base_url": url_str,
-        "error": None,
-    })
+    r = _get_async_redis()
+    try:
+        await _set_job(r, job_id, {
+            "job_id": job_id,
+            "user_id": current_user.id,
+            "status": "running",
+            "progress_pct": 0.0,
+            "pages_visited": 0,
+            "products_found": 0,
+            "categories_found": 0,
+            "products_imported": 0,
+            "base_url": url_str,
+            "error": None,
+        })
+    finally:
+        await r.aclose()
 
-    background_tasks.add_task(
-        _run_crawl_job,
+    from tasks.crawl_tasks import crawl_site_task
+    crawl_site_task.delay(
         job_id=job_id,
         base_url=url_str,
         max_products=body.max_pages or 50,
         max_depth=body.max_depth or 3,
+        max_pages=body.max_pages or 50,
         auto_import=body.auto_import if body.auto_import is not None else False,
         competitor_id=None,
         user_id=current_user.id,
@@ -177,14 +167,17 @@ async def get_job_status(
     job_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Poll the status of an async crawl job.
-    Equivalent to Firecrawl's crawl status polling endpoint.
-    """
-    r = _get_redis()
-    job = _get_job(r, job_id)
+    """Poll the status of an async crawl job (ownership enforced)."""
+    r = _get_async_redis()
+    try:
+        job = await _get_job(r, job_id)
+    finally:
+        await r.aclose()
+
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorised to view this job")
 
     return CrawlStatusResponse(
         job_id=job_id,
@@ -207,10 +200,7 @@ async def map_site(
 ):
     """
     Instantly discover all URLs on a website without scraping content.
-
-    Checks `sitemap.xml` first, then scrapes links from the homepage.
-    Returns a flat list of URLs in seconds.
-    Equivalent to Firecrawl's `/map` endpoint.
+    Equivalent to Firecrawl's `/map`.
     """
     url_str = str(body.url)
     validate_external_url(url_str, field_name="url")
@@ -231,28 +221,19 @@ async def agent_extract(
 ):
     """
     AI-powered extraction using natural language.
-
-    Fetches the page, converts it to markdown, then uses Claude to extract
-    exactly what you describe in the `prompt` field — no CSS selectors needed.
-    Equivalent to Firecrawl's `/agent` endpoint.
-
-    **prompt**: e.g. `"Extract product name, current price, was-price, and whether
-    it is in stock as a JSON object"`
-
-    **schema**: Optional JSON schema to constrain the output shape.
+    Equivalent to Firecrawl's `/agent`.
     """
     url_str = str(body.url)
     validate_external_url(url_str, field_name="url")
 
-    extractor = AIExtractor()
-    result = await extractor.extract(
-        url=url_str,
-        prompt=body.prompt,
-        schema=body.schema,
-        include_markdown=body.include_markdown,
-    )
+    async with AIExtractor() as extractor:
+        result = await extractor.extract(
+            url=url_str,
+            prompt=body.prompt,
+            schema=body.schema,
+            include_markdown=body.include_markdown,
+        )
 
     if result.get("error"):
         raise HTTPException(status_code=502, detail=result["error"])
-
     return result
