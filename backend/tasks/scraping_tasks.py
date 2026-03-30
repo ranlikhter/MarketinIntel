@@ -435,8 +435,8 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
                     scraped_at=now,
                 ))
 
-            # ── SellerProfile upsert (one row per unique seller name) ─────────
-            _upsert_seller_profile(self.db, item)
+            # ── SellerProfile upsert (workspace-scoped, one row per workspace+seller) ──
+            _upsert_seller_profile(self.db, item, workspace_id=match.workspace_id)
 
             _upsert_promotions(self.db, match.id, item.get("promotions") or [])
             matches_found += 1
@@ -640,16 +640,21 @@ def _compute_listing_score(item: dict) -> int:
     return round(score)
 
 
-def _upsert_seller_profile(db, item: dict):
+def _upsert_seller_profile(db, item: dict, workspace_id: int | None = None):
     """
-    Create or update a SellerProfile row for the seller in this scrape result.
-    Only runs when a seller_name is present.
+    Create or update a SellerProfile row scoped to workspace_id.
+
+    One row per (workspace_id, seller_name) — isolates seller intelligence
+    per shop so Shop A's data never leaks to Shop B.
     """
     seller_name = (item.get("seller_name") or "").strip()
     if not seller_name:
         return
     from datetime import datetime
-    existing = db.query(SellerProfile).filter_by(seller_name=seller_name).first()
+    existing = db.query(SellerProfile).filter_by(
+        workspace_id=workspace_id,
+        seller_name=seller_name,
+    ).first()
     is_1p = seller_name.lower() in ("amazon.com", "amazon", "amazon warehouse")
     if existing:
         existing.amazon_is_1p = is_1p
@@ -660,6 +665,7 @@ def _upsert_seller_profile(db, item: dict):
         existing.last_updated_at = datetime.utcnow()
     else:
         db.add(SellerProfile(
+            workspace_id=workspace_id,
             seller_name=seller_name,
             amazon_is_1p=is_1p,
             feedback_count=item.get("seller_feedback_count"),

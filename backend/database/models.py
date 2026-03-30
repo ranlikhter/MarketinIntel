@@ -74,6 +74,45 @@ class ProductMonitored(Base):
     cost_price = Column(Float, nullable=True)     # User's cost / COGS — enables margin calculation
     # Inventory (synced from connected store)
     inventory_quantity = Column(Integer, nullable=True)  # Units in stock
+    # Import provenance — tracks where this product came from and how to re-sync it
+    source = Column(String(30), nullable=True)      # "shopify_api" | "woocommerce" | "xml" | "csv" | "manual" | "shopify_scraper"
+    source_id = Column(String(200), nullable=True)  # Platform product ID (Shopify product ID, WC product ID, etc.)
+
+    # ── GROUP 1: Pricing controls ─────────────────────────────────────────────
+    map_price = Column(Float, nullable=True)          # Minimum Advertised Price — detect MAP violations
+    rrp_msrp = Column(Float, nullable=True)           # Manufacturer's suggested retail price
+    compare_at_price = Column(Float, nullable=True)   # Own store "was" / crossed-out price
+    min_price = Column(Float, nullable=True)          # Repricing floor — never go below
+    max_price = Column(Float, nullable=True)          # Repricing ceiling — protect margin
+    target_margin_pct = Column(Float, nullable=True)  # Target margin % for auto-repricing
+
+    # ── GROUP 2: Dimensions / shipping ───────────────────────────────────────
+    weight = Column(Float, nullable=True)
+    weight_unit = Column(String(10), nullable=True, default="kg")   # "kg" | "lb" | "g" | "oz"
+    length = Column(Float, nullable=True)
+    width = Column(Float, nullable=True)
+    height = Column(Float, nullable=True)
+    dimension_unit = Column(String(5), nullable=True, default="cm") # "cm" | "in"
+
+    # ── GROUP 3: Product lifecycle & catalog ─────────────────────────────────
+    status = Column(String(20), nullable=True, default="active")    # "active" | "inactive" | "discontinued" | "draft"
+    currency = Column(String(3), nullable=True, default="USD")
+    product_url = Column(Text, nullable=True)         # URL on own storefront
+    tags = Column(JSON, nullable=True)                # ["tag1", "tag2", ...]
+    notes = Column(Text, nullable=True)               # Internal memos
+    is_bundle = Column(Boolean, default=False)        # True if this is a bundle product
+    bundle_skus = Column(JSON, nullable=True)         # Component SKUs: ["SKU-A", "SKU-B"]
+
+    # ── GROUP 4: Variant tracking ─────────────────────────────────────────────
+    parent_sku = Column(String(100), nullable=True)   # Parent SKU — groups variants together
+    variant_attributes = Column(JSON, nullable=True)  # {"color": "Blue", "size": "L"}
+
+    # ── GROUP 5: Scraping control ─────────────────────────────────────────────
+    scrape_frequency = Column(String(20), nullable=True, default="daily")    # "hourly" | "4x_daily" | "daily" | "weekly"
+    scrape_priority = Column(String(10), nullable=True, default="medium")    # "high" | "medium" | "low"
+    track_all_variants = Column(Boolean, default=False)                      # Scrape every variant, not just main listing
+    match_threshold = Column(Float, nullable=True, default=60.0)             # Min match_score to accept (0-100)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -289,14 +328,17 @@ class CompetitorWebsite(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Multi-tenant: each user manages their own competitor list
+    # Multi-tenant: scoped to workspace (preferred) with user_id fallback for legacy rows
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True)
 
     # Relationships
     user = relationship("User", back_populates="competitor_websites")
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
     matches = relationship("CompetitorMatch", back_populates="competitor_website")
 
     __table_args__ = (
+        Index("idx_cw_workspace_active", "workspace_id", "is_active"),
         Index("idx_cw_user_active", "user_id", "is_active"),
     )
 
@@ -895,14 +937,19 @@ class ReviewSnapshot(Base):
 class SellerProfile(Base):
     """
     Table: seller_profiles
-    Aggregated intelligence about each unique seller encountered across all matches.
-    One row per seller name — updated on every scrape where that seller appears.
-    Enables cross-product seller analysis (e.g. which sellers compete on most products).
+    Aggregated seller intelligence, scoped per workspace so Shop A's data never
+    leaks to Shop B.  One row per (workspace_id, seller_name) pair.
+
+    Rows with workspace_id=NULL are legacy global rows kept for backwards
+    compatibility; all new rows created by the scraping pipeline include a
+    workspace_id.
     """
     __tablename__ = "seller_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
-    seller_name = Column(String(200), nullable=False, unique=True, index=True)
+    # Workspace scope — isolates seller intelligence per shop (SaaS multi-tenancy)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=True, index=True)
+    seller_name = Column(String(200), nullable=False, index=True)
 
     amazon_is_1p = Column(Boolean, default=False)             # Is this Amazon itself?
     feedback_rating = Column(Float, nullable=True)            # Seller feedback score (0-5 or 0-100)
@@ -913,8 +960,15 @@ class SellerProfile(Base):
     first_seen_at = Column(DateTime, default=datetime.utcnow)
     last_updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    __table_args__ = (
+        # Unique seller name per workspace (NULL workspace_id = legacy global row)
+        UniqueConstraint("workspace_id", "seller_name", name="uq_seller_workspace_name"),
+    )
+
     def __repr__(self):
-        return f"<SellerProfile(name='{self.seller_name}', 1p={self.amazon_is_1p})>"
+        return f"<SellerProfile(name='{self.seller_name}', workspace={self.workspace_id}, 1p={self.amazon_is_1p})>"
 
 
 class ListingQualitySnapshot(Base):
@@ -991,6 +1045,12 @@ class Dashboard(Base):
     created_at  = Column(DateTime, default=datetime.utcnow)
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    widgets = relationship("DashboardWidget", back_populates="dashboard", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Dashboard(id={self.id}, name='{self.name}')>"
+
+
 # price_history — every alert and notification check sorts by (match_id, timestamp DESC)
 Index("idx_ph_match_time", PriceHistory.match_id, PriceHistory.timestamp.desc())
 
@@ -999,9 +1059,6 @@ Index("idx_pa_user_enabled", PriceAlert.user_id, PriceAlert.enabled)
 
 # my_price_history — product detail charts always load changes for one product over time
 Index("idx_mph_product_changed", MyPriceHistory.product_id, MyPriceHistory.changed_at)
-
-    def __repr__(self):
-        return f"<Dashboard(id={self.id}, name='{self.name}')>"
 
 
 class DashboardWidget(Base):

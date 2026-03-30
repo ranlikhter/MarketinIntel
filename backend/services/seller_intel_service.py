@@ -21,11 +21,14 @@ from database.models import (
 class SellerIntelService:
     """
     Service for analyzing seller identity and buy-box intelligence.
+    All SellerProfile queries are scoped to workspace_id so each shop sees
+    only its own seller intelligence.
     """
 
-    def __init__(self, db: Session, user: User):
+    def __init__(self, db: Session, user: User, workspace_id: int | None = None):
         self.db = db
         self.user = user
+        self.workspace_id = workspace_id
 
     def _get_first_history_timestamps(self, match_ids: List[int]) -> Dict[int, datetime]:
         if not match_ids:
@@ -91,13 +94,13 @@ class SellerIntelService:
             if match.seller_positive_feedback_pct is not None:
                 entry["positive_feedback_pcts"].append(match.seller_positive_feedback_pct)
 
-        # Enrich with SellerProfile data where available
-        seller_profiles = {
-            sp.seller_name: sp
-            for sp in self.db.query(SellerProfile).filter(
-                SellerProfile.seller_name.in_(list(seller_map.keys()))
-            ).all()
-        }
+        # Enrich with SellerProfile data — scoped to this workspace
+        profile_query = self.db.query(SellerProfile).filter(
+            SellerProfile.seller_name.in_(list(seller_map.keys()))
+        )
+        if self.workspace_id is not None:
+            profile_query = profile_query.filter(SellerProfile.workspace_id == self.workspace_id)
+        seller_profiles = {sp.seller_name: sp for sp in profile_query.all()}
 
         result = []
         for seller_name, entry in seller_map.items():
@@ -185,9 +188,12 @@ class SellerIntelService:
         """
         normalized_name = seller_name.strip().lower()
 
-        profile = self.db.query(SellerProfile).filter(
+        profile_query = self.db.query(SellerProfile).filter(
             func.lower(SellerProfile.seller_name) == normalized_name
-        ).first()
+        )
+        if self.workspace_id is not None:
+            profile_query = profile_query.filter(SellerProfile.workspace_id == self.workspace_id)
+        profile = profile_query.first()
 
         matches = self.db.query(
             CompetitorMatch,
@@ -351,6 +357,6 @@ class SellerIntelService:
         }
 
 
-def get_seller_intel_service(db: Session, user: User) -> SellerIntelService:
+def get_seller_intel_service(db: Session, user: User, workspace_id: int | None = None) -> SellerIntelService:
     """Factory function for SellerIntelService"""
-    return SellerIntelService(db, user)
+    return SellerIntelService(db, user, workspace_id=workspace_id)
