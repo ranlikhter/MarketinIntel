@@ -18,6 +18,7 @@ from services.workspace_service import (
     resolve_active_workspace,
     build_scope_predicate,
 )
+from services.token_blocklist import blocklist
 
 security = HTTPBearer(auto_error=False)
 

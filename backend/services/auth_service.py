@@ -8,17 +8,18 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 import os
+import uuid
 from env_loader import load_backend_env
 
 load_backend_env()
 
 # Configuration
-SECRET_KEY = (
-    os.getenv("JWT_SECRET_KEY")
-    or os.getenv("SECRET_KEY")
-    or "your-secret-key-change-this-in-production"
-)
-# WARNING: The fallback above is for development only. Set JWT_SECRET_KEY in production.
+SECRET_KEY = os.getenv("JWT_SECRET_KEY") or os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    import sys
+    if os.getenv("ENVIRONMENT", "development") == "production":
+        raise ValueError("JWT_SECRET_KEY environment variable is required in production")
+    SECRET_KEY = "dev-only-secret-change-before-deploying"  # nosec — dev fallback only
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 REFRESH_TOKEN_EXPIRE_DAYS = 30

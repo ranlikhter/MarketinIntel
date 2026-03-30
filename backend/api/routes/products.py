@@ -447,7 +447,7 @@ def update_product(
     product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
     # Auto-record my_price change before applying the update
-    updates = product_update.dict(exclude_none=True)
+    updates = product_update.model_dump(exclude_unset=True)
     old_price = product.my_price
     if 'my_price' in updates and updates['my_price'] != product.my_price:
         price_record = MyPriceHistory(

@@ -6,13 +6,23 @@ import api from '../lib/api';
 
 function cls(...parts) { return parts.filter(Boolean).join(' '); }
 
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function syntaxHighlight(json) {
   if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
-  return json.replace(
-    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+  // Escape HTML entities first so injected content in API responses can't execute
+  const safe = escapeHtml(json);
+  return safe.replace(
+    /(&quot;(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\&])*&quot;(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
     (match) => {
       let cls = 'json-num';
-      if (/^"/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-str';
+      if (/^&quot;/.test(match)) cls = /:$/.test(match) ? 'json-key' : 'json-str';
       else if (/true|false/.test(match)) cls = 'json-bool';
       else if (/null/.test(match)) cls = 'json-null';
       return `<span class="${cls}">${match}</span>`;
