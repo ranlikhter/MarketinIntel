@@ -15,6 +15,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 
 from database.connection import get_db
+from sqlalchemy import func
 from database.models import (
     User, ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert
 )
@@ -27,17 +28,50 @@ router = APIRouter(prefix="/ai", tags=["AI Intelligence"])
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _build_user_context(user: User, db: Session) -> dict:
-    """Assemble compact catalog context for NL queries."""
+    """Assemble compact catalog context for NL queries (batched — 3 queries total)."""
     products = db.query(ProductMonitored).filter(
         ProductMonitored.user_id == user.id
     ).all()
+    if not products:
+        return {"products": [], "recent_changes": [], "metrics": {
+            "total_products": 0, "total_competitors": 0,
+            "cheapest_pct": 0, "expensive_pct": 0, "price_changes_last_week": 0,
+        }}
 
-    # Competitive position per product
+    product_ids = [p.id for p in products]
+    product_map = {p.id: p for p in products}
+
+    # Batch query 1: all matches for all user products
+    all_matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id.in_(product_ids)
+    ).all()
+
+    # Group matches by product; build latest_price map
+    matches_by_product: dict[int, list] = {pid: [] for pid in product_ids}
+    for m in all_matches:
+        matches_by_product[m.monitored_product_id].append(m)
+
+    # Batch query 2: price history in last 7 days for all matches
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    match_ids = [m.id for m in all_matches]
+    history_by_match: dict[int, list] = {m.id: [] for m in all_matches}
+    if match_ids:
+        hist_rows = (
+            db.query(PriceHistory)
+            .filter(
+                PriceHistory.match_id.in_(match_ids),
+                PriceHistory.timestamp >= cutoff,
+            )
+            .order_by(PriceHistory.match_id, PriceHistory.timestamp.asc())
+            .all()
+        )
+        for h in hist_rows:
+            history_by_match[h.match_id].append(h)
+
+    # Build product summaries (pure Python, no extra queries)
     prod_summaries = []
     for p in products:
-        matches = db.query(CompetitorMatch).filter(
-            CompetitorMatch.monitored_product_id == p.id
-        ).all()
+        matches = matches_by_product.get(p.id, [])
         prices = [m.latest_price for m in matches if m.latest_price]
         if prices and p.my_price:
             if p.my_price <= min(prices):
@@ -56,30 +90,19 @@ def _build_user_context(user: User, db: Session) -> dict:
             "my_position": position,
         })
 
-    # Recent price changes (last 7 days)
-    cutoff = datetime.utcnow() - timedelta(days=7)
+    # Build recent changes (pure Python, no extra queries)
     recent_changes = []
-    for p in products:
-        for match in db.query(CompetitorMatch).filter(
-            CompetitorMatch.monitored_product_id == p.id
-        ).all():
-            hist = (
-                db.query(PriceHistory)
-                .filter(
-                    PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= cutoff,
-                )
-                .order_by(PriceHistory.timestamp.asc())
-                .all()
-            )
-            if len(hist) >= 2 and hist[0].price != hist[-1].price:
-                recent_changes.append({
-                    "product": p.title,
-                    "competitor": match.competitor_name,
-                    "old_price": hist[0].price,
-                    "new_price": hist[-1].price,
-                    "changed_at": hist[-1].timestamp.isoformat(),
-                })
+    for match in all_matches:
+        hist = history_by_match.get(match.id, [])
+        if len(hist) >= 2 and hist[0].price != hist[-1].price:
+            p = product_map[match.monitored_product_id]
+            recent_changes.append({
+                "product": p.title,
+                "competitor": match.competitor_name,
+                "old_price": hist[0].price,
+                "new_price": hist[-1].price,
+                "changed_at": hist[-1].timestamp.isoformat(),
+            })
 
     # Simple position metrics
     positions = [p["my_position"] for p in prod_summaries]

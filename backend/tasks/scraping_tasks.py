@@ -482,6 +482,7 @@ def scrape_all_products(self):
         while True:
             page = (
                 self.db.query(ProductMonitored)
+                .order_by(ProductMonitored.id)
                 .limit(_BULK_SCRAPE_PAGE_SIZE)
                 .offset(offset)
                 .all()

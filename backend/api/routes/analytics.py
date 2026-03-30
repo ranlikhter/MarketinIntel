@@ -70,7 +70,7 @@ async def get_product_trendline(
                 'error': 'Invalid date format. Use YYYY-MM-DD'
             }
 
-    cache_key = f"analytics:trendline:{product_id}:{days}"
+    cache_key = f"analytics:trendline:{current_user.id}:{product_id}:{days}"
     analytics = PriceAnalytics(db)
     return get_cached(cache_key, _TRENDLINE_TTL,
                       lambda: analytics.get_product_trendline(product_id=product_id, days=days))
@@ -93,7 +93,7 @@ async def compare_competitors(
     """
     _ensure_product_owned_by_user(product_id, current_user, db)
 
-    cache_key = f"analytics:compare:{product_id}:{days}"
+    cache_key = f"analytics:compare:{current_user.id}:{product_id}:{days}"
     analytics = PriceAnalytics(db)
     return get_cached(cache_key, _COMPARE_TTL,
                       lambda: analytics.get_competitor_comparison(product_id=product_id, days=days))
@@ -116,7 +116,7 @@ async def get_price_alerts(
     """
     _ensure_product_owned_by_user(product_id, current_user, db)
 
-    cache_key = f"analytics:alerts:{product_id}:{threshold}"
+    cache_key = f"analytics:alerts:{current_user.id}:{product_id}:{threshold}"
     analytics = PriceAnalytics(db)
     return get_cached(cache_key, _ALERTS_TTL,
                       lambda: analytics.get_price_alerts(product_id=product_id, threshold_pct=threshold))

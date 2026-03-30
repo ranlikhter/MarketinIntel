@@ -3,12 +3,29 @@ const { withSentryConfig } = require('@sentry/nextjs');
 const backendBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 /** @type {import('next').NextConfig} */
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig = {
   reactStrictMode: true,
-  // Allow images from external domains (for product images)
+
+  // Strip console.* calls in production builds (reduces bundle + leaks)
+  compiler: {
+    removeConsole: isProd ? { exclude: ['error', 'warn'] } : false,
+  },
+
+  // Optimise heavy packages so only used modules are bundled
+  experimental: {
+    optimizePackageImports: ['@sentry/nextjs'],
+  },
+
+  // Image optimisation — serve AVIF/WebP instead of raw JPEG/PNG
   images: {
     domains: ['m.media-amazon.com', 'i5.walmartimages.com'],
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    minimumCacheTTL: 86400, // 24h CDN cache for product images
   },
+
   async headers() {
     return [
       {

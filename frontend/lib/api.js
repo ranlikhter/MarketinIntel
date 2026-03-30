@@ -47,7 +47,7 @@ async function request(path, options = {}, canRetry = true) {
 
 const api = {
   // ─── Products ────────────────────────────────────────────────────────────────
-  getProducts: () => request('/api/products/'),
+  getProducts: (limit = 200, offset = 0) => request(`/api/products/?limit=${limit}&offset=${offset}`),
   getHomeCatalogSummary: () => request('/api/products/summary'),
   getProduct: (id) => request(`/api/products/${id}`),
   createProduct: (data) =>
