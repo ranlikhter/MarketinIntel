@@ -77,6 +77,42 @@ class ProductMonitored(Base):
     # Import provenance — tracks where this product came from and how to re-sync it
     source = Column(String(30), nullable=True)      # "shopify_api" | "woocommerce" | "xml" | "csv" | "manual" | "shopify_scraper"
     source_id = Column(String(200), nullable=True)  # Platform product ID (Shopify product ID, WC product ID, etc.)
+
+    # ── GROUP 1: Pricing controls ─────────────────────────────────────────────
+    map_price = Column(Float, nullable=True)          # Minimum Advertised Price — detect MAP violations
+    rrp_msrp = Column(Float, nullable=True)           # Manufacturer's suggested retail price
+    compare_at_price = Column(Float, nullable=True)   # Own store "was" / crossed-out price
+    min_price = Column(Float, nullable=True)          # Repricing floor — never go below
+    max_price = Column(Float, nullable=True)          # Repricing ceiling — protect margin
+    target_margin_pct = Column(Float, nullable=True)  # Target margin % for auto-repricing
+
+    # ── GROUP 2: Dimensions / shipping ───────────────────────────────────────
+    weight = Column(Float, nullable=True)
+    weight_unit = Column(String(10), nullable=True, default="kg")   # "kg" | "lb" | "g" | "oz"
+    length = Column(Float, nullable=True)
+    width = Column(Float, nullable=True)
+    height = Column(Float, nullable=True)
+    dimension_unit = Column(String(5), nullable=True, default="cm") # "cm" | "in"
+
+    # ── GROUP 3: Product lifecycle & catalog ─────────────────────────────────
+    status = Column(String(20), nullable=True, default="active")    # "active" | "inactive" | "discontinued" | "draft"
+    currency = Column(String(3), nullable=True, default="USD")
+    product_url = Column(Text, nullable=True)         # URL on own storefront
+    tags = Column(JSON, nullable=True)                # ["tag1", "tag2", ...]
+    notes = Column(Text, nullable=True)               # Internal memos
+    is_bundle = Column(Boolean, default=False)        # True if this is a bundle product
+    bundle_skus = Column(JSON, nullable=True)         # Component SKUs: ["SKU-A", "SKU-B"]
+
+    # ── GROUP 4: Variant tracking ─────────────────────────────────────────────
+    parent_sku = Column(String(100), nullable=True)   # Parent SKU — groups variants together
+    variant_attributes = Column(JSON, nullable=True)  # {"color": "Blue", "size": "L"}
+
+    # ── GROUP 5: Scraping control ─────────────────────────────────────────────
+    scrape_frequency = Column(String(20), nullable=True, default="daily")    # "hourly" | "4x_daily" | "daily" | "weekly"
+    scrape_priority = Column(String(10), nullable=True, default="medium")    # "high" | "medium" | "low"
+    track_all_variants = Column(Boolean, default=False)                      # Scrape every variant, not just main listing
+    match_threshold = Column(Float, nullable=True, default=60.0)             # Min match_score to accept (0-100)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

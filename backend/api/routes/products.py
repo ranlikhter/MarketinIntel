@@ -43,19 +43,51 @@ router = APIRouter()
 
 # Pydantic models for request/response validation
 class ProductCreate(BaseModel):
-    """
-    Schema for creating a new product.
-    This defines what data the frontend must send.
-    """
+    """Schema for creating a new product."""
     title: str
     sku: str | None = None
     brand: str | None = None
     image_url: str | None = None
     my_price: float | None = None
     description: str | None = None
-    mpn: str | None = None       # Manufacturer Part Number — used for exact matching
-    upc_ean: str | None = None   # UPC-12 or EAN-13 barcode — gold-standard exact match
-    cost_price: float | None = None  # COGS / landed cost — enables margin calculations
+    mpn: str | None = None
+    upc_ean: str | None = None
+    cost_price: float | None = None
+    # Extended identifiers
+    asin: str | None = None
+    model_number: str | None = None
+    keywords: str | None = None
+    category: str | None = None
+    # Group 1 — Pricing controls
+    map_price: float | None = None
+    rrp_msrp: float | None = None
+    compare_at_price: float | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    target_margin_pct: float | None = None
+    # Group 2 — Dimensions
+    weight: float | None = None
+    weight_unit: str | None = "kg"
+    length: float | None = None
+    width: float | None = None
+    height: float | None = None
+    dimension_unit: str | None = "cm"
+    # Group 3 — Lifecycle / catalog
+    status: str | None = "active"
+    currency: str | None = "USD"
+    product_url: str | None = None
+    tags: list | None = None
+    notes: str | None = None
+    is_bundle: bool = False
+    bundle_skus: list | None = None
+    # Group 4 — Variants
+    parent_sku: str | None = None
+    variant_attributes: dict | None = None
+    # Group 5 — Scraping control
+    scrape_frequency: str | None = "daily"
+    scrape_priority: str | None = "medium"
+    track_all_variants: bool = False
+    match_threshold: float | None = 60.0
 
 
 class ProductUpdate(BaseModel):
@@ -69,31 +101,110 @@ class ProductUpdate(BaseModel):
     mpn: str | None = None
     upc_ean: str | None = None
     cost_price: float | None = None
+    asin: str | None = None
+    model_number: str | None = None
+    keywords: str | None = None
+    category: str | None = None
+    # Group 1 — Pricing controls
+    map_price: float | None = None
+    rrp_msrp: float | None = None
+    compare_at_price: float | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    target_margin_pct: float | None = None
+    # Group 2 — Dimensions
+    weight: float | None = None
+    weight_unit: str | None = None
+    length: float | None = None
+    width: float | None = None
+    height: float | None = None
+    dimension_unit: str | None = None
+    # Group 3 — Lifecycle / catalog
+    status: str | None = None
+    currency: str | None = None
+    product_url: str | None = None
+    tags: list | None = None
+    notes: str | None = None
+    is_bundle: bool | None = None
+    bundle_skus: list | None = None
+    # Group 4 — Variants
+    parent_sku: str | None = None
+    variant_attributes: dict | None = None
+    # Group 5 — Scraping control
+    scrape_frequency: str | None = None
+    scrape_priority: str | None = None
+    track_all_variants: bool | None = None
+    match_threshold: float | None = None
+
+
+# Fields that can be set on both create and update — drives the DB write
+_PRODUCT_WRITABLE_FIELDS = [
+    "title", "sku", "brand", "image_url", "my_price", "description",
+    "mpn", "upc_ean", "cost_price", "asin", "model_number", "keywords", "category",
+    "map_price", "rrp_msrp", "compare_at_price", "min_price", "max_price", "target_margin_pct",
+    "weight", "weight_unit", "length", "width", "height", "dimension_unit",
+    "status", "currency", "product_url", "tags", "notes", "is_bundle", "bundle_skus",
+    "parent_sku", "variant_attributes",
+    "scrape_frequency", "scrape_priority", "track_all_variants", "match_threshold",
+]
 
 
 class ProductResponse(BaseModel):
-    """
-    Schema for returning product data.
-    This defines what data the backend sends to frontend.
-    """
+    """Schema for returning product data to the frontend."""
     id: int
     title: str
-    sku: str | None
-    brand: str | None
-    image_url: str | None
+    sku: str | None = None
+    brand: str | None = None
+    image_url: str | None = None
     my_price: float | None = None
     description: str | None = None
     mpn: str | None = None
     upc_ean: str | None = None
     cost_price: float | None = None
+    asin: str | None = None
+    model_number: str | None = None
+    keywords: str | None = None
+    category: str | None = None
+    # Group 1 — Pricing controls
+    map_price: float | None = None
+    rrp_msrp: float | None = None
+    compare_at_price: float | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    target_margin_pct: float | None = None
+    # Group 2 — Dimensions
+    weight: float | None = None
+    weight_unit: str | None = None
+    length: float | None = None
+    width: float | None = None
+    height: float | None = None
+    dimension_unit: str | None = None
+    # Group 3 — Lifecycle / catalog
+    status: str | None = None
+    currency: str | None = None
+    product_url: str | None = None
+    tags: list | None = None
+    notes: str | None = None
+    is_bundle: bool = False
+    bundle_skus: list | None = None
+    # Group 4 — Variants
+    parent_sku: str | None = None
+    variant_attributes: dict | None = None
+    # Group 5 — Scraping control
+    scrape_frequency: str | None = None
+    scrape_priority: str | None = None
+    track_all_variants: bool = False
+    match_threshold: float | None = None
+    # Meta
+    source: str | None = None
     created_at: datetime
     competitor_count: int = 0
     # Pricing summary (populated in list endpoint)
     lowest_price: float | None = None
     avg_price: float | None = None
     in_stock_count: int = 0
-    price_position: str | None = None  # 'cheapest' | 'expensive' | 'mid'
-    price_change_pct: float | None = None  # % change vs 7 days ago
+    price_position: str | None = None
+    price_change_pct: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -219,19 +330,13 @@ def create_product(
         workspace_id=current_workspace.workspace_id,
     )
 
-    # Create a new ProductMonitored record
+    # Build new product from all writable fields
+    product_data = product.model_dump(exclude_unset=False)
     db_product = ProductMonitored(
-        title=product.title,
-        sku=product.sku,
-        brand=product.brand,
-        image_url=product.image_url,
-        my_price=product.my_price,
-        description=product.description,
-        mpn=product.mpn,
-        upc_ean=product.upc_ean,
-        cost_price=product.cost_price,
-        user_id=current_user.id,  # Keep legacy ownership during cutover
+        user_id=current_user.id,
         workspace_id=current_workspace.workspace_id,
+        source="manual",
+        **{f: product_data[f] for f in _PRODUCT_WRITABLE_FIELDS if f in product_data},
     )
 
     db.add(db_product)
@@ -261,20 +366,7 @@ def create_product(
     db.commit()
     db.refresh(db_product)  # Get the ID that was auto-generated
 
-    return ProductResponse(
-        id=db_product.id,
-        title=db_product.title,
-        sku=db_product.sku,
-        brand=db_product.brand,
-        image_url=db_product.image_url,
-        my_price=db_product.my_price,
-        description=db_product.description,
-        mpn=db_product.mpn,
-        upc_ean=db_product.upc_ean,
-        cost_price=db_product.cost_price,
-        created_at=db_product.created_at,
-        competitor_count=0
-    )
+    return ProductResponse.model_validate(db_product)
 
 
 @router.get("/", response_model=List[ProductResponse])
@@ -413,20 +505,7 @@ def update_product(
     db.commit()
     db.refresh(product)
 
-    return ProductResponse(
-        id=product.id,
-        title=product.title,
-        sku=product.sku,
-        brand=product.brand,
-        image_url=product.image_url,
-        my_price=product.my_price,
-        description=product.description,
-        mpn=product.mpn,
-        upc_ean=product.upc_ean,
-        cost_price=product.cost_price,
-        created_at=product.created_at,
-        competitor_count=len(product.competitor_matches)
-    )
+    return ProductResponse.model_validate(product)
 
 
 @router.get("/{product_id}/matches", response_model=List[CompetitorMatchResponse])
