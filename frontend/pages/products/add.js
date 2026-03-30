@@ -61,7 +61,7 @@ export default function AddProductPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     // Basics
-    title: '', brand: '', sku: '', image_url: '', product_url: '', category: '',
+    title: '', brand: '', sku: '', description: '', image_url: '', product_url: '', category: '',
     // Pricing
     my_price: '', cost_price: '', map_price: '', rrp_msrp: '', compare_at_price: '',
     min_price: '', max_price: '', target_margin_pct: '', currency: 'USD',
@@ -230,6 +230,12 @@ export default function AddProductPage() {
                 <Field label="Product URL" hint="Link to your own store listing">
                   <input type="url" name="product_url" value={formData.product_url} onChange={handleChange}
                     placeholder="https://mystore.com/products/..." className={inp} />
+                </Field>
+
+                <Field label="Description" hint="Public product description — used in match scoring">
+                  <textarea name="description" value={formData.description} onChange={handleChange}
+                    placeholder="Brief product description..." rows={3}
+                    className={`${inp} resize-none`} />
                 </Field>
               </Section>
 

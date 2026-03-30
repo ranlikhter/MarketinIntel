@@ -429,20 +429,7 @@ def get_product(
     """
     product = _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
-    return ProductResponse(
-        id=product.id,
-        title=product.title,
-        sku=product.sku,
-        brand=product.brand,
-        image_url=product.image_url,
-        my_price=product.my_price,
-        description=product.description,
-        mpn=product.mpn,
-        upc_ean=product.upc_ean,
-        cost_price=product.cost_price,
-        created_at=product.created_at,
-        competitor_count=len(product.competitor_matches)
-    )
+    return ProductResponse.model_validate(product)
 
 
 @router.put("/{product_id}", response_model=ProductResponse)
@@ -472,7 +459,8 @@ def update_product(
         db.add(price_record)
 
     for field, value in updates.items():
-        setattr(product, field, value)
+        if field in _PRODUCT_WRITABLE_FIELDS:
+            setattr(product, field, value)
 
     # Log price change separately if my_price was updated
     if 'my_price' in updates and updates['my_price'] != old_price:
