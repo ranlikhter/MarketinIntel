@@ -220,6 +220,24 @@ def get_product_summaries(
         match_ids_by_product[match.monitored_product_id].append(match.id)
         all_match_ids.append(match.id)
 
+    # SQL aggregates: min and avg latest_price per product — avoids Python loops
+    price_agg_rows = db.query(
+        CompetitorMatch.monitored_product_id,
+        func.min(CompetitorMatch.latest_price).label("min_price"),
+        func.avg(CompetitorMatch.latest_price).label("avg_price"),
+    ).filter(
+        CompetitorMatch.monitored_product_id.in_(product_ids),
+        CompetitorMatch.latest_price.isnot(None),
+    ).group_by(
+        CompetitorMatch.monitored_product_id
+    ).all()
+
+    sql_min_price: dict[int, float] = {}
+    sql_avg_price: dict[int, float] = {}
+    for row in price_agg_rows:
+        sql_min_price[row.monitored_product_id] = float(row.min_price)
+        sql_avg_price[row.monitored_product_id] = round(float(row.avg_price), 2)
+
     latest_snapshots = fetch_latest_price_snapshots(db, all_match_ids)
     week_ago_snapshots = fetch_latest_price_snapshots(
         db,
@@ -244,8 +262,8 @@ def get_product_summaries(
             if week_ago and week_ago.price is not None:
                 week_ago_prices.append(week_ago.price)
 
-        lowest_price = min(latest_prices) if latest_prices else None
-        avg_price = (sum(latest_prices) / len(latest_prices)) if latest_prices else None
+        lowest_price = sql_min_price.get(product.id)
+        avg_price = sql_avg_price.get(product.id)
 
         price_position = None
         if product.my_price is not None and lowest_price is not None:

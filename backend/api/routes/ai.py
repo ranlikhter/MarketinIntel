@@ -317,35 +317,46 @@ async def generate_narrative(
     except Exception:
         top_opp, top_threat = [], []
 
-    # Top price changes for the week
+    # Top price changes for the week — batched (3 queries, not O(P×M×H))
     top_changes = []
     cutoff = datetime.utcnow() - timedelta(days=7)
     products = db.query(ProductMonitored).filter(
         ProductMonitored.user_id == current_user.id
     ).all()
-    for p in products:
-        for match in db.query(CompetitorMatch).filter(
-            CompetitorMatch.monitored_product_id == p.id
-        ).all():
-            hist = (
-                db.query(PriceHistory)
-                .filter(PriceHistory.match_id == match.id,
-                        PriceHistory.timestamp >= cutoff)
-                .order_by(PriceHistory.timestamp.asc())
-                .all()
-            )
-            if len(hist) >= 2:
-                old_p, new_p = hist[0].price, hist[-1].price
-                if old_p and new_p and old_p != new_p:
-                    change_pct = round(abs(new_p - old_p) / old_p * 100, 1)
-                    top_changes.append({
-                        "product": p.title,
-                        "competitor": match.competitor_name,
-                        "old_price": old_p,
-                        "new_price": new_p,
-                        "change_pct": change_pct,
-                        "drop": new_p < old_p,
-                    })
+    _product_map = {p.id: p for p in products}
+    _pid_list = [p.id for p in products]
+    _all_matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id.in_(_pid_list)
+    ).all() if _pid_list else []
+    _mid_list = [m.id for m in _all_matches]
+    _hist_rows = (
+        db.query(PriceHistory)
+        .filter(
+            PriceHistory.match_id.in_(_mid_list),
+            PriceHistory.timestamp >= cutoff,
+        )
+        .order_by(PriceHistory.match_id.asc(), PriceHistory.timestamp.asc())
+        .all()
+    ) if _mid_list else []
+    from collections import defaultdict as _dd
+    _hist_by_match: dict = _dd(list)
+    for _row in _hist_rows:
+        _hist_by_match[_row.match_id].append(_row)
+    for match in _all_matches:
+        hist = _hist_by_match.get(match.id, [])
+        if len(hist) >= 2:
+            old_p, new_p = hist[0].price, hist[-1].price
+            if old_p and new_p and old_p != new_p:
+                change_pct = round(abs(new_p - old_p) / old_p * 100, 1)
+                p = _product_map[match.monitored_product_id]
+                top_changes.append({
+                    "product": p.title,
+                    "competitor": match.competitor_name,
+                    "old_price": old_p,
+                    "new_price": new_p,
+                    "change_pct": change_pct,
+                    "drop": new_p < old_p,
+                })
     # Sort by magnitude
     top_changes.sort(key=lambda x: -x["change_pct"])
     top_changes = top_changes[:5]

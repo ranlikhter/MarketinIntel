@@ -447,9 +447,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         # Invalidate analytics cache so next request gets fresh data
         try:
             from services.cache_service import invalidate_cache
-            invalidate_cache(f"analytics:trendline:{product_id}:*")
-            invalidate_cache(f"analytics:compare:{product_id}:*")
-            invalidate_cache(f"analytics:alerts:{product_id}:*")
+            invalidate_cache(f"analytics:trendline:*:{product_id}:*")
+            invalidate_cache(f"analytics:compare:*:{product_id}:*")
+            invalidate_cache(f"analytics:alerts:*:{product_id}:*")
         except Exception:
             pass  # Cache invalidation is best-effort
 

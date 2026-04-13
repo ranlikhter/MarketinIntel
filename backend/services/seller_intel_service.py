@@ -4,7 +4,7 @@ Surfaces seller identity intelligence including 1P threats,
 seller profiles, and buy-box volatility analysis.
 """
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import func
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
@@ -61,6 +61,8 @@ class SellerIntelService:
             ProductMonitored
         ).filter(
             ProductMonitored.user_id == self.user.id
+        ).options(
+            selectinload(CompetitorMatch.monitored_product)
         ).all()
 
         # Aggregate per seller_name

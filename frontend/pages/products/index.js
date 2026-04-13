@@ -237,29 +237,45 @@ const TABS = [
   { key: 'low_stock', label: 'Low Stock'        },
 ];
 
+const PAGE_SIZE = 50;
+
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 export default function ProductsPage() {
   const { addToast } = useToast();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [selected, setSelected] = useState(new Set());
   const [deleteModal, setDeleteModal] = useState({ open: false, product: null });
   const [search, setSearch] = useState('');
 
-  useEffect(() => { loadProducts(); }, []);
+  useEffect(() => { loadProducts(0); }, []);
 
-  const loadProducts = async () => {
+  const loadProducts = async (pageIndex = 0) => {
     try {
-      setLoading(true);
-      const data = await api.getProducts();
-      setProducts(data);
+      if (pageIndex === 0) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      const data = await api.getProducts(PAGE_SIZE, pageIndex * PAGE_SIZE);
+      if (pageIndex === 0) {
+        setProducts(data);
+      } else {
+        setProducts(ps => [...ps, ...data]);
+      }
+      setHasMore(data.length === PAGE_SIZE);
+      setPage(pageIndex);
       setError(null);
     } catch (err) {
       setError('Failed to load products. Make sure the backend is running.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -365,7 +381,7 @@ export default function ProductsPage() {
         <div className="px-4 sm:px-6 max-w-2xl mx-auto">
           <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}>
             <p className="font-semibold text-red-400 mb-2">{error}</p>
-            <button onClick={loadProducts} className="text-sm text-red-400 underline">Try again</button>
+            <button onClick={() => loadProducts(0)} className="text-sm text-red-400 underline">Try again</button>
           </div>
         </div>
       </Layout>
@@ -500,15 +516,38 @@ export default function ProductsPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {filtered.map(product => (
-              <ProductCard key={product.id} product={product}
-                selected={selected.has(product.id)}
-                onSelect={(checked) => toggleSelect(product.id, checked)}
-                onDelete={() => setDeleteModal({ open: true, product })}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {filtered.map(product => (
+                <ProductCard key={product.id} product={product}
+                  selected={selected.has(product.id)}
+                  onSelect={(checked) => toggleSelect(product.id, checked)}
+                  onDelete={() => setDeleteModal({ open: true, product })}
+                />
+              ))}
+            </div>
+
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => loadProducts(page + 1)}
+                  disabled={loadingMore}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+                  style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                >
+                  {loadingMore ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Loading…
+                    </>
+                  ) : 'Load more'}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* Floating bulk-action bar */}
