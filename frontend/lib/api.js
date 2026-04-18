@@ -434,6 +434,12 @@ const api = {
   aiNarrativeSend: () =>
     request('/api/ai/narrative/send', { method: 'POST' }),
 
+  // ─── Notification webhooks ───────────────────────────────────────────────────
+  testSlackWebhook: () =>
+    request('/api/notifications/test-slack', { method: 'POST' }),
+  testDiscordWebhook: () =>
+    request('/api/notifications/test-discord', { method: 'POST' }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };

@@ -231,6 +231,58 @@ async def unsubscribe_push(
     return {"success": removed}
 
 
+@router.post("/test-slack")
+async def send_test_slack(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Send a test Slack message to verify the configured webhook."""
+    user = _get_user(credentials, db)
+    prefs = user.notification_prefs or {}
+    webhook = (prefs.get("slackWebhook") or "").strip()
+    if not webhook:
+        raise HTTPException(status_code=400, detail="No Slack webhook configured. Save your webhook URL first.")
+    from services.webhook_service import send_slack_alert
+    success = send_slack_alert(
+        webhook_url=webhook,
+        product_title="Test Product — MarketIntel",
+        competitor_name="MarketIntel Test",
+        old_price=99.99,
+        new_price=99.99,
+        change_pct=0.0,
+        product_url="",
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Slack delivery failed — check your webhook URL.")
+    return {"success": True, "message": "Test message sent to Slack"}
+
+
+@router.post("/test-discord")
+async def send_test_discord(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """Send a test Discord message to verify the configured webhook."""
+    user = _get_user(credentials, db)
+    prefs = user.notification_prefs or {}
+    webhook = (prefs.get("discordWebhook") or "").strip()
+    if not webhook:
+        raise HTTPException(status_code=400, detail="No Discord webhook configured. Save your webhook URL first.")
+    from services.webhook_service import send_discord_alert
+    success = send_discord_alert(
+        webhook_url=webhook,
+        product_title="Test Product — MarketIntel",
+        competitor_name="MarketIntel Test",
+        old_price=99.99,
+        new_price=99.99,
+        change_pct=0.0,
+        product_url="",
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Discord delivery failed — check your webhook URL.")
+    return {"success": True, "message": "Test message sent to Discord"}
+
+
 @router.post("/push/test")
 async def send_test_push(
     credentials: HTTPAuthorizationCredentials = Depends(security),

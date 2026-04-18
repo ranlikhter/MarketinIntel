@@ -565,6 +565,12 @@ function NotificationsTab({ user }) {
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
 
+  // ── Webhook test state ──────────────────────────────────────────────────────
+  const [testingSlack, setTestingSlack] = useState(false);
+  const [testingDiscord, setTestingDiscord] = useState(false);
+  const [slackStatus, setSlackStatus] = useState(null);   // 'ok' | 'error'
+  const [discordStatus, setDiscordStatus] = useState(null);
+
   // Check push support and current subscription status on mount
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window;
@@ -613,6 +619,36 @@ function NotificationsTab({ user }) {
       addToast(`Push setup failed: ${err.message}`, 'error');
     } finally {
       setPushLoading(false);
+    }
+  };
+
+  const handleTestSlack = async () => {
+    setTestingSlack(true);
+    setSlackStatus(null);
+    try {
+      await api.testSlackWebhook();
+      setSlackStatus('ok');
+      addToast('Test message sent to Slack', 'success');
+    } catch (err) {
+      setSlackStatus('error');
+      addToast(`Slack test failed: ${err.message}`, 'error');
+    } finally {
+      setTestingSlack(false);
+    }
+  };
+
+  const handleTestDiscord = async () => {
+    setTestingDiscord(true);
+    setDiscordStatus(null);
+    try {
+      await api.testDiscordWebhook();
+      setDiscordStatus('ok');
+      addToast('Test message sent to Discord', 'success');
+    } catch (err) {
+      setDiscordStatus('error');
+      addToast(`Discord test failed: ${err.message}`, 'error');
+    } finally {
+      setTestingDiscord(false);
     }
   };
 
@@ -761,74 +797,147 @@ function NotificationsTab({ user }) {
       </Section>
 
       <Section title="Notification Channels" description="Enable extra channels for alert delivery.">
-        <div>
-          <div style={{ borderBottom: '1px solid var(--border)' }}>
-            <Field label="Email">
-              <div className="flex items-center justify-between">
-                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send email notifications</span>
-                <Toggle value={prefs.enableEmail} onChange={v => set('enableEmail', v)} />
-              </div>
-            </Field>
-          </div>
-          <div style={{ borderBottom: '1px solid var(--border)' }}>
-            <Field label="Slack">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send Slack notifications</span>
-                  <Toggle value={prefs.enableSlack} onChange={v => set('enableSlack', v)} />
+        <div className="space-y-3">
+
+          {/* ── Email ──────────────────────────────────────────────────────── */}
+          <div className="rounded-xl p-4 transition-all"
+            style={{ background: prefs.enableEmail ? 'rgba(59,130,246,0.08)' : 'var(--bg-elevated)', border: `1px solid ${prefs.enableEmail ? 'rgba(59,130,246,0.3)' : 'var(--border)'}` }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.25)' }}>
+                  <svg className="w-4 h-4" style={{ color: '#3b82f6' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
                 </div>
-                {prefs.enableSlack && (
-                  <Input
-                    type="url"
-                    value={prefs.slackWebhook}
-                    onChange={e => set('slackWebhook', e.target.value)}
-                    placeholder="https://hooks.slack.com/services/..."
-                  />
-                )}
-              </div>
-            </Field>
-          </div>
-          <div style={{ borderBottom: '1px solid var(--border)' }}>
-            <Field label="Discord">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Send Discord notifications</span>
-                  <Toggle value={prefs.enableDiscord} onChange={v => set('enableDiscord', v)} />
+                <div>
+                  <p className="text-sm font-medium text-white">Email</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Instant & digest alerts to your inbox</p>
                 </div>
-                {prefs.enableDiscord && (
-                  <Input
-                    type="url"
-                    value={prefs.discordWebhook}
-                    onChange={e => set('discordWebhook', e.target.value)}
-                    placeholder="https://discord.com/api/webhooks/..."
-                  />
-                )}
               </div>
-            </Field>
+              <Toggle value={prefs.enableEmail} onChange={v => set('enableEmail', v)} />
+            </div>
           </div>
-          <div>
-            <Field label="Browser Push" hint={pushSupported ? undefined : 'Not supported in this browser'}>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                    {pushSubscribed ? 'Push notifications are enabled for this browser' : 'Get instant alerts in this browser / OS'}
-                  </span>
-                  <Toggle value={pushSubscribed} onChange={handlePushToggle} disabled={!pushSupported || pushLoading} />
+
+          {/* ── Slack ──────────────────────────────────────────────────────── */}
+          <div className="rounded-xl p-4 transition-all"
+            style={{ background: prefs.enableSlack ? 'rgba(74,196,107,0.08)' : 'var(--bg-elevated)', border: `1px solid ${prefs.enableSlack ? 'rgba(74,196,107,0.35)' : 'var(--border)'}` }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgba(74,196,107,0.15)', border: '1px solid rgba(74,196,107,0.25)' }}>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#4AC46B"/>
+                  </svg>
                 </div>
-                {pushSubscribed && (
-                  <button
-                    type="button"
-                    onClick={handleTestPush}
-                    disabled={pushLoading}
-                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-opacity disabled:opacity-50"
-                    style={{ background: 'var(--bg-glass)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-                  >
-                    {pushLoading ? 'Sending…' : 'Send test push'}
+                <div>
+                  <p className="text-sm font-medium text-white">Slack</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Post alerts to a Slack channel</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {slackStatus === 'ok' && <span className="text-xs font-medium" style={{ color: '#4ac46b' }}>Connected</span>}
+                {slackStatus === 'error' && <span className="text-xs font-medium" style={{ color: '#ef4444' }}>Failed</span>}
+                <Toggle value={prefs.enableSlack} onChange={v => set('enableSlack', v)} />
+              </div>
+            </div>
+            {prefs.enableSlack && (
+              <div className="mt-3 space-y-2">
+                <Input
+                  type="url"
+                  value={prefs.slackWebhook}
+                  onChange={e => { set('slackWebhook', e.target.value); setSlackStatus(null); }}
+                  placeholder="https://hooks.slack.com/services/..."
+                />
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Create a webhook in <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Slack → Apps → Incoming Webhooks</strong>
+                </p>
+                {prefs.slackWebhook && (
+                  <button type="button" onClick={handleTestSlack} disabled={testingSlack}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    style={{ background: 'rgba(74,196,107,0.12)', border: '1px solid rgba(74,196,107,0.3)', color: '#4ac46b' }}>
+                    {testingSlack ? 'Sending…' : 'Send test message'}
                   </button>
                 )}
               </div>
-            </Field>
+            )}
           </div>
+
+          {/* ── Discord ────────────────────────────────────────────────────── */}
+          <div className="rounded-xl p-4 transition-all"
+            style={{ background: prefs.enableDiscord ? 'rgba(88,101,242,0.08)' : 'var(--bg-elevated)', border: `1px solid ${prefs.enableDiscord ? 'rgba(88,101,242,0.35)' : 'var(--border)'}` }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgba(88,101,242,0.15)', border: '1px solid rgba(88,101,242,0.25)' }}>
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#5865F2">
+                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Discord</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Post alerts to a Discord server</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {discordStatus === 'ok' && <span className="text-xs font-medium" style={{ color: '#5865f2' }}>Connected</span>}
+                {discordStatus === 'error' && <span className="text-xs font-medium" style={{ color: '#ef4444' }}>Failed</span>}
+                <Toggle value={prefs.enableDiscord} onChange={v => set('enableDiscord', v)} />
+              </div>
+            </div>
+            {prefs.enableDiscord && (
+              <div className="mt-3 space-y-2">
+                <Input
+                  type="url"
+                  value={prefs.discordWebhook}
+                  onChange={e => { set('discordWebhook', e.target.value); setDiscordStatus(null); }}
+                  placeholder="https://discord.com/api/webhooks/..."
+                />
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Create a webhook in <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Discord → Server Settings → Integrations → Webhooks</strong>
+                </p>
+                {prefs.discordWebhook && (
+                  <button type="button" onClick={handleTestDiscord} disabled={testingDiscord}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    style={{ background: 'rgba(88,101,242,0.12)', border: '1px solid rgba(88,101,242,0.3)', color: '#5865f2' }}>
+                    {testingDiscord ? 'Sending…' : 'Send test message'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Browser Push ───────────────────────────────────────────────── */}
+          <div className="rounded-xl p-4 transition-all"
+            style={{ background: pushSubscribed ? 'rgba(245,158,11,0.08)' : 'var(--bg-elevated)', border: `1px solid ${pushSubscribed ? 'rgba(245,158,11,0.3)' : 'var(--border)'}`, opacity: pushSupported ? 1 : 0.5 }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                  <svg className="w-4 h-4" style={{ color: '#f59e0b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Browser Push</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {!pushSupported ? 'Not supported in this browser' : pushSubscribed ? 'Active on this device' : 'Instant OS-level alerts'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {pushSubscribed && (
+                  <button type="button" onClick={handleTestPush} disabled={pushLoading}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+                    {pushLoading ? 'Sending…' : 'Test'}
+                  </button>
+                )}
+                <Toggle value={pushSubscribed} onChange={handlePushToggle} disabled={!pushSupported || pushLoading} />
+              </div>
+            </div>
+          </div>
+
         </div>
       </Section>
 
