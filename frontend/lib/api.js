@@ -424,6 +424,16 @@ const api = {
   agentExtract: (data) =>
     request('/api/scrape/agent', { method: 'POST', body: JSON.stringify(data) }),
 
+  // ─── AI Intelligence ─────────────────────────────────────────────────────────
+  aiPricingRecommendation: (productId) =>
+    request(`/api/ai/recommend/${productId}`, { method: 'POST' }),
+  aiCompetitiveQuery: (question, maxProducts = 30) =>
+    request('/api/ai/query', { method: 'POST', body: JSON.stringify({ question, max_products_in_context: maxProducts }) }),
+  aiNarrative: () =>
+    request('/api/ai/narrative', { method: 'POST' }),
+  aiNarrativeSend: () =>
+    request('/api/ai/narrative/send', { method: 'POST' }),
+
   // ─── Generic passthrough ─────────────────────────────────────────────────────
   request: (path, options = {}) => request(path, options),
 };
