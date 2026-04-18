@@ -1,10 +1,29 @@
 import '../styles/globals.css';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import * as Sentry from '@sentry/nextjs';
 import { ToastProvider } from '../components/Toast';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { PwaProvider } from '../context/PwaContext';
 import SentryErrorBoundary from '../components/SentryErrorBoundary';
+import OnboardingWizard, { shouldShowOnboarding } from '../components/OnboardingWizard';
+
+const ONBOARDING_SKIP_PATHS = ['/auth/', '/pricing', '/offline'];
+
+function OnboardingGate() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    if (ONBOARDING_SKIP_PATHS.some(p => router.pathname.startsWith(p))) return;
+    if (shouldShowOnboarding()) setShow(true);
+  }, [user, router.pathname]);
+
+  if (!show) return null;
+  return <OnboardingWizard onDismiss={() => setShow(false)} />;
+}
 
 // Inner component so it can access the AuthContext
 function SentryUserSync() {
@@ -34,6 +53,7 @@ function MyApp({ Component, pageProps }) {
         <ToastProvider>
           <PwaProvider>
             <SentryUserSync />
+            <OnboardingGate />
             <Component {...pageProps} />
           </PwaProvider>
         </ToastProvider>

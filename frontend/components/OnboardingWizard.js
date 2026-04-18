@@ -122,7 +122,13 @@ const IMPORT_SOURCES = [
 function StepWelcome({ onNext }) {
   return (
     <div className="text-center space-y-6 py-4">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-amber-400" style={{ background: 'rgba(245,158,11,0.15)' }}>{Ico.wave}</div>
+      <div className="relative w-16 h-16 mx-auto">
+        <div className="absolute inset-0 rounded-2xl opacity-25 animate-ping"
+          style={{ background: 'linear-gradient(135deg,#f59e0b,#d97706)' }} />
+        <div className="relative w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center shadow-gradient text-white">
+          {Ico.wave}
+        </div>
+      </div>
       <div>
         <h2 className="text-2xl font-bold text-white">Welcome to MarketIntel</h2>
         <p className="mt-2 text-sm max-w-sm mx-auto" style={{ color: 'var(--text-muted)' }}>
@@ -521,6 +527,22 @@ function StepCompetitor({ product, importedCount, onNext, onSkip }) {
           <label className="block text-xs font-medium text-white/70 mb-1.5">Website URL <span className="text-red-400">*</span></label>
           <input value={form.url} onChange={e => set('url', e.target.value)} placeholder="e.g. amazon.co.uk" className={INPUT} />
         </div>
+        <div>
+          <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-muted)' }}>Popular sites</p>
+          <div className="flex flex-wrap gap-2">
+            {['amazon.com', 'ebay.com', 'walmart.com', 'bestbuy.com', 'target.com'].map(site => (
+              <button key={site} type="button"
+                onClick={() => set('url', site)}
+                className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+                style={form.url === site
+                  ? { background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#f59e0b' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-muted)' }
+                }>
+                {site}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-3 pt-1">
           <button type="button" onClick={onSkip} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/40 hover:bg-white/5 hover:text-white/60 transition-colors" style={{ border: '1px solid var(--border)' }}>
             Skip for now
@@ -538,6 +560,16 @@ function StepCompetitor({ product, importedCount, onNext, onSkip }) {
     </div>
   );
 }
+
+// ─── Alert visual config ──────────────────────────────────────────────────────
+const ALERT_VISUAL = {
+  price_drop:     { color: '#10b981', bg: 'rgba(5,150,105,0.12)',   border: 'rgba(5,150,105,0.3)' },
+  price_increase: { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)',  border: 'rgba(245,158,11,0.3)' },
+  out_of_stock:   { color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)',  border: 'rgba(139,92,246,0.3)' },
+  price_war:      { color: '#ef4444', bg: 'rgba(239,68,68,0.12)',   border: 'rgba(239,68,68,0.3)' },
+  new_competitor: { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  border: 'rgba(59,130,246,0.3)' },
+  back_in_stock:  { color: '#06b6d4', bg: 'rgba(6,182,212,0.12)',   border: 'rgba(6,182,212,0.3)' },
+};
 
 // ─── Step 3: Set alert ────────────────────────────────────────────────────────
 function StepAlert({ product, importedCount, onNext, onSkip }) {
@@ -583,18 +615,22 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
 
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {ALERT_TYPES.map(t => (
-            <button key={t.value} type="button" onClick={() => setAlertType(t.value)}
-              className="px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all"
-              style={alertType === t.value
-                ? { background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }
-                : { background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.5)' }
-              }
-            >
-              {alertType === t.value && <span className="mr-1">✓</span>}
-              {t.label}
-            </button>
-          ))}
+          {ALERT_TYPES.map(t => {
+            const v = ALERT_VISUAL[t.value] || {};
+            const active = alertType === t.value;
+            return (
+              <button key={t.value} type="button" onClick={() => setAlertType(t.value)}
+                className="px-3 py-2.5 rounded-xl text-xs font-medium text-left transition-all"
+                style={active
+                  ? { background: v.bg, border: `1px solid ${v.border}`, color: v.color, transform: 'scale(1.03)' }
+                  : { background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'rgba(255,255,255,0.5)' }
+                }
+              >
+                {active && <span className="mr-1">✓</span>}
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {showThreshold && (
@@ -621,7 +657,13 @@ function StepAlert({ product, importedCount, onNext, onSkip }) {
 function StepDone({ product, importedCount, competitor, alertCreated, onDismiss }) {
   return (
     <div className="text-center space-y-6 py-4">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto text-emerald-400" style={{ background: 'rgba(16,185,129,0.15)' }}>{Ico.rocket}</div>
+      <div className="relative w-16 h-16 mx-auto">
+        <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" />
+        <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center text-emerald-400"
+          style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)' }}>
+          {Ico.rocket}
+        </div>
+      </div>
       <div>
         <h2 className="text-2xl font-bold text-white">You're all set!</h2>
         <p className="text-sm text-white/70 mt-2 max-w-xs mx-auto">
@@ -677,6 +719,7 @@ function SummaryRow({ done, label }) {
 // ─── Main wizard component ────────────────────────────────────────────────────
 export default function OnboardingWizard({ onDismiss }) {
   const [step, setStep]               = useState(0);
+  const [animating, setAnimating]     = useState(false);
   const [product, setProduct]         = useState(null);
   const [importedCount, setImported]  = useState(0);
   const [competitor, setCompetitor]   = useState(null);
@@ -690,8 +733,12 @@ export default function OnboardingWizard({ onDismiss }) {
   }, []);
 
   const goTo = (s) => {
-    setStep(s);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: s })); } catch { /* */ }
+    setAnimating(true);
+    setTimeout(() => {
+      setStep(s);
+      setAnimating(false);
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: s })); } catch { /* */ }
+    }, 180);
   };
 
   const handleDismiss = () => {
@@ -702,67 +749,76 @@ export default function OnboardingWizard({ onDismiss }) {
   const TOTAL = 5; // steps 0‒4
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      {/* Header */}
-      <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          <span className="text-xs font-semibold text-white/40 uppercase tracking-wide">
-            Setup Guide · Step {Math.min(step + 1, TOTAL - 1)} of {TOTAL - 1}
-          </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(6,6,16,0.96)', backdropFilter: 'blur(10px)' }}>
+      <div className="w-full max-w-lg" style={{
+        opacity: animating ? 0 : 1,
+        transform: animating ? 'translateY(10px)' : 'translateY(0)',
+        transition: 'opacity 0.18s ease, transform 0.18s ease',
+      }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          {/* Header */}
+          <div className="px-5 pt-5 pb-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs font-semibold text-white/40 uppercase tracking-wide">
+                Setup Guide · Step {Math.min(step + 1, TOTAL - 1)} of {TOTAL - 1}
+              </span>
+            </div>
+            <button onClick={handleDismiss} className="p-1.5 rounded-lg text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors" title="Dismiss">
+              {Ico.x}
+            </button>
+          </div>
+
+          {/* Progress dots */}
+          <div className="px-5 pt-4">
+            <StepDots current={step} total={TOTAL} />
+          </div>
+
+          {/* Content */}
+          <div className="p-5 pt-6">
+            {step === 0 && <StepWelcome onNext={() => goTo(1)} />}
+
+            {step === 1 && (
+              <StepProduct
+                onNext={({ product: p, importedCount: n }) => {
+                  setProduct(p);
+                  setImported(n || 0);
+                  goTo(2);
+                }}
+                onSkip={() => goTo(2)}
+              />
+            )}
+
+            {step === 2 && (
+              <StepCompetitor
+                product={product}
+                importedCount={importedCount}
+                onNext={({ competitor: c }) => { setCompetitor(c); goTo(3); }}
+                onSkip={() => goTo(3)}
+              />
+            )}
+
+            {step === 3 && (
+              <StepAlert
+                product={product}
+                importedCount={importedCount}
+                onNext={() => { setAlertCreated(true); goTo(4); }}
+                onSkip={() => goTo(4)}
+              />
+            )}
+
+            {step === 4 && (
+              <StepDone
+                product={product}
+                importedCount={importedCount}
+                competitor={competitor}
+                alertCreated={alertCreated}
+                onDismiss={handleDismiss}
+              />
+            )}
+          </div>
         </div>
-        <button onClick={handleDismiss} className="p-1.5 rounded-lg text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors" title="Dismiss">
-          {Ico.x}
-        </button>
-      </div>
-
-      {/* Progress dots */}
-      <div className="px-5 pt-4">
-        <StepDots current={step} total={TOTAL} />
-      </div>
-
-      {/* Content */}
-      <div className="p-5 pt-6">
-        {step === 0 && <StepWelcome onNext={() => goTo(1)} />}
-
-        {step === 1 && (
-          <StepProduct
-            onNext={({ product: p, importedCount: n }) => {
-              setProduct(p);
-              setImported(n || 0);
-              goTo(2);
-            }}
-            onSkip={() => goTo(2)}
-          />
-        )}
-
-        {step === 2 && (
-          <StepCompetitor
-            product={product}
-            importedCount={importedCount}
-            onNext={({ competitor: c }) => { setCompetitor(c); goTo(3); }}
-            onSkip={() => goTo(3)}
-          />
-        )}
-
-        {step === 3 && (
-          <StepAlert
-            product={product}
-            importedCount={importedCount}
-            onNext={() => { setAlertCreated(true); goTo(4); }}
-            onSkip={() => goTo(4)}
-          />
-        )}
-
-        {step === 4 && (
-          <StepDone
-            product={product}
-            importedCount={importedCount}
-            competitor={competitor}
-            alertCreated={alertCreated}
-            onDismiss={handleDismiss}
-          />
-        )}
       </div>
     </div>
   );
