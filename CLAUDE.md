@@ -196,5 +196,12 @@ Key SQLAlchemy models in `backend/database/models.py`:
 **Speed optimizations (batch 2 — committed separately)**
 - [DONE] `products/index.js` — Load More pagination (PAGE_SIZE=50, append, hasMore state)
 
+**"Fall in love" features**
+- [DONE] `OnboardingWizard.js` + `_app.js` — full-screen overlay, step animations, animated icons, colored alert cards, marketplace chips, wired via OnboardingGate
+- [DONE] `[id].js` + `ai.py` + `api.js` — AI price suggestion card on product detail (POST /ai/recommend/:id, Apply button)
+- [DONE] `settings/index.js` + `notifications.py` + `api.js` — branded channel cards with test-send + connection status for Slack/Discord/Push/Email
+- [PENDING] Feature #4: Repricing rule preview ("This rule affects N products, avg +$X")
+- [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
+
 **Housekeeping**
 - [DONE] `CLAUDE.md` — created (this file)
