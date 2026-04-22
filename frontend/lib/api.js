@@ -434,6 +434,9 @@ const api = {
   aiNarrativeSend: () =>
     request('/api/ai/narrative/send', { method: 'POST' }),
 
+  // ─── Analytics ───────────────────────────────────────────────────────────────
+  getQuickWins: () => request('/api/analytics/quick-wins'),
+
   // ─── Repricing ───────────────────────────────────────────────────────────────
   previewRepricingRule: (payload) =>
     request('/api/repricing/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),

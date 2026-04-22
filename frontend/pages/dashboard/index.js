@@ -53,14 +53,16 @@ export default function ComparisonDashboard() {
   const [crawlerUrl, setCrawlerUrl] = useState('');
   const [crawling, setCrawling] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [quickWins, setQuickWins] = useState(null);
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const data = await api.getProducts();
+      const [data, wins] = await Promise.all([api.getProducts(), api.getQuickWins().catch(() => null)]);
       setProducts(data);
+      if (wins) setQuickWins(wins);
       const total = data.length;
       const totalMatches = data.reduce((s, p) => s + (p.competitor_count || 0), 0);
       const withPrices = data.filter(p => p.lowest_price);
@@ -135,6 +137,48 @@ export default function ComparisonDashboard() {
           <StatCard label="Avg Lowest Price" value={stats.avgPrice ? `$${stats.avgPrice}` : '—'} color="emerald" icon={Ico.dollar} />
           <StatCard label="Coverage" value={`${stats.coverage}%`} sub="products with data" color="amber" icon={Ico.chart} />
         </div>
+
+        {/* Quick Wins */}
+        {quickWins && (
+          quickWins.all_competitive ? (
+            <div className="rounded-2xl px-5 py-4 flex items-center gap-3"
+              style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.2)' }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <p className="text-sm text-emerald-400 font-medium">All prices competitive — nice work</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="text-sm font-semibold text-white">Quick Wins</p>
+              </div>
+              <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                {quickWins.wins.map((w, i) => {
+                  const colors = {
+                    high:   { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.25)',   dot: '#ef4444' },
+                    medium: { bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.25)',  dot: '#f59e0b' },
+                    low:    { bg: 'rgba(59,130,246,0.08)',  border: 'rgba(59,130,246,0.2)',   dot: '#3b82f6' },
+                  }[w.severity] || {};
+                  return (
+                    <div key={i} className="flex items-center gap-4 px-5 py-3.5">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ background: colors.dot }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">{w.message}</p>
+                        <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{w.detail}</p>
+                      </div>
+                      <Link href={w.link}
+                        className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                        style={{ background: colors.bg, border: `1px solid ${colors.border}`, color: colors.dot }}>
+                        {w.cta}
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )
+        )}
 
         {/* Main panel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">

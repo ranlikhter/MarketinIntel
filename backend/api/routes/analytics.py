@@ -230,3 +230,135 @@ async def update_analytics(
     from tasks.analytics_tasks import update_all_analytics as task
     t = task.delay()
     return {"success": True, "task_id": t.id, "message": "Analytics update queued"}
+
+
+@router.get("/quick-wins")
+async def get_quick_wins(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    GET /analytics/quick-wins
+
+    Returns up to 4 actionable insights for the dashboard "Quick Wins" panel.
+    Each insight has a type, message, count, and link so the frontend can
+    render a direct CTA button.  Results are computed in 2 batch queries.
+    """
+    from database.models import CompetitorMatch, PriceAlert
+    from sqlalchemy import func as sqlfunc
+    from datetime import timedelta
+    from collections import defaultdict
+
+    user_id = current_user.id
+
+    # ── 1. Load all products + their my_price ───────────────────────────────
+    products = db.query(ProductMonitored).filter(
+        ProductMonitored.user_id == user_id,
+        ProductMonitored.my_price.isnot(None),
+    ).all()
+
+    if not products:
+        return {"wins": [], "all_competitive": False}
+
+    product_ids = [p.id for p in products]
+    my_price_by_id = {p.id: p.my_price for p in products}
+    title_by_id = {p.id: p.title for p in products}
+
+    # ── 2. Load lowest competitor prices per product in one query ───────────
+    rows = (
+        db.query(
+            CompetitorMatch.monitored_product_id,
+            sqlfunc.min(CompetitorMatch.latest_price).label("lowest"),
+            sqlfunc.max(CompetitorMatch.latest_price).label("highest"),
+            sqlfunc.count(CompetitorMatch.id).label("count"),
+        )
+        .filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids),
+            CompetitorMatch.latest_price.isnot(None),
+        )
+        .group_by(CompetitorMatch.monitored_product_id)
+        .all()
+    )
+
+    lowest_by_id = {r.monitored_product_id: r.lowest for r in rows}
+    count_by_id  = {r.monitored_product_id: r.count  for r in rows}
+
+    # ── 3. Compute insights ─────────────────────────────────────────────────
+    overpriced = []      # my_price > lowest competitor by > 5%
+    underpriced = []     # my_price < lowest competitor by > 10% (opportunity)
+    no_data = []         # products with no competitor matches
+
+    for p in products:
+        pid = p.id
+        lowest = lowest_by_id.get(pid)
+        if lowest is None:
+            no_data.append(pid)
+            continue
+        gap_pct = (p.my_price - lowest) / lowest * 100
+        if gap_pct > 5:
+            overpriced.append({"id": pid, "title": title_by_id[pid], "gap_pct": round(gap_pct, 1)})
+        elif gap_pct < -10:
+            underpriced.append({"id": pid, "title": title_by_id[pid], "gap_pct": round(gap_pct, 1)})
+
+    # ── 4. Recent alerts (last 24 h) ────────────────────────────────────────
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    recent_alerts = (
+        db.query(sqlfunc.count(PriceAlert.id))
+        .filter(
+            PriceAlert.user_id == user_id,
+            PriceAlert.last_triggered_at >= cutoff,
+        )
+        .scalar() or 0
+    )
+
+    wins = []
+
+    if overpriced:
+        overpriced.sort(key=lambda x: -x["gap_pct"])
+        top = overpriced[0]
+        wins.append({
+            "type": "overpriced",
+            "severity": "high",
+            "count": len(overpriced),
+            "message": f"You're overpriced vs competitors on {len(overpriced)} product{'s' if len(overpriced) != 1 else ''}",
+            "detail": f"{top['title'][:40]} is +{top['gap_pct']}% above lowest competitor",
+            "link": "/repricing",
+            "cta": "Create Rule",
+        })
+
+    if recent_alerts:
+        wins.append({
+            "type": "alerts",
+            "severity": "medium",
+            "count": recent_alerts,
+            "message": f"{recent_alerts} price alert{'s' if recent_alerts != 1 else ''} triggered in the last 24 h",
+            "detail": "Competitor prices changed — review and reprice",
+            "link": "/alerts",
+            "cta": "View Alerts",
+        })
+
+    if no_data:
+        wins.append({
+            "type": "no_data",
+            "severity": "low",
+            "count": len(no_data),
+            "message": f"{len(no_data)} product{'s have' if len(no_data) != 1 else ' has'} no competitor data yet",
+            "detail": "Trigger a scrape to start tracking competitor prices",
+            "link": "/products",
+            "cta": "Go to Products",
+        })
+
+    if underpriced:
+        top = underpriced[0]
+        wins.append({
+            "type": "underpriced",
+            "severity": "low",
+            "count": len(underpriced),
+            "message": f"{len(underpriced)} product{'s are' if len(underpriced) != 1 else ' is'} priced well below competitors",
+            "detail": f"Consider raising {top['title'][:40]} — you're {abs(top['gap_pct'])}% below market",
+            "link": "/repricing",
+            "cta": "Review Pricing",
+        })
+
+    all_competitive = not wins
+    return {"wins": wins[:4], "all_competitive": all_competitive}
