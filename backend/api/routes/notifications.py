@@ -283,6 +283,104 @@ async def send_test_discord(
     return {"success": True, "message": "Test message sent to Discord"}
 
 
+@router.get("/digest-preview")
+async def digest_preview(
+    days: int = 7,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+):
+    """
+    GET /notifications/digest-preview?days=7
+
+    Return the digest data (stats + top price movements) without sending email.
+    Used to let users preview what their weekly/daily digest would look like.
+    """
+    from database.models import PriceHistory, CompetitorMatch, PriceAlert
+    from sqlalchemy import func as sqlfunc
+    from datetime import timedelta
+    from collections import defaultdict
+
+    user = _get_user(credentials, db)
+    since = datetime.utcnow() - timedelta(days=max(1, min(days, 30)))
+
+    # Triggered alerts in window
+    triggered = db.query(PriceAlert).filter(
+        PriceAlert.user_id == user.id,
+        PriceAlert.last_triggered_at >= since,
+    ).count()
+
+    # Stats
+    from database.models import ProductMonitored
+    products_count = db.query(sqlfunc.count(ProductMonitored.id)).filter(
+        ProductMonitored.user_id == user.id,
+    ).scalar() or 0
+
+    competitors_count = (
+        db.query(sqlfunc.count(CompetitorMatch.id))
+        .join(ProductMonitored)
+        .filter(ProductMonitored.user_id == user.id)
+        .scalar() or 0
+    )
+
+    price_updates = (
+        db.query(sqlfunc.count(PriceHistory.id))
+        .join(CompetitorMatch)
+        .join(ProductMonitored)
+        .filter(
+            ProductMonitored.user_id == user.id,
+            PriceHistory.timestamp >= since,
+        )
+        .scalar() or 0
+    )
+
+    # Top movements (join PriceHistory + CompetitorMatch + ProductMonitored)
+    movements_raw = (
+        db.query(
+            ProductMonitored.title.label("product"),
+            CompetitorMatch.competitor_name,
+            sqlfunc.min(PriceHistory.price).label("min_price"),
+            sqlfunc.max(PriceHistory.price).label("max_price"),
+        )
+        .join(CompetitorMatch, CompetitorMatch.monitored_product_id == ProductMonitored.id)
+        .join(PriceHistory, PriceHistory.match_id == CompetitorMatch.id)
+        .filter(
+            ProductMonitored.user_id == user.id,
+            PriceHistory.timestamp >= since,
+        )
+        .group_by(ProductMonitored.id, CompetitorMatch.id)
+        .having(sqlfunc.count(PriceHistory.id) >= 2)
+        .limit(20)
+        .all()
+    )
+
+    drops, increases = [], []
+    for row in movements_raw:
+        if row.min_price and row.max_price and row.max_price > 0:
+            change_pct = (row.min_price - row.max_price) / row.max_price * 100
+            entry = {"product": row.product, "competitor": row.competitor_name,
+                     "change_pct": round(abs(change_pct), 1)}
+            if change_pct < -1:
+                drops.append(entry)
+            elif change_pct > 1:
+                increases.append({**entry, "change_pct": round(change_pct, 1)})
+
+    drops.sort(key=lambda x: -x["change_pct"])
+    increases.sort(key=lambda x: -x["change_pct"])
+
+    return {
+        "period_days": days,
+        "stats": {
+            "products_monitored": products_count,
+            "price_updates": price_updates,
+            "competitors_tracked": competitors_count,
+            "alerts_triggered": triggered,
+        },
+        "top_price_drops": drops[:5],
+        "top_price_increases": increases[:5],
+        "has_data": price_updates > 0,
+    }
+
+
 @router.post("/push/test")
 async def send_test_push(
     credentials: HTTPAuthorizationCredentials = Depends(security),

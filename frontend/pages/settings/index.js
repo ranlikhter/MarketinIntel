@@ -571,6 +571,10 @@ function NotificationsTab({ user }) {
   const [slackStatus, setSlackStatus] = useState(null);   // 'ok' | 'error'
   const [discordStatus, setDiscordStatus] = useState(null);
 
+  // ── Digest preview state ─────────────────────────────────────────────────
+  const [digestPreview, setDigestPreview] = useState(null);
+  const [loadingDigest, setLoadingDigest] = useState(false);
+
   // Check push support and current subscription status on mount
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window;
@@ -683,6 +687,20 @@ function NotificationsTab({ user }) {
 
   const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }));
 
+  const handleDigestPreview = async () => {
+    setLoadingDigest(true);
+    setDigestPreview(null);
+    try {
+      const days = prefs.digestFrequency === 'weekly' ? 7 : 1;
+      const data = await api.getDigestPreview(days);
+      setDigestPreview(data);
+    } catch (err) {
+      addToast(`Preview failed: ${err.message}`, 'error');
+    } finally {
+      setLoadingDigest(false);
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -793,6 +811,64 @@ function NotificationsTab({ user }) {
               </div>
             </Field>
           </div>
+
+          {prefs.digestFrequency !== 'instant' && (
+            <div>
+              <Field label="Digest Preview" hint="See what your digest will look like">
+                <div className="space-y-3 mt-1">
+                  <button type="button" onClick={handleDigestPreview} disabled={loadingDigest}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium transition-all disabled:opacity-50"
+                    style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+                    {loadingDigest ? 'Loading…' : `Preview ${prefs.digestFrequency === 'weekly' ? 'Weekly' : 'Daily'} Digest`}
+                  </button>
+                  {digestPreview && (
+                    <div className="rounded-xl p-4 space-y-3" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                      {!digestPreview.has_data ? (
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No price activity in this period yet — check back after your first scrape.</p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-3">
+                            {[
+                              { label: 'Products', value: digestPreview.stats.products_monitored },
+                              { label: 'Price Updates', value: digestPreview.stats.price_updates },
+                              { label: 'Alerts Fired', value: digestPreview.stats.alerts_triggered },
+                            ].map(s => (
+                              <div key={s.label} className="text-center rounded-lg py-2" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                <p className="text-lg font-bold text-white">{s.value}</p>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                          {digestPreview.top_price_drops.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-emerald-400 mb-2">Top Price Drops</p>
+                              {digestPreview.top_price_drops.map((d, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <span className="truncate text-white/70">{d.product} · {d.competitor}</span>
+                                  <span className="text-emerald-400 font-medium shrink-0 ml-2">-{d.change_pct}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {digestPreview.top_price_increases.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-amber-400 mb-2">Top Price Increases</p>
+                              {digestPreview.top_price_increases.map((d, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <span className="truncate text-white/70">{d.product} · {d.competitor}</span>
+                                  <span className="text-amber-400 font-medium shrink-0 ml-2">+{d.change_pct}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Field>
+            </div>
+          )}
         </div>
       </Section>
 

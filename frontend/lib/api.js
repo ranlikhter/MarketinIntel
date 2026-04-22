@@ -442,6 +442,8 @@ const api = {
     request('/api/repricing/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),
 
   // ─── Notification webhooks ───────────────────────────────────────────────────
+  getDigestPreview: (days = 7) =>
+    request(`/api/notifications/digest-preview?days=${days}`),
   testSlackWebhook: () =>
     request('/api/notifications/test-slack', { method: 'POST' }),
   testDiscordWebhook: () =>
