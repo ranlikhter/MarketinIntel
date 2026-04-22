@@ -434,6 +434,10 @@ const api = {
   aiNarrativeSend: () =>
     request('/api/ai/narrative/send', { method: 'POST' }),
 
+  // ─── Repricing ───────────────────────────────────────────────────────────────
+  previewRepricingRule: (payload) =>
+    request('/api/repricing/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),
+
   // ─── Notification webhooks ───────────────────────────────────────────────────
   testSlackWebhook: () =>
     request('/api/notifications/test-slack', { method: 'POST' }),

@@ -234,6 +234,107 @@ async def check_map_violations(
 
 # Repricing Rules Endpoints
 
+@router.post("/rules/preview")
+async def preview_repricing_rule(
+    rule: RepricingRuleCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    POST /repricing/rules/preview
+
+    Simulate a rule without saving it.  Returns the number of affected products,
+    average current price, average suggested price, and average margin impact (%).
+    Used to show an impact summary before the user commits to creating the rule.
+    """
+    from sqlalchemy import func as sqlfunc
+
+    # 1. Determine affected products
+    base_q = db.query(ProductMonitored).filter(
+        ProductMonitored.user_id == current_user.id,
+        ProductMonitored.my_price.isnot(None),
+    )
+    if rule.product_id:
+        base_q = base_q.filter(ProductMonitored.id == rule.product_id)
+    products = base_q.all()
+
+    if not products:
+        return {"affected_products": 0, "avg_current": None, "avg_suggested": None, "margin_impact": None}
+
+    product_ids = [p.id for p in products]
+    products_by_id = {p.id: p for p in products}
+
+    # 2. Batch-load lowest competitor prices
+    lowest_by_product: dict = {}
+    rows = (
+        db.query(
+            CompetitorMatch.monitored_product_id,
+            sqlfunc.min(CompetitorMatch.latest_price).label("lowest"),
+        )
+        .filter(
+            CompetitorMatch.monitored_product_id.in_(product_ids),
+            CompetitorMatch.latest_price.isnot(None),
+        )
+        .group_by(CompetitorMatch.monitored_product_id)
+        .all()
+    )
+    for row in rows:
+        lowest_by_product[row.monitored_product_id] = row.lowest
+
+    # 3. Simulate suggested price per product
+    cfg = rule.config or {}
+    suggestions = []
+    for p in products:
+        current = p.my_price
+        lowest = lowest_by_product.get(p.id)
+        suggested = None
+
+        if rule.rule_type == "match_lowest" and lowest is not None:
+            margin = cfg.get("margin_amount") or (lowest * cfg.get("margin_pct", 0) / 100)
+            suggested = lowest + margin
+        elif rule.rule_type == "undercut" and lowest is not None:
+            amt = cfg.get("amount") or (lowest * cfg.get("percentage", 0) / 100)
+            suggested = lowest - amt
+        elif rule.rule_type == "margin_based":
+            cost = cfg.get("cost", 0)
+            margin_pct = cfg.get("margin_pct", 0)
+            suggested = cost * (1 + margin_pct / 100) if cost else None
+        elif rule.rule_type in ("dynamic", "map_protected"):
+            suggested = current  # can't meaningfully simulate without data
+
+        if suggested is None:
+            continue
+
+        # Apply rule constraints
+        if rule.min_price and suggested < rule.min_price:
+            suggested = rule.min_price
+        if rule.max_price and suggested > rule.max_price:
+            suggested = rule.max_price
+        if rule.map_price and suggested < rule.map_price:
+            suggested = rule.map_price
+
+        suggestions.append((current, round(suggested, 2)))
+
+    if not suggestions:
+        return {
+            "affected_products": len(products),
+            "avg_current": None,
+            "avg_suggested": None,
+            "margin_impact": None,
+        }
+
+    avg_current = round(sum(c for c, _ in suggestions) / len(suggestions), 2)
+    avg_suggested = round(sum(s for _, s in suggestions) / len(suggestions), 2)
+    margin_impact = round((avg_suggested - avg_current) / avg_current * 100, 2) if avg_current else None
+
+    return {
+        "affected_products": len(suggestions),
+        "avg_current": avg_current,
+        "avg_suggested": avg_suggested,
+        "margin_impact": margin_impact,
+    }
+
+
 @router.post("/rules", response_model=RepricingRuleResponse)
 async def create_repricing_rule(
     rule: RepricingRuleCreate,

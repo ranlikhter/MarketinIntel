@@ -132,7 +132,41 @@ function CreateModal({ products, onClose, onCreate }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [preview, setPreview] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setPreview(null); };
+
+  const buildConfig = () => {
+    const v = form.adjustment_value ? parseFloat(form.adjustment_value) : 0;
+    if (form.strategy === 'match_lowest')
+      return form.adjustment_type === 'percentage' ? { margin_pct: v } : { margin_amount: v };
+    if (form.strategy === 'undercut')
+      return form.adjustment_type === 'percentage' ? { percentage: v } : { amount: v };
+    if (form.strategy === 'margin_based') return { cost: 0, margin_pct: v };
+    return {};
+  };
+
+  const buildPayload = () => ({
+    name: form.name.trim() || 'Preview',
+    rule_type: form.strategy,
+    config: buildConfig(),
+    priority: parseInt(form.priority) || 1,
+    ...(form.min_price ? { min_price: parseFloat(form.min_price) } : {}),
+    ...(form.max_price ? { max_price: parseFloat(form.max_price) } : {}),
+  });
+
+  const handlePreview = async () => {
+    setPreviewing(true);
+    setPreview(null);
+    try {
+      const result = await api.previewRepricingRule(buildPayload());
+      setPreview(result);
+    } catch {
+      setPreview({ error: true });
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -140,16 +174,7 @@ function CreateModal({ products, onClose, onCreate }) {
     setSaving(true);
     setError('');
     try {
-      const payload = {
-        name: form.name.trim(),
-        strategy: form.strategy,
-        priority: parseInt(form.priority) || 1,
-        adjustment_type: form.adjustment_type,
-      };
-      if (form.adjustment_value) payload.adjustment_value = parseFloat(form.adjustment_value);
-      if (form.min_price) payload.min_price = parseFloat(form.min_price);
-      if (form.max_price) payload.max_price = parseFloat(form.max_price);
-      await onCreate(payload);
+      await onCreate(buildPayload());
       onClose();
     } catch (err) {
       setError(err.message);
@@ -157,6 +182,9 @@ function CreateModal({ products, onClose, onCreate }) {
       setSaving(false);
     }
   };
+
+  const impactColor = preview?.margin_impact == null ? null
+    : preview.margin_impact < 0 ? '#10b981' : '#f59e0b';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -208,8 +236,56 @@ function CreateModal({ products, onClose, onCreate }) {
             <label className="block text-xs font-medium text-white/70 mb-1.5">Priority (1 = highest)</label>
             <input type="number" min="1" value={form.priority} onChange={e => set('priority', e.target.value)} className="w-full px-3 py-2.5 glass-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50" />
           </div>
+
+          {/* ── Impact Preview ───────────────────────────────────────────── */}
+          {preview && !preview.error && (
+            <div className="rounded-xl px-4 py-3" style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <p className="text-xs font-semibold text-amber-400 mb-2">Impact Preview</p>
+              <div className="flex items-center justify-between gap-4">
+                <div className="text-center">
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Products</p>
+                  <p className="text-sm font-bold text-white">{preview.affected_products}</p>
+                </div>
+                {preview.avg_current != null && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Avg Current</p>
+                      <p className="text-sm font-bold text-white">${preview.avg_current.toFixed(2)}</p>
+                    </div>
+                    <svg className="w-4 h-4 shrink-0" style={{ color: 'var(--text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+                    <div className="text-center">
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Avg Suggested</p>
+                      <p className="text-sm font-bold" style={{ color: impactColor }}>${preview.avg_suggested.toFixed(2)}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Change</p>
+                      <p className="text-sm font-bold" style={{ color: impactColor }}>
+                        {preview.margin_impact > 0 ? '+' : ''}{preview.margin_impact?.toFixed(1)}%
+                      </p>
+                    </div>
+                  </>
+                )}
+                {preview.avg_current == null && (
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>No competitor data available to simulate</p>
+                )}
+              </div>
+            </div>
+          )}
+          {preview?.error && (
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Preview unavailable — check your strategy settings</p>
+          )}
+
           <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">Cancel</button>
+            <button type="button" onClick={handlePreview} disabled={previewing}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors disabled:opacity-50 shrink-0">
+              {previewing ? '…' : 'Preview'}
+            </button>
+            <button type="button" onClick={onClose}
+              style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white/70 hover:bg-white/5 transition-colors">
+              Cancel
+            </button>
             <button type="submit" disabled={saving} className="flex-1 py-2.5 gradient-brand text-white rounded-xl text-sm font-medium transition-opacity hover:opacity-90 shadow-gradient disabled:opacity-50">
               {saving ? 'Creating…' : 'Create Rule'}
             </button>
@@ -381,7 +457,10 @@ export default function RepricingPage() {
   };
 
   const handleCreate = async (data) => {
-    const created = await api.request('/api/repricing/rules', { method: 'POST', body: JSON.stringify(data) });
+    const created = await api.request('/api/repricing/rules', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     setRules(rs => [created, ...rs]);
   };
 
