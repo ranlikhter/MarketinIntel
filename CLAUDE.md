@@ -200,8 +200,22 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `OnboardingWizard.js` + `_app.js` — full-screen overlay, step animations, animated icons, colored alert cards, marketplace chips, wired via OnboardingGate
 - [DONE] `[id].js` + `ai.py` + `api.js` — AI price suggestion card on product detail (POST /ai/recommend/:id, Apply button)
 - [DONE] `settings/index.js` + `notifications.py` + `api.js` — branded channel cards with test-send + connection status for Slack/Discord/Push/Email
-- [PENDING] Feature #4: Repricing rule preview ("This rule affects N products, avg +$X")
+- [DONE] `repricing/index.js` + `repricing.py` + `api.js` — Rule preview panel: "affects N products, avg $X → $Y, ±Z%"
 - [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
+
+**Scraping speed**
+- [DONE] `scraping_tasks.py` — S1: honor scrape_frequency (skip recently-scraped); S2: task priority via _PRIORITY_MAP; S3: per-worker persistent BrowserPool singleton
+- [DONE] `celery_app.py` — task_queue_max_priority=10, task_default_priority=5
+
+**System speed / DB**
+- [DONE] `repricing.py` — MAP violations O(N³) → 2 batch queries + Python join
+- [DONE] `products.py` — price-history endpoint: days/limit params (default 90d/500)
+- [DONE] `models.py` — idx_ph_match_time_price covering index; idx_pa_job_filter
+- [DONE] `smart_alert_service.py` — alert job SQL pre-filter (snoozed/cooldown)
+
+**Stickiness**
+- [DONE] `analytics.py` + `dashboard/index.js` — Quick Wins panel: overpriced/alert/no-data insights with CTA links
+- [DONE] `notifications.py` + `settings/index.js` — Digest preview: shows stats + top movements inline before sending
 
 **Housekeeping**
 - [DONE] `CLAUDE.md` — created (this file)
