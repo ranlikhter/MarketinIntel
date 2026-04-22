@@ -16,7 +16,9 @@ Key improvements over the original:
 
 import asyncio
 import logging
+import threading
 from datetime import datetime, timedelta
+from typing import Optional
 
 from celery import Task
 from celery_app import celery_app
@@ -44,6 +46,41 @@ logger = logging.getLogger(__name__)
 _SEARCH_RESULTS_PER_PRODUCT = 5
 _BULK_SCRAPE_PAGE_SIZE = 100   # products loaded per DB query in scrape_all_products
 
+# ── Scrape-frequency guard ────────────────────────────────────────────────────
+_FREQ_INTERVALS = {
+    "hourly":   3_600,
+    "4x_daily": 21_600,
+    "daily":    86_400,
+    "weekly":   604_800,
+}
+
+# ── Celery task priority mapping ──────────────────────────────────────────────
+_PRIORITY_MAP = {"high": 9, "medium": 5, "low": 1}
+
+# ── Per-worker persistent browser pool (S3) ───────────────────────────────────
+# A single Chromium pool shared across all tasks in this worker process.
+# The pool is created lazily on first use and lives until the worker is recycled
+# (worker_max_tasks_per_child=50 in celery_app.py ensures bounded memory).
+_worker_browser_pool: Optional[BrowserPool] = None
+_worker_event_loop: Optional[asyncio.AbstractEventLoop] = None
+_worker_pool_lock = threading.Lock()
+
+
+def _get_worker_loop_and_pool():
+    """Return the worker-scoped (event_loop, BrowserPool), creating lazily."""
+    global _worker_browser_pool, _worker_event_loop
+    if _worker_event_loop is None or _worker_event_loop.is_closed():
+        with _worker_pool_lock:
+            if _worker_event_loop is None or _worker_event_loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                pool = BrowserPool(pool_size=2)
+                loop.run_until_complete(pool.start())
+                _worker_event_loop = loop
+                _worker_browser_pool = pool
+                logger.info("Worker BrowserPool initialised (pool_size=2)")
+    return _worker_event_loop, _worker_browser_pool
+
 
 # ── Base task ─────────────────────────────────────────────────────────────────
 
@@ -66,39 +103,35 @@ class DatabaseTask(Task):
 
 # ── Core async logic ──────────────────────────────────────────────────────────
 
-async def _run_scrape_for_product(product, competitor_id) -> dict:
+async def _run_scrape_for_product(product, competitor_id, pool: BrowserPool) -> dict:
     """
     Async work for a single product scrape.
 
-    Creates one BrowserPool for the lifetime of this async call so all
-    Playwright page loads within the call share the same browser process.
+    Accepts a caller-owned BrowserPool so the same Chromium process is reused
+    across successive tasks in the same worker — pool lifecycle is managed by
+    the worker singleton in _get_worker_loop_and_pool().
     """
-    pool = BrowserPool(pool_size=1)
-    try:
-        scraper = AmazonScraper(browser_pool=pool)
-        matcher = SimpleProductMatcher()
+    scraper = AmazonScraper(browser_pool=pool)
+    matcher = SimpleProductMatcher()
 
-        results = await scraper.search_products(
-            product.title, max_results=_SEARCH_RESULTS_PER_PRODUCT
-        )
+    results = await scraper.search_products(
+        product.title, max_results=_SEARCH_RESULTS_PER_PRODUCT
+    )
 
-        if isinstance(results, dict) and "error" in results:
-            raise RuntimeError(results["error"])
+    if isinstance(results, dict) and "error" in results:
+        raise RuntimeError(results["error"])
 
-        items = results if isinstance(results, list) else []
+    items = results if isinstance(results, list) else []
 
-        product_dict = {
-            "title": product.title or "",
-            "brand": product.brand or "",
-            "description": product.description or "",
-            "mpn": product.mpn or "",
-            "upc_ean": product.upc_ean or "",
-        }
+    product_dict = {
+        "title": product.title or "",
+        "brand": product.brand or "",
+        "description": product.description or "",
+        "mpn": product.mpn or "",
+        "upc_ean": product.upc_ean or "",
+    }
 
-        return {"items": items, "product_dict": product_dict}
-
-    finally:
-        await pool.close()
+    return {"items": items, "product_dict": product_dict}
 
 
 # ── Celery tasks ──────────────────────────────────────────────────────────────
@@ -119,6 +152,18 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             logger.error("Product %d not found", product_id)
             return {"success": False, "error": "Product not found"}
 
+        # S1 — Honor scrape_frequency: skip if recently scraped
+        now = datetime.utcnow()
+        if product.last_scraped_at:
+            min_interval = _FREQ_INTERVALS.get(product.scrape_frequency or "daily", 86_400)
+            elapsed = (now - product.last_scraped_at).total_seconds()
+            if elapsed < min_interval:
+                logger.info(
+                    "Skipping product %d — scraped %.0fs ago, frequency=%s (interval=%ds)",
+                    product_id, elapsed, product.scrape_frequency, min_interval,
+                )
+                return {"status": "skipped", "reason": "frequency", "product_id": product_id}
+
         competitor = self.db.query(CompetitorWebsite).filter(
             CompetitorWebsite.base_url.contains(website)
         ).first()
@@ -126,9 +171,9 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         if "amazon" not in website.lower():
             return {"success": False, "error": f"Unsupported website: {website}"}
 
-        # Run all async work (pool lifecycle, search, optional detail scrapes)
-        # inside a single asyncio.run() call so the pool is properly cleaned up.
-        scrape_result = asyncio.run(_run_scrape_for_product(product, competitor))
+        # S3 — Use per-worker persistent BrowserPool (no cold Chromium start per task)
+        loop, pool = _get_worker_loop_and_pool()
+        scrape_result = loop.run_until_complete(_run_scrape_for_product(product, competitor, pool))
 
         items = scrape_result["items"]
         product_dict = scrape_result["product_dict"]
@@ -490,7 +535,10 @@ def scrape_all_products(self):
             if not page:
                 break
             for product in page:
-                task = scrape_single_product.delay(product.id)
+                priority = _PRIORITY_MAP.get(product.scrape_priority or "medium", 5)
+                task = scrape_single_product.apply_async(
+                    args=[product.id], priority=priority
+                )
                 task_ids.append(task.id)
             offset += _BULK_SCRAPE_PAGE_SIZE
 

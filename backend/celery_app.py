@@ -61,6 +61,10 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
 
+    # Priority queue support (S2) — scraping tasks dispatched with priority 1/5/9
+    task_queue_max_priority=10,
+    task_default_priority=5,
+
     # Beat schedule for periodic tasks
     beat_schedule={
         # ── Smart alerts (most time-sensitive) ──────────────────────────────

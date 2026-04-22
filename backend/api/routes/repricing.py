@@ -489,29 +489,65 @@ async def get_map_violations(
 
     violations = []
 
+    if not map_rules:
+        return {
+            "success": True,
+            "total_violations": 0,
+            "severity_summary": {"high": 0, "medium": 0, "low": 0},
+            "map_rules_checked": 0,
+            "violations": [],
+        }
+
+    # ── Batch load — O(2 queries) instead of O(rules × products × matches) ────
+    # 1. Load all relevant products in one shot
+    has_global_rule = any(r.product_id is None for r in map_rules)
+    specific_ids = {r.product_id for r in map_rules if r.product_id is not None}
+
+    if has_global_rule:
+        all_products = db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == current_user.id
+        ).all()
+    else:
+        all_products = db.query(ProductMonitored).filter(
+            ProductMonitored.user_id == current_user.id,
+            ProductMonitored.id.in_(specific_ids),
+        ).all()
+
+    products_by_id = {p.id: p for p in all_products}
+
+    # 2. Load all competitor matches for these products in one query
+    if not products_by_id:
+        return {
+            "success": True,
+            "total_violations": 0,
+            "severity_summary": {"high": 0, "medium": 0, "low": 0},
+            "map_rules_checked": len(map_rules),
+            "violations": [],
+        }
+
+    all_matches = db.query(CompetitorMatch).filter(
+        CompetitorMatch.monitored_product_id.in_(list(products_by_id.keys())),
+        CompetitorMatch.latest_price.isnot(None),
+    ).all()
+
+    from collections import defaultdict
+    matches_by_product: dict = defaultdict(list)
+    for m in all_matches:
+        matches_by_product[m.monitored_product_id].append(m)
+
+    # 3. Apply rules in Python — zero additional DB queries
     for rule in map_rules:
         map_price = rule.map_price
+        applicable = (
+            [products_by_id[rule.product_id]]
+            if rule.product_id and rule.product_id in products_by_id
+            else list(products_by_id.values())
+        )
 
-        # Determine which products this rule applies to
-        if rule.product_id:
-            products = db.query(ProductMonitored).filter(
-                ProductMonitored.id == rule.product_id,
-                ProductMonitored.user_id == current_user.id,
-            ).all()
-        else:
-            # Rule applies to all user products
-            products = db.query(ProductMonitored).filter(
-                ProductMonitored.user_id == current_user.id
-            ).all()
-
-        for product in products:
-            matches = db.query(CompetitorMatch).filter(
-                CompetitorMatch.monitored_product_id == product.id,
-                CompetitorMatch.latest_price.isnot(None),
-                CompetitorMatch.latest_price < map_price,
-            ).all()
-
-            for match in matches:
+        for product in applicable:
+            for match in matches_by_product[product.id]:
+                if match.latest_price >= map_price:
+                    continue
                 below_by = round(map_price - match.latest_price, 2)
                 below_pct = round(below_by / map_price * 100, 2)
 

@@ -1180,6 +1180,10 @@ Index("idx_cm_scraped_active",   CompetitorMatch.last_scraped_at, CompetitorMatc
 # THE most critical index: covers every alert check, trendline query, comparison
 # (match_id, timestamp DESC) with price/effective_price as include columns on PG
 Index("idx_ph_match_time_cov",   PriceHistory.match_id, PriceHistory.timestamp)
+# Covering index for range queries (price-history endpoint) — avoids table heap reads
+# on PostgreSQL via INCLUDE(price, effective_price); harmless on SQLite
+Index("idx_ph_match_time_price", PriceHistory.match_id, PriceHistory.timestamp,
+      PriceHistory.price, PriceHistory.effective_price)
 # Source-specific filtering (e.g. "amazon_scraper" only rows)
 Index("idx_ph_match_source",     PriceHistory.match_id, PriceHistory.source, PriceHistory.timestamp)
 
@@ -1192,6 +1196,9 @@ Index("idx_pm_user_created",     ProductMonitored.user_id, ProductMonitored.crea
 Index("idx_pa_product_enabled",  PriceAlert.product_id, PriceAlert.enabled)
 # Snooze management: find alerts that need un-snoozing
 Index("idx_pa_snoozed_until",    PriceAlert.snoozed_until)
+# P3: alert job pre-filter — (enabled, snoozed_until, last_triggered_at)
+Index("idx_pa_job_filter",       PriceAlert.enabled, PriceAlert.snoozed_until,
+      PriceAlert.last_triggered_at)
 
 # ── snapshot tables ─────────────────────────────────────────────────────────────
 Index("idx_rs_match_time",          ReviewSnapshot.match_id,            ReviewSnapshot.scraped_at)

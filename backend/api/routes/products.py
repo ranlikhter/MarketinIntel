@@ -559,19 +559,22 @@ def get_product_matches(
 @router.get("/{product_id}/price-history", response_model=List[PriceHistoryResponse])
 def get_price_history(
     product_id: int,
+    days: int = 90,
+    limit: int = 500,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     current_workspace: ActiveWorkspace = Depends(get_current_workspace),
 ):
     """
-    GET /products/{id}/price-history
+    GET /products/{id}/price-history?days=90&limit=500
 
-    Get price history for all competitors of a product.
-    Used to display the price chart.
-    Requires authentication. Only returns data for products owned by the current user.
+    Returns price history for a product's competitors, bounded by recency and row count.
+    Default: last 90 days, max 500 rows (prevents unbounded response on long-tracked products).
     """
+    from datetime import datetime, timedelta
     _get_scoped_product_or_404(db, product_id, current_user, current_workspace)
 
+    since = datetime.utcnow() - timedelta(days=max(1, min(days, 365)))
     history_rows = db.query(
         PriceHistory,
         CompetitorMatch.competitor_name,
@@ -579,10 +582,11 @@ def get_price_history(
         CompetitorMatch,
         PriceHistory.match_id == CompetitorMatch.id,
     ).filter(
-        CompetitorMatch.monitored_product_id == product_id
+        CompetitorMatch.monitored_product_id == product_id,
+        PriceHistory.timestamp >= since,
     ).order_by(
         PriceHistory.timestamp.asc()
-    ).all()
+    ).limit(max(1, min(limit, 2000))).all()
 
     return [
         PriceHistoryResponse(

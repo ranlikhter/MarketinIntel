@@ -4,7 +4,7 @@ Handles intelligent alert detection and multi-channel notifications
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, desc
+from sqlalchemy import and_, desc, or_
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import os
@@ -46,8 +46,17 @@ class SmartAlertService:
         Check all enabled alerts and trigger if conditions are met
         If user_id provided, only check that user's alerts
         """
+        now = datetime.utcnow()
+        # Conservative pre-filter in SQL: skip snoozed alerts and alerts still
+        # within their minimum cooldown window (1 h). Python's can_trigger()
+        # enforces the per-alert cooldown_hours precisely.
+        min_cooldown_cutoff = now - timedelta(hours=1)
+
         query = self.db.query(PriceAlert).filter(
-            PriceAlert.enabled == True
+            PriceAlert.enabled == True,
+            or_(PriceAlert.snoozed_until == None, PriceAlert.snoozed_until < now),
+            or_(PriceAlert.last_triggered_at == None,
+                PriceAlert.last_triggered_at < min_cooldown_cutoff),
         )
 
         if user_id:
