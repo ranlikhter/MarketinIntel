@@ -229,8 +229,15 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `tasks/scraping_tasks.py` — image tiebreaker in match loop (lines ~237-252); match_method set to "text+image"; after commit queues `compute_match_embedding` (priority=1, countdown=10s) for all matches with image_url but no stored embedding; new `compute_match_embedding` Celery task at end of file
 - [DONE] `requirements.txt` — added `open-clip-torch>=3.3.0`, `pillow>=10.0.0`, `pgvector>=0.3.0`
 
+### Session: Move 2 — AI Copilot / Cmd+K (2026-04-24)
+
+- [DONE] `api/routes/ai_command.py` (new) — `POST /ai/command`; Claude Haiku with 4 tools: `query_catalog`, `navigate_to`, `trigger_scrape`, `create_repricing_rule`; two-turn pattern (pick tool → synthesise reply); history support; activity log
+- [DONE] `components/CommandPalette.jsx` (new) — floating "Ask AI ⌘K" button; dark glass modal; chat bubbles; action cards (navigate/scrape/rule); 6 suggestion chips; Cmd+K/Escape keyboard shortcuts
+- [DONE] `pages/_app.js` — added `<CommandPalette />` inside `PwaProvider` (renders on all pages)
+- [DONE] `lib/api.js` — `aiCommand(message, history)` method
+- [DONE] `api/main.py` — registered `ai_command.router`
+
 **Still to do (from competitive plan):**
-- [PENDING] Move 2: AI Copilot — Cmd+K command palette (`CommandPalette.jsx` + `POST /ai/command`)
 - [PENDING] Move 3: Target, Best Buy, Home Depot, Wayfair scrapers
 - [PENDING] Move 4: Price elasticity simulator
 - [PENDING] Move 5: Real-time price war detection
