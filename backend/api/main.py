@@ -29,6 +29,7 @@ from api.limiter import AuthRateLimitMiddleware, limiter
 from api.routes import (
     activity,
     ai,
+    ai_command,
     ai_matching,
     alerts,
     analytics,
@@ -149,6 +150,7 @@ def create_app(app_env: str | None = None) -> FastAPI:
     app.include_router(activity.router, prefix="/api", tags=["Activity Log"])
     app.include_router(promotions.router, prefix="/api", tags=["Competitor Promotions"])
     app.include_router(ai.router, prefix="/api", tags=["AI Intelligence"])
+    app.include_router(ai_command.router, prefix="/api", tags=["AI Command Palette"])
     app.include_router(competitor_dna.router, prefix="/api", tags=["Competitor Strategy DNA"])
     app.include_router(product_health.router, prefix="/api", tags=["Product Health & Review Velocity"])
     app.include_router(seller_intel.router, prefix="/api", tags=["Seller Intelligence"])

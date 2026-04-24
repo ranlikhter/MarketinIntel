@@ -219,3 +219,53 @@ Key SQLAlchemy models in `backend/database/models.py`:
 
 **Housekeeping**
 - [DONE] `CLAUDE.md` — created (this file)
+
+### Session: Move 1 — Image-Based Product Matching (2026-04-24)
+
+**Competitive advantage: image matching (no competitor does this well)**
+- [DONE] `matchers/image_matcher.py` (new) — OpenCLIP ViT-B/32 lazy-loaded singleton; `embed_image_url()` fetches image via httpx → PIL → CLIP; `compare_urls()` returns cosine similarity [0,1]; all errors caught, returns None as graceful fallback
+- [DONE] `matchers/simple_matcher.py` — `match()` now accepts `use_image=True`; activates image second-pass when text score is in 0.70–0.85 ambiguous zone; blends 60% text + 40% image; adds `match_confidence_detail = {text, image, method}` to every result
+- [DONE] `database/models.py` — `image_embedding = Column(JSON)` added to `CompetitorMatch`; JSON works for both SQLite (dev) and PostgreSQL (prod); pgvector `vector` type is optional for ANN
+- [DONE] `tasks/scraping_tasks.py` — image tiebreaker in match loop (lines ~237-252); match_method set to "text+image"; after commit queues `compute_match_embedding` (priority=1, countdown=10s) for all matches with image_url but no stored embedding; new `compute_match_embedding` Celery task at end of file
+- [DONE] `requirements.txt` — added `open-clip-torch>=3.3.0`, `pillow>=10.0.0`, `pgvector>=0.3.0`
+
+### Session: Move 2 — AI Copilot / Cmd+K (2026-04-24)
+
+- [DONE] `api/routes/ai_command.py` (new) — `POST /ai/command`; Claude Haiku with 4 tools: `query_catalog`, `navigate_to`, `trigger_scrape`, `create_repricing_rule`; two-turn pattern (pick tool → synthesise reply); history support; activity log
+- [DONE] `components/CommandPalette.jsx` (new) — floating "Ask AI ⌘K" button; dark glass modal; chat bubbles; action cards (navigate/scrape/rule); 6 suggestion chips; Cmd+K/Escape keyboard shortcuts
+- [DONE] `pages/_app.js` — added `<CommandPalette />` inside `PwaProvider` (renders on all pages)
+- [DONE] `lib/api.js` — `aiCommand(message, history)` method
+- [DONE] `api/main.py` — registered `ai_command.router`
+
+### Session: Move 3 — Shopify + WooCommerce Competitor Scraping (2026-04-24)
+
+- [DONE] `scrapers/woocommerce_scraper.py` (new) — `WooCommerceScraper`: Store API v1 (public, no auth) → REST API v3 fallback → JSON-LD HTML fallback; `is_woocommerce_store()` auto-detection; normalised output with brand/stock_status/upc_ean
+- [DONE] `scrapers/shopify_scraper.py` — improved return schema: `brand` (from vendor), `was_price` (from compare_at_price), `stock_status` string, `upc_ean` (from barcode), HTML-stripped description; all fields match pipeline expectations
+- [DONE] `tasks/scraping_tasks.py` — removed Amazon-only guard; `_run_scrape_for_product` routes by `competitor.website_type`: shopify → ShopifyScraper, woocommerce → WooCommerceScraper, else → AmazonScraper
+- [DONE] `scrapers/scraper_manager.py` — WooCommerceScraper added; runtime auto-detection probes Shopify then WooCommerce for unknown domains; `search()` + `scrape()` both handle WooCommerceScraper
+
+### Session: Move 5 — Real-time Price War Detection (2026-04-24)
+
+- [DONE] `database/models.py` — `PriceWar` model + idx_pw_product_detected / idx_pw_workspace_detected
+- [DONE] `services/smart_alert_service.py` — `_check_price_war()`: 2-hour window, records `PriceWar`, dedup 30 min, cascade scrape via `_cascade_scrape_product()`; `_trigger_alert()` also cascades on `price_drop`
+- [DONE] `api/routes/analytics.py` — `GET /analytics/price-wars?days&limit` workspace-scoped
+- [DONE] `frontend/lib/api.js` — `getPriceWars(days)`
+- [DONE] `frontend/pages/dashboard/index.js` — Price Wars panel (red-accented, competitor count, avg drop %, time ago)
+
+### Session: Move 4 — Price Elasticity Simulator (2026-04-24)
+
+- [DONE] `database/models.py` — `ProductElasticity` model (alpha, beta, r_squared, method, valid_until TTL) + idx_pe_workspace_computed
+- [DONE] `services/elasticity_service.py` (new) — log-log OLS regression → competitor price-spread proxy → market_default (-1.5); `get_or_compute_elasticity()` + `simulate_price_change()`
+- [DONE] `api/routes/analytics.py` — `POST /analytics/simulate` with workspace auth; returns demand/revenue/margin change projections
+- [DONE] `tasks/analytics_tasks.py` — `refresh_all_elasticity` Celery task (weekly stale check)
+- [DONE] `celery_app.py` — beat schedule: Sunday 4 AM refresh_all_elasticity
+- [DONE] `frontend/lib/api.js` — `simulateElasticity(productId, proposedPrice)`
+- [DONE] `frontend/pages/products/[id].js` — price slider (50%–200% of my_price), live demand/revenue/margin cards, elasticity coefficient + confidence footer
+
+### Session: Feature #5 — Insights → Actions (2026-04-24)
+
+- [DONE] `api/routes/insights.py` — `POST /insights/fix`: 4-type template map (price_too_high→undercut, price_war→match_lowest, competitor_out_of_stock→margin_based, raise_price→undercut second-lowest); calls `repricing_service.create_repricing_rule()` + logs activity
+- [DONE] `frontend/lib/api.js` — `fixInsight(insightType, productId)`
+- [DONE] `frontend/pages/insights.js` — `PriorityItem` gains `onFix`/`fixing` props; "Fix this →" button on fixable priority cards; same button on raise_price opportunity cards; success toast with "View Rules" link
+
+**All planned features complete.**

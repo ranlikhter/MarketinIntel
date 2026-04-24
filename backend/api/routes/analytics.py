@@ -4,12 +4,13 @@ Trendlines, comparisons, and insights
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, User
+from database.models import ProductMonitored, User, PriceWar
 from api.dependencies import get_current_user
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
@@ -362,3 +363,104 @@ async def get_quick_wins(
 
     all_competitive = not wins
     return {"wins": wins[:4], "all_competitive": all_competitive}
+
+
+@router.get("/price-wars")
+async def get_price_wars(
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    GET /analytics/price-wars
+
+    Returns recent price war events detected for the current workspace.
+    Each event includes the product, number of competitors involved,
+    average/max drop percentages, and which competitor moved first.
+    """
+    from datetime import timedelta
+    from sqlalchemy.orm import selectinload
+
+    since = datetime.utcnow() - timedelta(days=days)
+    workspace_id = getattr(current_user, "workspace_id", None)
+
+    query = db.query(PriceWar).filter(PriceWar.detected_at >= since)
+    if workspace_id:
+        query = query.filter(PriceWar.workspace_id == workspace_id)
+    else:
+        # Fallback: wars for products owned by this user
+        owned_ids = [
+            p.id for p in db.query(ProductMonitored.id)
+            .filter(ProductMonitored.user_id == current_user.id).all()
+        ]
+        if owned_ids:
+            query = query.filter(PriceWar.product_id.in_(owned_ids))
+        else:
+            return {"price_wars": [], "total": 0}
+
+    wars = (
+        query.options(selectinload(PriceWar.product))
+        .order_by(PriceWar.detected_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    results = []
+    for w in wars:
+        product = w.product
+        results.append({
+            "id": w.id,
+            "detected_at": w.detected_at.isoformat() if w.detected_at else None,
+            "product_id": w.product_id,
+            "product_title": product.title if product else None,
+            "product_sku": product.sku if product else None,
+            "competitor_count": w.competitor_count,
+            "avg_drop_pct": w.avg_drop_pct,
+            "max_drop_pct": w.max_drop_pct,
+            "price_leader": w.price_leader,
+            "window_hours": w.window_hours,
+            "status": w.status,
+        })
+
+    return {"price_wars": results, "total": len(results), "days": days}
+
+
+class SimulateRequest(BaseModel):
+    product_id: int
+    proposed_price: float = Field(gt=0)
+
+
+@router.post("/simulate")
+def simulate_price(
+    body: SimulateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    POST /analytics/simulate
+
+    Run the price elasticity simulator for a product.
+    Returns projected demand, revenue, and margin changes if the user
+    changed to the proposed price.
+
+    The model is computed on-demand and cached for 7 days per product.
+    """
+    from services.elasticity_service import simulate_price_change
+
+    # Verify product belongs to this user / workspace
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == body.product_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    workspace_id = getattr(current_user, "workspace_id", None)
+    if workspace_id and getattr(product, "workspace_id", None) != workspace_id:
+        if product.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    result = simulate_price_change(body.product_id, body.proposed_price, db)
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+    return result

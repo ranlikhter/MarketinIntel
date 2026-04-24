@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from '../context/AuthContext';
 import { PwaProvider } from '../context/PwaContext';
 import SentryErrorBoundary from '../components/SentryErrorBoundary';
 import OnboardingWizard, { shouldShowOnboarding } from '../components/OnboardingWizard';
+import CommandPalette from '../components/CommandPalette';
 
 const ONBOARDING_SKIP_PATHS = ['/auth/', '/pricing', '/offline'];
 
@@ -55,6 +56,7 @@ function MyApp({ Component, pageProps }) {
             <SentryUserSync />
             <OnboardingGate />
             <Component {...pageProps} />
+            <CommandPalette />
           </PwaProvider>
         </ToastProvider>
       </AuthProvider>
