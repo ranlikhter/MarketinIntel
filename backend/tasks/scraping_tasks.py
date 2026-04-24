@@ -37,6 +37,8 @@ from database.models import (
     ListingQualitySnapshot,
 )
 from scrapers.amazon_scraper import AmazonScraper
+from scrapers.shopify_scraper import ShopifyScraper
+from scrapers.woocommerce_scraper import WooCommerceScraper
 from scrapers.browser_pool import BrowserPool
 from matchers.simple_matcher import SimpleProductMatcher
 
@@ -103,20 +105,48 @@ class DatabaseTask(Task):
 
 # ── Core async logic ──────────────────────────────────────────────────────────
 
-async def _run_scrape_for_product(product, competitor_id, pool: BrowserPool) -> dict:
+async def _run_scrape_for_product(
+    product,
+    competitor,          # CompetitorWebsite | None
+    pool: BrowserPool,
+    website: str = "amazon.com",
+) -> dict:
     """
     Async work for a single product scrape.
 
-    Accepts a caller-owned BrowserPool so the same Chromium process is reused
-    across successive tasks in the same worker — pool lifecycle is managed by
-    the worker singleton in _get_worker_loop_and_pool().
+    Routes to AmazonScraper, ShopifyScraper, or WooCommerceScraper based
+    on the competitor's website_type.  Accepts a caller-owned BrowserPool so
+    the same Chromium process is reused across tasks in the same worker.
     """
-    scraper = AmazonScraper(browser_pool=pool)
-    matcher = SimpleProductMatcher()
+    website_type = (getattr(competitor, "website_type", None) or "").lower()
+    store_url = getattr(competitor, "base_url", None) or f"https://{website}"
 
-    results = await scraper.search_products(
-        product.title, max_results=_SEARCH_RESULTS_PER_PRODUCT
-    )
+    if website_type == "shopify" or (
+        not website_type and (
+            "myshopify.com" in website.lower() or website_type == "shopify"
+        )
+    ):
+        scraper = ShopifyScraper()
+        results = await scraper.search_products(
+            product.title,
+            max_results=_SEARCH_RESULTS_PER_PRODUCT,
+            store_url=store_url,
+        )
+
+    elif website_type == "woocommerce":
+        scraper = WooCommerceScraper()
+        results = await scraper.search_products(
+            product.title,
+            max_results=_SEARCH_RESULTS_PER_PRODUCT,
+            store_url=store_url,
+        )
+
+    else:
+        # Default: Amazon (also covers explicit website_type == "amazon")
+        scraper = AmazonScraper(browser_pool=pool)
+        results = await scraper.search_products(
+            product.title, max_results=_SEARCH_RESULTS_PER_PRODUCT
+        )
 
     if isinstance(results, dict) and "error" in results:
         raise RuntimeError(results["error"])
@@ -168,12 +198,11 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             CompetitorWebsite.base_url.contains(website)
         ).first()
 
-        if "amazon" not in website.lower():
-            return {"success": False, "error": f"Unsupported website: {website}"}
-
-        # S3 — Use per-worker persistent BrowserPool (no cold Chromium start per task)
+        # S3 — Use per-worker persistent BrowserPool (shared Chromium; only needed for Amazon)
         loop, pool = _get_worker_loop_and_pool()
-        scrape_result = loop.run_until_complete(_run_scrape_for_product(product, competitor, pool))
+        scrape_result = loop.run_until_complete(
+            _run_scrape_for_product(product, competitor, pool, website=website)
+        )
 
         items = scrape_result["items"]
         product_dict = scrape_result["product_dict"]

@@ -184,27 +184,38 @@ class ShopifyScraper:
         tags_raw = product.get("tags") or ""
         tags = [t.strip() for t in tags_raw.split(",") if t.strip()] if isinstance(tags_raw, str) else list(tags_raw)
 
+        # Normalise stock status string (matches pipeline expectations)
+        stock_status = "In Stock" if in_stock else ("Out of Stock" if in_stock is False else "Unknown")
+
+        # Strip HTML from body_html description
+        import re as _re
+        raw_desc = product.get("body_html") or ""
+        description = _re.sub(r"<[^>]+>", " ", raw_desc).strip()[:1000] or None
+
         return {
             "url": url,
             "source": "shopify",
-            # Core identity
+            # Core identity — matches scraping-pipeline field names
             "id": str(product.get("id") or ""),
             "handle": product.get("handle") or "",
             "title": product.get("title") or "",
+            "brand": product.get("vendor") or None,   # Shopify "vendor" = brand
             "vendor": product.get("vendor") or None,
             "product_type": product.get("product_type") or None,
             "tags": tags,
             # Pricing
             "price": price,
+            "was_price": compare_price,               # was_price = compare_at_price
             "compare_at_price": compare_price,
-            "currency": None,   # Shopify JSON API doesn't include currency; use storefront API for that
+            "currency": None,
             "discount_pct": discount_pct,
             # Stock
             "in_stock": in_stock,
+            "stock_status": stock_status,
             "inventory_quantity": inventory_qty,
             "inventory_policy": inventory_policy or None,
             # Description
-            "description": product.get("body_html") or None,
+            "description": description,
             # Media
             "image_url": image_urls[0] if image_urls else None,
             "images": image_urls,
@@ -212,16 +223,17 @@ class ShopifyScraper:
             "variants": variant_summary,
             "options": option_names,
             "total_variants": len(variants),
-            # SKU / barcode from first variant
+            # SKU / barcode / identifiers from first variant
             "sku": first_variant.get("sku") or None,
             "barcode": first_variant.get("barcode") or None,
+            "upc_ean": first_variant.get("barcode") or None,  # barcode = UPC/EAN on Shopify
+            "mpn": None,
             # Weight
             "weight": first_variant.get("weight"),
             "weight_unit": first_variant.get("weight_unit") or None,
             # Published status
             "published_at": product.get("published_at") or None,
             "updated_at": product.get("updated_at") or None,
-            # Raw for debugging
             "_raw_variant_count": len(variants),
         }
 

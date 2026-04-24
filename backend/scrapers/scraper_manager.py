@@ -33,6 +33,7 @@ from scrapers.ebay_scraper import EbayScraper
 from scrapers.generic_scraper import GenericWebScraper
 from scrapers.shopify_scraper import ShopifyScraper
 from scrapers.walmart_scraper import WalmartScraper
+from scrapers.woocommerce_scraper import WooCommerceScraper
 from scrapers.browser_pool import (
     BrowserPool,
     circuit_breaker,
@@ -57,6 +58,7 @@ class ScraperManager:
         self.walmart_scraper = WalmartScraper(browser_pool=browser_pool)
         self.ebay_scraper = EbayScraper(browser_pool=browser_pool)
         self.shopify_scraper = ShopifyScraper(browser_pool=browser_pool)
+        self.woocommerce_scraper = WooCommerceScraper(browser_pool=browser_pool)
         self.generic_scraper = GenericWebScraper(browser_pool=browser_pool)
 
         self.specialized_scrapers = {
@@ -78,8 +80,7 @@ class ScraperManager:
             "ebay.de": self.ebay_scraper,
             "ebay.fr": self.ebay_scraper,
             "ebay.com.au": self.ebay_scraper,
-            # Shopify-hosted storefronts (myshopify.com subdomains)
-            # Custom-domain Shopify stores are detected at runtime via is_shopify_store()
+            # Shopify — myshopify.com subdomains + custom domains detected at runtime
             "myshopify.com": self.shopify_scraper,
         }
 
@@ -127,12 +128,16 @@ class ScraperManager:
             # myshopify.com subdomains (e.g. store-name.myshopify.com)
             if domain.endswith(".myshopify.com"):
                 scraper = self.shopify_scraper
+            elif await ShopifyScraper.is_shopify_store(url):
+                scraper = self.shopify_scraper
+            elif await WooCommerceScraper.is_woocommerce_store(url):
+                scraper = self.woocommerce_scraper
             else:
                 scraper = self.generic_scraper
 
         for attempt in range(max_retries):
             try:
-                if isinstance(scraper, (AmazonScraper, WalmartScraper, EbayScraper, ShopifyScraper)):
+                if isinstance(scraper, (AmazonScraper, WalmartScraper, EbayScraper, ShopifyScraper, WooCommerceScraper)):
                     result = await scraper.scrape_product(url)
                 else:
                     result = await scraper.scrape_product(
@@ -189,8 +194,10 @@ class ScraperManager:
         if isinstance(scraper, (WalmartScraper, EbayScraper)):
             results = await scraper.search_products(query, max_results)
             return results if isinstance(results, list) else []
-        if isinstance(scraper, ShopifyScraper):
-            results = await scraper.search_products(query, max_results, store_url=f"https://{website}")
+        if isinstance(scraper, (ShopifyScraper, WooCommerceScraper)):
+            results = await scraper.search_products(
+                query, max_results, store_url=f"https://{website}"
+            )
             return results if isinstance(results, list) else []
         logger.warning("Search not implemented for %s", website)
         return []
