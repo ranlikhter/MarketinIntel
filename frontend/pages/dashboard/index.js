@@ -54,15 +54,21 @@ export default function ComparisonDashboard() {
   const [crawling, setCrawling] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [quickWins, setQuickWins] = useState(null);
+  const [priceWars, setPriceWars] = useState([]);
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [data, wins] = await Promise.all([api.getProducts(), api.getQuickWins().catch(() => null)]);
+      const [data, wins, wars] = await Promise.all([
+        api.getProducts(),
+        api.getQuickWins().catch(() => null),
+        api.getPriceWars(7).catch(() => null),
+      ]);
       setProducts(data);
       if (wins) setQuickWins(wins);
+      if (wars?.price_wars?.length) setPriceWars(wars.price_wars);
       const total = data.length;
       const totalMatches = data.reduce((s, p) => s + (p.competitor_count || 0), 0);
       const withPrices = data.filter(p => p.lowest_price);
@@ -178,6 +184,43 @@ export default function ComparisonDashboard() {
               </div>
             </div>
           )
+        )}
+
+        {/* Price Wars */}
+        {priceWars.length > 0 && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(239,68,68,0.15)', background: 'rgba(239,68,68,0.06)' }}>
+              <span className="text-red-400">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </span>
+              <p className="text-sm font-semibold text-red-400">Price Wars Detected</p>
+              <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{priceWars.length} active</span>
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(239,68,68,0.1)' }}>
+              {priceWars.slice(0, 4).map((w) => {
+                const ago = w.detected_at ? Math.round((Date.now() - new Date(w.detected_at)) / 60000) : null;
+                const agoStr = ago == null ? '' : ago < 60 ? `${ago}m ago` : `${Math.round(ago / 60)}h ago`;
+                return (
+                  <div key={w.id} className="flex items-center gap-4 px-5 py-3.5">
+                    <div className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.12)' }}>
+                      <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0" /></svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{w.product_title || `Product #${w.product_id}`}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {w.competitor_count} competitors dropped avg {w.avg_drop_pct}% &bull; {agoStr}
+                      </p>
+                    </div>
+                    <Link href={`/products/${w.product_id}`}
+                      className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444' }}>
+                      View
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Main panel */}

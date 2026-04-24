@@ -13,7 +13,7 @@ import logging
 
 from database.models import (
     PriceAlert, ProductMonitored, CompetitorMatch,
-    PriceHistory, User
+    PriceHistory, User, PriceWar
 )
 
 logger = logging.getLogger(__name__)
@@ -167,30 +167,88 @@ class SmartAlertService:
         return False
 
     def _check_price_war(self, alert: PriceAlert) -> bool:
-        """Check if 3+ competitors dropped prices in last 24h"""
-        product = alert.product
-        yesterday = datetime.utcnow() - timedelta(hours=24)
+        """
+        Check if 3+ competitors dropped prices within the last 2 hours.
 
-        drops = 0
+        When a war is detected:
+        - Records a PriceWar row with statistics
+        - Queues priority-9 re-scrapes for ALL competitors on this product so the
+          full competitive picture is fresh within ~10 minutes
+        """
+        product = alert.product
+        window = datetime.utcnow() - timedelta(hours=2)
+
+        drop_info: list[dict] = []
         for match in product.competitor_matches:
-            # Get prices in last 24h
             recent_prices = self.db.query(PriceHistory).filter(
                 and_(
                     PriceHistory.match_id == match.id,
-                    PriceHistory.timestamp >= yesterday
+                    PriceHistory.timestamp >= window,
                 )
             ).order_by(PriceHistory.timestamp).all()
 
             if len(recent_prices) < 2:
                 continue
 
-            # Check for any price drop
+            # Find the first drop within the window
             for i in range(1, len(recent_prices)):
-                if recent_prices[i].price < recent_prices[i-1].price:
-                    drops += 1
-                    break  # Count only once per competitor
+                prev = recent_prices[i - 1].price
+                curr = recent_prices[i].price
+                if curr < prev and prev > 0:
+                    drop_pct = round((prev - curr) / prev * 100, 1)
+                    drop_info.append({
+                        "url": match.competitor_url,
+                        "drop_pct": drop_pct,
+                        "timestamp": recent_prices[i].timestamp,
+                    })
+                    break
 
-        return drops >= 3
+        if len(drop_info) < 3:
+            return False
+
+        # Sort by timestamp to identify the price leader (moved first)
+        drop_info.sort(key=lambda d: d["timestamp"])
+        avg_drop = round(sum(d["drop_pct"] for d in drop_info) / len(drop_info), 1)
+        max_drop = max(d["drop_pct"] for d in drop_info)
+        leader_url = drop_info[0]["url"]
+
+        # Record the war (upsert-style: don't duplicate within 30 min)
+        recent_war = self.db.query(PriceWar).filter(
+            PriceWar.product_id == product.id,
+            PriceWar.detected_at >= datetime.utcnow() - timedelta(minutes=30),
+        ).first()
+
+        if not recent_war:
+            war = PriceWar(
+                product_id=product.id,
+                workspace_id=getattr(product, "workspace_id", None),
+                competitor_count=len(drop_info),
+                avg_drop_pct=avg_drop,
+                max_drop_pct=max_drop,
+                price_leader=leader_url,
+                window_hours=2,
+            )
+            self.db.add(war)
+            self.db.commit()
+
+            # Cascade: re-scrape all competitors at priority 9 so the dashboard
+            # shows a complete picture within ~10 minutes
+            self._cascade_scrape_product(product.id)
+
+        return True
+
+    def _cascade_scrape_product(self, product_id: int):
+        """Queue priority-9 scrapes for all competitors on a product."""
+        try:
+            from tasks.scraping_tasks import scrape_single_product
+            scrape_single_product.apply_async(
+                args=[product_id],
+                priority=9,
+                countdown=0,
+            )
+            logger.info("Price war cascade: queued priority-9 scrape for product %s", product_id)
+        except Exception as exc:
+            logger.warning("Price war cascade scrape failed to queue: %s", exc)
 
     def _check_new_competitor(self, alert: PriceAlert) -> bool:
         """Check if new competitor was added in last 24h"""
@@ -327,12 +385,19 @@ class SmartAlertService:
 
     def _trigger_alert(self, alert: PriceAlert):
         """
-        Trigger an alert - send notifications via all enabled channels
+        Trigger an alert - send notifications via all enabled channels.
+        For price_drop alerts, also cascade-scrape all competitors on the
+        same product so a potential price war is detected within minutes.
         """
         # Update alert status
         alert.last_triggered_at = datetime.utcnow()
         alert.trigger_count += 1
         self.db.commit()
+
+        # When any competitor drops price, immediately re-scrape the whole
+        # product so we can detect a price war cascade within ~10 minutes.
+        if alert.alert_type == "price_drop":
+            self._cascade_scrape_product(alert.product_id)
 
         # Get alert details for notification
         alert_data = self._get_alert_data(alert)

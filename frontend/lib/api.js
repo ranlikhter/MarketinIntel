@@ -438,6 +438,7 @@ const api = {
 
   // ─── Analytics ───────────────────────────────────────────────────────────────
   getQuickWins: () => request('/api/analytics/quick-wins'),
+  getPriceWars: (days = 7) => request(`/api/analytics/price-wars?days=${days}`),
 
   // ─── Repricing ───────────────────────────────────────────────────────────────
   previewRepricingRule: (payload) =>

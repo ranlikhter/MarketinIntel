@@ -691,6 +691,35 @@ class WorkspaceMember(Base):
         return f"<WorkspaceMember(workspace_id={self.workspace_id}, user_id={self.user_id}, role='{self.role.value}')>"
 
 
+class PriceWar(Base):
+    """
+    Table: price_wars
+    Records detected price war events — when 3+ competitors on the same product
+    drop prices within a short window. Written by SmartAlertService and read by
+    the analytics endpoint.
+    """
+    __tablename__ = "price_wars"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
+
+    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    window_hours = Column(Integer, default=2)           # detection window used
+    competitor_count = Column(Integer, nullable=False)  # how many competitors moved
+    avg_drop_pct = Column(Float, nullable=True)         # average % drop across competitors
+    max_drop_pct = Column(Float, nullable=True)         # largest single drop
+    price_leader = Column(String(500), nullable=True)   # URL of the competitor who moved first
+    status = Column(String(20), default="active")       # "active" | "resolved"
+
+    # Relationships
+    product = relationship("ProductMonitored", foreign_keys=[product_id])
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    def __repr__(self):
+        return f"<PriceWar(id={self.id}, product_id={self.product_id}, competitors={self.competitor_count})>"
+
+
 class MyPriceHistory(Base):
     """
     Table: my_price_history
@@ -1220,5 +1249,7 @@ Index("idx_al_action_created",      ActivityLog.action,                 Activity
 Index("idx_mph_product_changed",    MyPriceHistory.product_id,          MyPriceHistory.changed_at)
 Index("idx_nl_alert_sent",          NotificationLog.alert_id,           NotificationLog.sent_at)
 Index("idx_sc_user_platform",       StoreConnection.user_id,            StoreConnection.platform,  StoreConnection.is_active)
+Index("idx_pw_product_detected",    PriceWar.product_id,                PriceWar.detected_at)
+Index("idx_pw_workspace_detected",  PriceWar.workspace_id,              PriceWar.detected_at)
 Index("idx_wm_user_workspace",      WorkspaceMember.user_id,            WorkspaceMember.workspace_id)
 Index("idx_ak_key_active",          APIKey.key,                         APIKey.is_active)
