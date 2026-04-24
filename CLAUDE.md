@@ -244,7 +244,14 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `tasks/scraping_tasks.py` — removed Amazon-only guard; `_run_scrape_for_product` routes by `competitor.website_type`: shopify → ShopifyScraper, woocommerce → WooCommerceScraper, else → AmazonScraper
 - [DONE] `scrapers/scraper_manager.py` — WooCommerceScraper added; runtime auto-detection probes Shopify then WooCommerce for unknown domains; `search()` + `scrape()` both handle WooCommerceScraper
 
+### Session: Move 5 — Real-time Price War Detection (2026-04-24)
+
+- [DONE] `database/models.py` — `PriceWar` model + idx_pw_product_detected / idx_pw_workspace_detected
+- [DONE] `services/smart_alert_service.py` — `_check_price_war()`: 2-hour window, records `PriceWar`, dedup 30 min, cascade scrape via `_cascade_scrape_product()`; `_trigger_alert()` also cascades on `price_drop`
+- [DONE] `api/routes/analytics.py` — `GET /analytics/price-wars?days&limit` workspace-scoped
+- [DONE] `frontend/lib/api.js` — `getPriceWars(days)`
+- [DONE] `frontend/pages/dashboard/index.js` — Price Wars panel (red-accented, competitor count, avg drop %, time ago)
+
 **Still to do:**
 - [PENDING] Move 4: Price elasticity simulator
-- [PENDING] Move 5: Real-time price war detection
 - [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
