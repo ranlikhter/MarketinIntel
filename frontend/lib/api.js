@@ -439,6 +439,11 @@ const api = {
   // ─── Analytics ───────────────────────────────────────────────────────────────
   getQuickWins: () => request('/api/analytics/quick-wins'),
   getPriceWars: (days = 7) => request(`/api/analytics/price-wars?days=${days}`),
+  simulateElasticity: (productId, proposedPrice) =>
+    request('/api/analytics/simulate', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: productId, proposed_price: proposedPrice }),
+    }),
 
   // ─── Repricing ───────────────────────────────────────────────────────────────
   previewRepricingRule: (payload) =>

@@ -691,6 +691,41 @@ class WorkspaceMember(Base):
         return f"<WorkspaceMember(workspace_id={self.workspace_id}, user_id={self.user_id}, role='{self.role.value}')>"
 
 
+class ProductElasticity(Base):
+    """
+    Table: product_elasticity
+    Stores per-product price elasticity coefficients computed by the weekly
+    Celery beat task (compute_product_elasticity).
+
+    Model: log(demand) = alpha + beta * log(price)
+    beta is the elasticity coefficient — typically negative (higher price → lower demand).
+    """
+    __tablename__ = "product_elasticity"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id", ondelete="CASCADE"),
+                        nullable=False, unique=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
+
+    alpha = Column(Float, nullable=False)         # log-log intercept
+    beta = Column(Float, nullable=False)          # elasticity coefficient (usually < 0)
+    r_squared = Column(Float, nullable=True)      # regression fit quality (0–1)
+    data_points = Column(Integer, nullable=False, default=0)
+    # "regression" → real data; "competitor_proxy" → price variance fallback; "market_default" → -1.5
+    method = Column(String(30), nullable=False, default="market_default")
+    baseline_price = Column(Float, nullable=True)     # price used as demand=1 anchor
+    baseline_demand = Column(Float, nullable=True)    # reference demand units
+
+    computed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    valid_until = Column(DateTime, nullable=True)     # recompute after this date
+
+    product = relationship("ProductMonitored", foreign_keys=[product_id])
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    def __repr__(self):
+        return f"<ProductElasticity(product_id={self.product_id}, beta={self.beta:.3f}, method='{self.method}')>"
+
+
 class PriceWar(Base):
     """
     Table: price_wars
@@ -1251,5 +1286,6 @@ Index("idx_nl_alert_sent",          NotificationLog.alert_id,           Notifica
 Index("idx_sc_user_platform",       StoreConnection.user_id,            StoreConnection.platform,  StoreConnection.is_active)
 Index("idx_pw_product_detected",    PriceWar.product_id,                PriceWar.detected_at)
 Index("idx_pw_workspace_detected",  PriceWar.workspace_id,              PriceWar.detected_at)
+Index("idx_pe_workspace_computed",  ProductElasticity.workspace_id,     ProductElasticity.computed_at)
 Index("idx_wm_user_workspace",      WorkspaceMember.user_id,            WorkspaceMember.workspace_id)
 Index("idx_ak_key_active",          APIKey.key,                         APIKey.is_active)

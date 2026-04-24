@@ -4,6 +4,7 @@ Trendlines, comparisons, and insights
 """
 
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -423,3 +424,43 @@ async def get_price_wars(
         })
 
     return {"price_wars": results, "total": len(results), "days": days}
+
+
+class SimulateRequest(BaseModel):
+    product_id: int
+    proposed_price: float = Field(gt=0)
+
+
+@router.post("/simulate")
+def simulate_price(
+    body: SimulateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    POST /analytics/simulate
+
+    Run the price elasticity simulator for a product.
+    Returns projected demand, revenue, and margin changes if the user
+    changed to the proposed price.
+
+    The model is computed on-demand and cached for 7 days per product.
+    """
+    from services.elasticity_service import simulate_price_change
+
+    # Verify product belongs to this user / workspace
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == body.product_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    workspace_id = getattr(current_user, "workspace_id", None)
+    if workspace_id and getattr(product, "workspace_id", None) != workspace_id:
+        if product.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    result = simulate_price_change(body.product_id, body.proposed_price, db)
+    if "error" in result:
+        raise HTTPException(status_code=422, detail=result["error"])
+    return result

@@ -169,3 +169,46 @@ def calculate_daily_snapshots(self):
     except Exception as e:
         logger.error("Error creating snapshots: %s", e)
         return {"success": False, "error": str(e)}
+
+
+@celery_app.task(base=DatabaseTask, bind=True)
+def refresh_all_elasticity(self):
+    """
+    Weekly beat task: recompute price elasticity coefficients for every product
+    whose stored elasticity is older than 7 days or missing.
+
+    Low priority — runs at 3 AM Sunday. One commit per product to avoid
+    holding long transactions.
+    """
+    try:
+        from services.elasticity_service import get_or_compute_elasticity
+
+        now = datetime.utcnow()
+        stale_cutoff = now - timedelta(days=7)
+
+        products = self.db.query(ProductMonitored).filter(
+            ProductMonitored.my_price.isnot(None)
+        ).all()
+
+        refreshed = 0
+        skipped = 0
+        for product in products:
+            try:
+                from database.models import ProductElasticity
+                existing = self.db.query(ProductElasticity).filter(
+                    ProductElasticity.product_id == product.id
+                ).first()
+                if existing and existing.computed_at > stale_cutoff:
+                    skipped += 1
+                    continue
+                get_or_compute_elasticity(product.id, self.db)
+                refreshed += 1
+            except Exception as exc:
+                logger.warning("Elasticity refresh failed for product %d: %s", product.id, exc)
+
+        logger.info("Elasticity refresh: %d refreshed, %d skipped", refreshed, skipped)
+        return {"refreshed": refreshed, "skipped": skipped}
+
+    except Exception as exc:
+        logger.error("refresh_all_elasticity failed: %s", exc)
+        return {"error": str(exc)}

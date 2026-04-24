@@ -465,6 +465,9 @@ export default function ProductDetailPage() {
   const [showAddUrl, setShowAddUrl] = useState(false);
   const [aiRec, setAiRec] = useState(null);
   const [aiRecLoading, setAiRecLoading] = useState(false);
+  const [simPrice, setSimPrice] = useState(null);       // slider value
+  const [simResult, setSimResult] = useState(null);     // API response
+  const [simLoading, setSimLoading] = useState(false);
   const cancelPriceRef = useRef(false);
 
   useEffect(() => {
@@ -1171,6 +1174,71 @@ export default function ProductDetailPage() {
                     >
                       Apply ${typeof aiRec.recommended_price === 'number' ? aiRec.recommended_price.toFixed(2) : aiRec.recommended_price} now
                     </button>
+                  </div>
+                )}
+
+                {/* ── Price Elasticity Simulator ── */}
+                {product.my_price != null && (
+                  <div className="rounded-xl p-4 mt-3" style={{ background: 'rgba(6,182,212,0.06)', border: '1px solid rgba(6,182,212,0.2)' }}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                      <p className="text-xs font-semibold text-cyan-400">Price Simulator</p>
+                      <span className="text-[10px] ml-auto" style={{ color: 'var(--text-muted)' }}>Drag to simulate revenue impact</span>
+                    </div>
+                    {(() => {
+                      const base = product.my_price;
+                      const lo = Math.max(0.01, +(base * 0.5).toFixed(2));
+                      const hi = +(base * 2.0).toFixed(2);
+                      const step = +(base * 0.01).toFixed(2);
+                      const val = simPrice ?? base;
+                      const pctChange = ((val - base) / base * 100);
+                      return (
+                        <>
+                          <div className="flex items-center justify-between mb-1.5 text-xs">
+                            <span style={{ color: 'var(--text-muted)' }}>${lo.toFixed(2)}</span>
+                            <span className="font-bold text-white text-base">${val.toFixed(2)}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>${hi.toFixed(2)}</span>
+                          </div>
+                          <input
+                            type="range" min={lo} max={hi} step={step} value={val}
+                            onChange={async (e) => {
+                              const p = parseFloat(e.target.value);
+                              setSimPrice(p);
+                              setSimLoading(true);
+                              try {
+                                const r = await api.simulateElasticity(product.id, p);
+                                setSimResult(r);
+                              } catch { setSimResult(null); }
+                              finally { setSimLoading(false); }
+                            }}
+                            className="w-full h-1.5 rounded-full appearance-none cursor-pointer mb-3"
+                            style={{ accentColor: '#06b6d4' }}
+                          />
+                          {simLoading && (
+                            <p className="text-xs text-center" style={{ color: 'var(--text-muted)' }}>Calculating…</p>
+                          )}
+                          {simResult && !simLoading && (
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { label: 'Price', value: `${pctChange >= 0 ? '+' : ''}${pctChange.toFixed(1)}%`, color: pctChange > 0 ? '#f59e0b' : '#10b981' },
+                                { label: 'Demand', value: `${simResult.projected_demand_change_pct >= 0 ? '+' : ''}${simResult.projected_demand_change_pct?.toFixed(1)}%`, color: simResult.projected_demand_change_pct >= 0 ? '#10b981' : '#ef4444' },
+                                { label: 'Revenue', value: `${simResult.projected_revenue_change_pct >= 0 ? '+' : ''}${simResult.projected_revenue_change_pct?.toFixed(1)}%`, color: simResult.projected_revenue_change_pct >= 0 ? '#10b981' : '#ef4444' },
+                              ].map(({ label, value, color }) => (
+                                <div key={label} className="rounded-lg p-2 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                  <p className="text-[10px] mb-0.5" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                                  <p className="text-sm font-bold" style={{ color }}>{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {simResult && !simLoading && (
+                            <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--text-dim, rgba(255,255,255,0.3))' }}>
+                              Elasticity: {simResult.elasticity_coefficient} &bull; {simResult.model_confidence} confidence ({simResult.model_method})
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

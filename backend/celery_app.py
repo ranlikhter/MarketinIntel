@@ -127,6 +127,13 @@ celery_app.conf.update(
             'options': {'queue': 'maintenance'}
         },
 
+        # Refresh price elasticity coefficients every Sunday at 4 AM
+        'refresh-elasticity-weekly': {
+            'task': 'tasks.analytics_tasks.refresh_all_elasticity',
+            'schedule': crontab(minute=0, hour=4, day_of_week=0),
+            'options': {'queue': 'analytics'}
+        },
+
         # ── Digest emails / Slack ─────────────────────────────────────────────
         # Daily digest at 8 AM (smart_alert_tasks — per-user, respects digest prefs)
         'send-daily-digests-8am': {
