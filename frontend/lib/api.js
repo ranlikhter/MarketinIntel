@@ -433,6 +433,8 @@ const api = {
     request('/api/ai/narrative', { method: 'POST' }),
   aiNarrativeSend: () =>
     request('/api/ai/narrative/send', { method: 'POST' }),
+  aiCommand: (message, history = []) =>
+    request('/api/ai/command', { method: 'POST', body: JSON.stringify({ message, history }) }),
 
   // ─── Analytics ───────────────────────────────────────────────────────────────
   getQuickWins: () => request('/api/analytics/quick-wins'),
