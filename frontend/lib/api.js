@@ -436,6 +436,13 @@ const api = {
   aiCommand: (message, history = []) =>
     request('/api/ai/command', { method: 'POST', body: JSON.stringify({ message, history }) }),
 
+  // ─── Insights ────────────────────────────────────────────────────────────────
+  fixInsight: (insightType, productId = null) =>
+    request('/api/insights/fix', {
+      method: 'POST',
+      body: JSON.stringify({ insight_type: insightType, product_id: productId }),
+    }),
+
   // ─── Analytics ───────────────────────────────────────────────────────────────
   getQuickWins: () => request('/api/analytics/quick-wins'),
   getPriceWars: (days = 7) => request(`/api/analytics/price-wars?days=${days}`),

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Layout from '../components/Layout';
+import { useToast } from '../components/Toast';
 import api from '../lib/api';
 
 const Ico = {
@@ -43,8 +45,13 @@ const SEVERITY = {
   low:    { bar: 'bg-blue-400',  badge: { background: 'rgba(37,99,235,0.12)', border: '1px solid rgba(37,99,235,0.2)' },   badgeText: 'text-blue-400' },
 };
 
-function PriorityItem({ item }) {
+const FIXABLE_TYPES = new Set(['price_too_high', 'price_war', 'competitor_out_of_stock']);
+
+function PriorityItem({ item, onFix, fixing }) {
   const s = SEVERITY[item.severity] || SEVERITY.low;
+  const canFix = FIXABLE_TYPES.has(item.type);
+  const firstProductId = item.products?.[0]?.product_id ?? null;
+
   return (
     <div className="flex gap-3">
       <div className={`w-1 rounded-full shrink-0 ${s.bar}`} />
@@ -58,7 +65,23 @@ function PriorityItem({ item }) {
         </div>
         <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.description}</p>
         {item.action && (
-          <p className="text-xs text-amber-400 mt-1 font-medium">→ {item.action}</p>
+          <div className="flex items-center justify-between mt-1.5 gap-3">
+            <p className="text-xs font-medium" style={{ color: 'rgba(245,158,11,0.6)' }}>→ {item.action}</p>
+            {canFix && onFix && (
+              <button
+                onClick={() => onFix(item.type, firstProductId)}
+                disabled={fixing}
+                className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: fixing ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.12)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  color: fixing ? 'rgba(245,158,11,0.4)' : '#f59e0b',
+                }}
+              >
+                {fixing ? 'Creating…' : 'Fix this →'}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -66,9 +89,11 @@ function PriorityItem({ item }) {
 }
 
 export default function InsightsDashboard() {
+  const { addToast } = useToast();
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [fixingType, setFixingType] = useState(null);
 
   useEffect(() => { fetchInsights(); }, []);
 
@@ -82,6 +107,21 @@ export default function InsightsDashboard() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFix = async (insightType, productId) => {
+    setFixingType(insightType);
+    try {
+      const r = await api.fixInsight(insightType, productId);
+      addToast(
+        <span>Rule &ldquo;{r.rule_name}&rdquo; created — <Link href="/repricing" className="underline font-semibold">View Rules</Link></span>,
+        'success',
+      );
+    } catch (e) {
+      addToast('Could not create rule: ' + (e.message || 'unknown error'), 'error');
+    } finally {
+      setFixingType(null);
     }
   };
 
@@ -163,7 +203,14 @@ export default function InsightsDashboard() {
               <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Actions you should take right now</p>
             </div>
             <div className="p-5 space-y-4">
-              {insights.priorities.map((p, i) => <PriorityItem key={i} item={p} />)}
+              {insights.priorities.map((p, i) => (
+                <PriorityItem
+                  key={i}
+                  item={p}
+                  onFix={handleFix}
+                  fixing={fixingType === p.type}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -187,11 +234,27 @@ export default function InsightsDashboard() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white">{opp.title}</p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{opp.description}</p>
-                      {opp.potential_revenue != null && (
-                        <p className="text-xs font-medium text-emerald-400 mt-1">
-                          Potential: ${opp.potential_revenue.toFixed(2)}
-                        </p>
-                      )}
+                      <div className="flex items-center justify-between mt-1.5 gap-3">
+                        {opp.potential_revenue != null && (
+                          <p className="text-xs font-medium text-emerald-400">
+                            Potential: ${opp.potential_revenue.toFixed(2)}
+                          </p>
+                        )}
+                        {opp.type === 'raise_price' && (
+                          <button
+                            onClick={() => handleFix('raise_price', opp.products?.[0]?.product_id ?? null)}
+                            disabled={fixingType === 'raise_price'}
+                            className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold transition-all"
+                            style={{
+                              background: fixingType === 'raise_price' ? 'rgba(16,185,129,0.06)' : 'rgba(16,185,129,0.1)',
+                              border: '1px solid rgba(16,185,129,0.3)',
+                              color: fixingType === 'raise_price' ? 'rgba(16,185,129,0.4)' : '#10b981',
+                            }}
+                          >
+                            {fixingType === 'raise_price' ? 'Creating…' : 'Fix this →'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

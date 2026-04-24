@@ -16,6 +16,8 @@ from api.dependencies import ActiveWorkspace, get_current_user, get_current_work
 from services.insights_service import get_insights_service
 from services.cache_service import get_cached
 from services.workspace_service import build_scope_predicate
+from services.activity_service import log_activity
+from services.repricing_service import get_repricing_service
 
 router = APIRouter(prefix="/insights", tags=["Insights & Recommendations"])
 
@@ -571,3 +573,104 @@ async def get_ai_suggestions(
         return insights_service.get_ai_suggestions()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Insight → Action ──────────────────────────────────────────────────────────
+
+_RULE_TEMPLATES: Dict[str, Dict[str, Any]] = {
+    "price_too_high": {
+        "rule_type": "undercut",
+        "config": {"undercut_by": 0.01, "undercut_type": "amount"},
+        "name_prefix": "Auto: Undercut competitors",
+        "description": "Created from Insights — undercuts the lowest competitor by $0.01",
+    },
+    "price_war": {
+        "rule_type": "match_lowest",
+        "config": {"match_type": "lowest"},
+        "name_prefix": "Auto: Match price war",
+        "description": "Created from Insights — matches lowest competitor during price war",
+    },
+    "competitor_out_of_stock": {
+        "rule_type": "margin_based",
+        "config": {"margin_target": 0.15},
+        "name_prefix": "Auto: Capture OOS opportunity",
+        "description": "Created from Insights — raises price while competitors are out of stock",
+    },
+    "raise_price": {
+        "rule_type": "undercut",
+        "config": {"undercut_by": 0.01, "undercut_type": "amount", "target": "second_lowest"},
+        "name_prefix": "Auto: Optimise price",
+        "description": "Created from Insights — targets second-lowest competitor to raise margin",
+    },
+}
+
+
+class FixInsightRequest(BaseModel):
+    insight_type: str
+    product_id: Optional[int] = None
+
+
+@router.post("/fix")
+async def fix_insight(
+    body: FixInsightRequest,
+    current_user: User = Depends(get_current_user),
+    current_workspace: ActiveWorkspace = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """
+    POST /insights/fix
+
+    Converts an actionable insight into a repricing rule with a single click.
+
+    Supported insight_type values:
+      - price_too_high         → undercut rule (stay $0.01 below lowest)
+      - price_war              → match_lowest rule
+      - competitor_out_of_stock → margin_based rule (target 15% margin while OOS)
+      - raise_price            → undercut second-lowest rule (raises your price)
+    """
+    tmpl = _RULE_TEMPLATES.get(body.insight_type)
+    if not tmpl:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown insight_type '{body.insight_type}'. "
+                   f"Valid: {list(_RULE_TEMPLATES)}",
+        )
+
+    # Resolve product name for rule label and verify ownership
+    product_name = "All Products"
+    if body.product_id is not None:
+        product = db.query(ProductMonitored).filter(
+            ProductMonitored.id == body.product_id
+        ).first()
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found")
+
+        ws_id = current_workspace.workspace_id
+        if ws_id and getattr(product, "workspace_id", None) != ws_id:
+            if product.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+        product_name = (product.title or f"Product #{body.product_id}")[:40]
+
+    rule_name = f"{tmpl['name_prefix']} — {product_name}"
+
+    repricing_service = get_repricing_service(db, current_user)
+    rule = repricing_service.create_repricing_rule({
+        "name": rule_name,
+        "description": tmpl["description"],
+        "rule_type": tmpl["rule_type"],
+        "config": tmpl["config"],
+        "product_id": body.product_id,
+        "auto_apply": False,
+        "requires_approval": True,
+    })
+
+    log_activity(
+        db, current_user.id,
+        "rule.create", "rule",
+        f"Auto-created rule '{rule.name}' from insight '{body.insight_type}'",
+        entity_type="rule", entity_id=rule.id, entity_name=rule.name,
+        metadata={"insight_type": body.insight_type, "product_id": body.product_id},
+    )
+
+    return {"success": True, "rule_id": rule.id, "rule_name": rule.name}
