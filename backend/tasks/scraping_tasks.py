@@ -233,7 +233,23 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
             if not item_url:
                 continue
 
+            # Image second-pass: blend text + CLIP cosine for ambiguous scores
+            image_score = None
+            if 0.70 <= match_score <= 0.85:
+                prod_img = getattr(product, "image_url", None)
+                cand_img = item.get("image_url")
+                if prod_img and cand_img:
+                    try:
+                        from matchers.image_matcher import compare_urls
+                        image_score = compare_urls(prod_img, cand_img)
+                        if image_score is not None:
+                            match_score = match_score * 0.60 + image_score * 0.40
+                    except Exception:
+                        pass  # image matching is best-effort
+
             match_method = _detect_match_method(product_dict, candidate_dict)
+            if image_score is not None:
+                match_method = "text+image"
             brand_equal = _brands_match(product_dict, candidate_dict)
 
             existing = existing_by_url.get(item_url)
@@ -488,6 +504,12 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
 
         self.db.commit()
         logger.info("Scraped product %d: %d match(es)", product_id, matches_found)
+
+        # Queue async embedding for matches that have an image but no embedding yet.
+        # Uses countdown=10 to let the commit land before the task reads the row.
+        for m in existing_by_url.values():
+            if m.image_url and m.image_embedding is None:
+                compute_match_embedding.apply_async(args=[m.id], countdown=10, priority=1)
 
         # Invalidate analytics cache so next request gets fresh data
         try:
@@ -761,3 +783,37 @@ def _upsert_promotions(db, match_id: int, promotions: list):
                 last_seen_at=now,
                 is_active=True,
             ))
+
+
+# ── Image embedding task ──────────────────────────────────────────────────────
+
+@celery_app.task(base=DatabaseTask, bind=True, max_retries=2)
+def compute_match_embedding(self, match_id: int):
+    """
+    Generate and persist a CLIP image embedding for a CompetitorMatch.
+
+    Runs asynchronously after scraping so it never blocks the critical path.
+    Low priority (1) — embedding jobs yield to all scraping/alert work.
+    Skipped silently if the match has no image_url or is already embedded.
+    """
+    try:
+        match = self.db.query(CompetitorMatch).filter(
+            CompetitorMatch.id == match_id
+        ).first()
+        if not match or not match.image_url or match.image_embedding is not None:
+            return {"skipped": True, "match_id": match_id}
+
+        from matchers.image_matcher import embed_image_url
+        embedding = embed_image_url(match.image_url)
+        if embedding is None:
+            logger.debug("Could not embed image for match %d", match_id)
+            return {"skipped": True, "reason": "embed_failed", "match_id": match_id}
+
+        match.image_embedding = embedding
+        self.db.commit()
+        logger.debug("Stored image embedding for match %d (dim=%d)", match_id, len(embedding))
+        return {"success": True, "match_id": match_id}
+
+    except Exception as exc:
+        logger.warning("compute_match_embedding failed for match %d: %s", match_id, exc)
+        raise self.retry(exc=exc, countdown=60)

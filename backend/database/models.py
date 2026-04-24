@@ -230,6 +230,12 @@ class CompetitorMatch(Base):
     climate_pledge_friendly = Column(Boolean, nullable=True)      # Amazon sustainability badge
     small_business_badge = Column(Boolean, nullable=True)         # Amazon Small Business label
 
+    # ── Image matching ────────────────────────────────────────────────────────
+    # 512-dim unit-normalised CLIP embedding stored as JSON list[float].
+    # Populated async after first scrape; used for retroactive re-matching
+    # and "find similar products" features.  None = not yet computed.
+    image_embedding = Column(JSON, nullable=True)
+
     # Relationships
     monitored_product = relationship("ProductMonitored", back_populates="competitor_matches")
     workspace = relationship("Workspace", foreign_keys=[workspace_id])
