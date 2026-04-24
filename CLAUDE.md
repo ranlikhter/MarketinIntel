@@ -219,3 +219,19 @@ Key SQLAlchemy models in `backend/database/models.py`:
 
 **Housekeeping**
 - [DONE] `CLAUDE.md` — created (this file)
+
+### Session: Move 1 — Image-Based Product Matching (2026-04-24)
+
+**Competitive advantage: image matching (no competitor does this well)**
+- [DONE] `matchers/image_matcher.py` (new) — OpenCLIP ViT-B/32 lazy-loaded singleton; `embed_image_url()` fetches image via httpx → PIL → CLIP; `compare_urls()` returns cosine similarity [0,1]; all errors caught, returns None as graceful fallback
+- [DONE] `matchers/simple_matcher.py` — `match()` now accepts `use_image=True`; activates image second-pass when text score is in 0.70–0.85 ambiguous zone; blends 60% text + 40% image; adds `match_confidence_detail = {text, image, method}` to every result
+- [DONE] `database/models.py` — `image_embedding = Column(JSON)` added to `CompetitorMatch`; JSON works for both SQLite (dev) and PostgreSQL (prod); pgvector `vector` type is optional for ANN
+- [DONE] `tasks/scraping_tasks.py` — image tiebreaker in match loop (lines ~237-252); match_method set to "text+image"; after commit queues `compute_match_embedding` (priority=1, countdown=10s) for all matches with image_url but no stored embedding; new `compute_match_embedding` Celery task at end of file
+- [DONE] `requirements.txt` — added `open-clip-torch>=3.3.0`, `pillow>=10.0.0`, `pgvector>=0.3.0`
+
+**Still to do (from competitive plan):**
+- [PENDING] Move 2: AI Copilot — Cmd+K command palette (`CommandPalette.jsx` + `POST /ai/command`)
+- [PENDING] Move 3: Target, Best Buy, Home Depot, Wayfair scrapers
+- [PENDING] Move 4: Price elasticity simulator
+- [PENDING] Move 5: Real-time price war detection
+- [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
