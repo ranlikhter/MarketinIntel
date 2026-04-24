@@ -262,5 +262,10 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `frontend/lib/api.js` — `simulateElasticity(productId, proposedPrice)`
 - [DONE] `frontend/pages/products/[id].js` — price slider (50%–200% of my_price), live demand/revenue/margin cards, elasticity coefficient + confidence footer
 
-**Still to do:**
-- [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
+### Session: Feature #5 — Insights → Actions (2026-04-24)
+
+- [DONE] `api/routes/insights.py` — `POST /insights/fix`: 4-type template map (price_too_high→undercut, price_war→match_lowest, competitor_out_of_stock→margin_based, raise_price→undercut second-lowest); calls `repricing_service.create_repricing_rule()` + logs activity
+- [DONE] `frontend/lib/api.js` — `fixInsight(insightType, productId)`
+- [DONE] `frontend/pages/insights.js` — `PriorityItem` gains `onFix`/`fixing` props; "Fix this →" button on fixable priority cards; same button on raise_price opportunity cards; success toast with "View Rules" link
+
+**All planned features complete.**
