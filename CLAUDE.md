@@ -252,6 +252,15 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `frontend/lib/api.js` — `getPriceWars(days)`
 - [DONE] `frontend/pages/dashboard/index.js` — Price Wars panel (red-accented, competitor count, avg drop %, time ago)
 
+### Session: Move 4 — Price Elasticity Simulator (2026-04-24)
+
+- [DONE] `database/models.py` — `ProductElasticity` model (alpha, beta, r_squared, method, valid_until TTL) + idx_pe_workspace_computed
+- [DONE] `services/elasticity_service.py` (new) — log-log OLS regression → competitor price-spread proxy → market_default (-1.5); `get_or_compute_elasticity()` + `simulate_price_change()`
+- [DONE] `api/routes/analytics.py` — `POST /analytics/simulate` with workspace auth; returns demand/revenue/margin change projections
+- [DONE] `tasks/analytics_tasks.py` — `refresh_all_elasticity` Celery task (weekly stale check)
+- [DONE] `celery_app.py` — beat schedule: Sunday 4 AM refresh_all_elasticity
+- [DONE] `frontend/lib/api.js` — `simulateElasticity(productId, proposedPrice)`
+- [DONE] `frontend/pages/products/[id].js` — price slider (50%–200% of my_price), live demand/revenue/margin cards, elasticity coefficient + confidence footer
+
 **Still to do:**
-- [PENDING] Move 4: Price elasticity simulator
 - [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
