@@ -237,8 +237,14 @@ Key SQLAlchemy models in `backend/database/models.py`:
 - [DONE] `lib/api.js` — `aiCommand(message, history)` method
 - [DONE] `api/main.py` — registered `ai_command.router`
 
-**Still to do (from competitive plan):**
-- [PENDING] Move 3: Target, Best Buy, Home Depot, Wayfair scrapers
+### Session: Move 3 — Shopify + WooCommerce Competitor Scraping (2026-04-24)
+
+- [DONE] `scrapers/woocommerce_scraper.py` (new) — `WooCommerceScraper`: Store API v1 (public, no auth) → REST API v3 fallback → JSON-LD HTML fallback; `is_woocommerce_store()` auto-detection; normalised output with brand/stock_status/upc_ean
+- [DONE] `scrapers/shopify_scraper.py` — improved return schema: `brand` (from vendor), `was_price` (from compare_at_price), `stock_status` string, `upc_ean` (from barcode), HTML-stripped description; all fields match pipeline expectations
+- [DONE] `tasks/scraping_tasks.py` — removed Amazon-only guard; `_run_scrape_for_product` routes by `competitor.website_type`: shopify → ShopifyScraper, woocommerce → WooCommerceScraper, else → AmazonScraper
+- [DONE] `scrapers/scraper_manager.py` — WooCommerceScraper added; runtime auto-detection probes Shopify then WooCommerce for unknown domains; `search()` + `scrape()` both handle WooCommerceScraper
+
+**Still to do:**
 - [PENDING] Move 4: Price elasticity simulator
 - [PENDING] Move 5: Real-time price war detection
 - [PENDING] Feature #5: Insights → actions linking ("Fix this" creates repricing rule)
