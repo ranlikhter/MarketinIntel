@@ -86,6 +86,8 @@ class ProductMonitored(Base):
     max_price = Column(Float, nullable=True)          # Repricing ceiling — protect margin
     target_margin_pct = Column(Float, nullable=True)  # Target margin % for auto-repricing
     margin_autopilot = Column(Boolean, nullable=False, default=False, server_default='0')  # When True, auto-apply within floor; pause for approval on breach
+    oos_response_enabled = Column(Boolean, nullable=False, default=False, server_default='0')  # Auto-raise price when competitors go OOS
+    oos_price_raise_pct = Column(Float, nullable=True)  # How much to raise (default 10% if null)
 
     # ── GROUP 2: Dimensions / shipping ───────────────────────────────────────
     weight = Column(Float, nullable=True)
@@ -754,6 +756,42 @@ class PriceWar(Base):
 
     def __repr__(self):
         return f"<PriceWar(id={self.id}, product_id={self.product_id}, competitors={self.competitor_count})>"
+
+
+class StockOpportunity(Base):
+    """
+    Table: stock_opportunities
+    Recorded when one or more competitors go out of stock on a product the user
+    also sells. Surfaces a price-raise opportunity with optional auto-apply.
+    Closed when all OOS competitors restock.
+    """
+    __tablename__ = "stock_opportunities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
+
+    oos_match_ids = Column(JSON, default=list)        # CompetitorMatch.id list that went OOS
+    oos_competitor_count = Column(Integer, default=0) # how many competitors are currently OOS
+
+    detected_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    closed_at = Column(DateTime, nullable=True)
+
+    status = Column(String(20), default="open", index=True)  # "open" | "applied" | "dismissed" | "closed"
+
+    price_before = Column(Float, nullable=True)             # user's price when detected
+    price_suggested = Column(Float, nullable=True)          # recommended raise
+    price_applied = Column(Float, nullable=True)            # price actually applied (autopilot)
+    raise_pct = Column(Float, nullable=True)                # % raise used
+    revenue_captured_estimate = Column(Float, nullable=True)  # price delta per unit
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    product = relationship("ProductMonitored", foreign_keys=[product_id])
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    def __repr__(self):
+        return f"<StockOpportunity(id={self.id}, product_id={self.product_id}, status='{self.status}')>"
 
 
 class MyPriceHistory(Base):

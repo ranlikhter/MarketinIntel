@@ -146,7 +146,7 @@ _PRODUCT_WRITABLE_FIELDS = [
     "status", "currency", "product_url", "tags", "notes", "is_bundle", "bundle_skus",
     "parent_sku", "variant_attributes",
     "scrape_frequency", "scrape_priority", "track_all_variants", "match_threshold",
-    "margin_autopilot",
+    "margin_autopilot", "oos_response_enabled", "oos_price_raise_pct",
 ]
 
 
@@ -196,6 +196,9 @@ class ProductResponse(BaseModel):
     scrape_priority: str | None = None
     track_all_variants: bool = False
     match_threshold: float | None = None
+    margin_autopilot: bool = False
+    oos_response_enabled: bool = False
+    oos_price_raise_pct: float | None = None
     # Meta
     source: str | None = None
     created_at: datetime

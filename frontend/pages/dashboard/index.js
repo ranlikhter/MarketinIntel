@@ -56,22 +56,25 @@ export default function ComparisonDashboard() {
   const [quickWins, setQuickWins] = useState(null);
   const [priceWars, setPriceWars] = useState([]);
   const [marginHealth, setMarginHealth] = useState(null);
+  const [stockOpps, setStockOpps] = useState(null);
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [data, wins, wars, health] = await Promise.all([
+      const [data, wins, wars, health, opps] = await Promise.all([
         api.getProducts(),
         api.getQuickWins().catch(() => null),
         api.getPriceWars(7).catch(() => null),
         api.getMarginHealth().catch(() => null),
+        api.getStockOpportunitySummary().catch(() => null),
       ]);
       setProducts(data);
       if (wins) setQuickWins(wins);
       if (wars?.price_wars?.length) setPriceWars(wars.price_wars);
       if (health) setMarginHealth(health);
+      if (opps) setStockOpps(opps);
       const total = data.length;
       const totalMatches = data.reduce((s, p) => s + (p.competitor_count || 0), 0);
       const withPrices = data.filter(p => p.lowest_price);
@@ -299,6 +302,49 @@ export default function ComparisonDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Stock Opportunities panel */}
+        {stockOpps && (stockOpps.open_count > 0 || stockOpps.applied_today > 0) && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(16,185,129,0.3)' }}>
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16,185,129,0.06)' }}>
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                <p className="text-sm font-semibold text-white">Stock Opportunities</p>
+              </div>
+              {stockOpps.open_count > 0 && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                  {stockOpps.open_count} open
+                </span>
+              )}
+            </div>
+            {stockOpps.open_count > 0 && (
+              <div className="flex items-center gap-4 px-5 py-3">
+                <span className="text-base shrink-0">📦</span>
+                <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-white font-medium">{stockOpps.open_count}</span> competitor{stockOpps.open_count !== 1 ? 's are' : ' is'} out of stock — raise prices to capture demand
+                </p>
+                <Link href="/opportunities"
+                  className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981' }}>
+                  Review →
+                </Link>
+              </div>
+            )}
+            {stockOpps.applied_today > 0 && (
+              <div className="flex items-center gap-4 px-5 py-3">
+                <span className="text-base shrink-0">⚡</span>
+                <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                  <span className="text-white font-medium">{stockOpps.applied_today}</span> price raise{stockOpps.applied_today !== 1 ? 's' : ''} auto-applied today
+                  {stockOpps.total_revenue_estimate > 0 && (
+                    <span className="text-emerald-400"> (+${stockOpps.total_revenue_estimate.toFixed(2)}/unit potential)</span>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         )}
 

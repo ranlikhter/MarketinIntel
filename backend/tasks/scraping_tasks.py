@@ -534,6 +534,15 @@ def scrape_single_product(self, product_id: int, website: str = "amazon.com"):
         self.db.commit()
         logger.info("Scraped product %d: %d match(es)", product_id, matches_found)
 
+        # OOS opportunity detection — check stock transitions for all processed matches.
+        try:
+            from services.oos_opportunity_service import get_oos_opportunity_service
+            oos_svc = get_oos_opportunity_service(self.db)
+            for m in existing_by_url.values():
+                oos_svc.check_match_for_oos_transition(m, product)
+        except Exception:
+            logger.exception("OOS opportunity check failed for product %d", product_id)
+
         # Queue async embedding for matches that have an image but no embedding yet.
         # Uses countdown=10 to let the commit land before the task reads the row.
         for m in existing_by_url.values():

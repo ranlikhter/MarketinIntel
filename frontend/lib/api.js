@@ -89,6 +89,15 @@ const api = {
       }),
     }),
 
+  // ─── Stock Opportunities ──────────────────────────────────────────────────────
+  getStockOpportunities: (status) =>
+    request(`/api/opportunities/stock${status ? `?status=${status}` : ''}`),
+  getStockOpportunitySummary: () => request('/api/opportunities/stock/summary'),
+  applyStockOpportunity: (id) =>
+    request(`/api/opportunities/stock/${id}/apply`, { method: 'POST' }),
+  dismissStockOpportunity: (id) =>
+    request(`/api/opportunities/stock/${id}/dismiss`, { method: 'POST' }),
+
   // ─── Margin Autopilot ─────────────────────────────────────────────────────────
   getMarginHealth: () => request('/api/analytics/margin-health'),
   getCategoryProfiles: () => request('/api/repricing/category-profiles'),

@@ -1206,6 +1206,15 @@ export default function ProductDetailPage() {
                       addToast('Failed to update autopilot setting', 'error');
                     }
                   };
+                  const handleOosToggle = async () => {
+                    try {
+                      await api.updateProduct(product.id, { oos_response_enabled: !product.oos_response_enabled });
+                      setProduct(p => ({ ...p, oos_response_enabled: !p.oos_response_enabled }));
+                      addToast(`OOS auto-respond ${!product.oos_response_enabled ? 'enabled' : 'disabled'}`, 'success');
+                    } catch (e) {
+                      addToast('Failed to update OOS setting', 'error');
+                    }
+                  };
                   return (
                     <div className="rounded-xl p-4 mt-3" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
                       <div className="flex items-center gap-2 mb-3">
@@ -1227,30 +1236,59 @@ export default function ProductDetailPage() {
                           </span>
                         </span>
                       </div>
-                      <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg" style={{ background: 'rgba(0,0,0,0.2)' }}>
-                        <div>
-                          <p className="text-xs font-medium text-white">Margin Autopilot</p>
-                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            {product.margin_autopilot
-                              ? `Auto-applies changes ≥$${floor.toFixed(2)}. Creates approval on floor breach.`
-                              : 'Enable to auto-apply price changes within your margin floor.'}
-                          </p>
+                      <div className="flex flex-col gap-2">
+                        {/* Margin Autopilot toggle */}
+                        <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                          <div>
+                            <p className="text-xs font-medium text-white">Margin Autopilot</p>
+                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                              {product.margin_autopilot
+                                ? `Auto-applies changes ≥$${floor.toFixed(2)}. Creates approval on floor breach.`
+                                : 'Enable to auto-apply price changes within your margin floor.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleAutopilotToggle}
+                            style={{
+                              width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                              background: product.margin_autopilot ? '#f59e0b' : 'var(--border)',
+                              position: 'relative', border: 'none', cursor: 'pointer', transition: 'background 0.2s',
+                            }}
+                          >
+                            <span style={{
+                              position: 'absolute', top: 3,
+                              left: product.margin_autopilot ? 21 : 3,
+                              width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                              transition: 'left 0.2s',
+                            }} />
+                          </button>
                         </div>
-                        <button
-                          onClick={handleAutopilotToggle}
-                          style={{
-                            width: 40, height: 22, borderRadius: 11, flexShrink: 0,
-                            background: product.margin_autopilot ? '#f59e0b' : 'var(--border)',
-                            position: 'relative', border: 'none', cursor: 'pointer', transition: 'background 0.2s',
-                          }}
-                        >
-                          <span style={{
-                            position: 'absolute', top: 3,
-                            left: product.margin_autopilot ? 21 : 3,
-                            width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                            transition: 'left 0.2s',
-                          }} />
-                        </button>
+                        {/* OOS Auto-Respond toggle */}
+                        <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                          <div>
+                            <p className="text-xs font-medium text-white">OOS Auto-Respond</p>
+                            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                              {product.oos_response_enabled
+                                ? `Raises price +${product.oos_price_raise_pct ?? 10}% when competitors go out of stock. Reverts on restock.`
+                                : 'Auto-raise price when competitors run out of stock.'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={handleOosToggle}
+                            style={{
+                              width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                              background: product.oos_response_enabled ? '#10b981' : 'var(--border)',
+                              position: 'relative', border: 'none', cursor: 'pointer', transition: 'background 0.2s',
+                            }}
+                          >
+                            <span style={{
+                              position: 'absolute', top: 3,
+                              left: product.oos_response_enabled ? 21 : 3,
+                              width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                              transition: 'left 0.2s',
+                            }} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
