@@ -90,6 +90,16 @@ const api = {
     }),
 
   // ─── Competitors ─────────────────────────────────────────────────────────────
+  getCompetitorProducts: (filters = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(filters)
+        .filter(([, v]) => v !== '' && v != null && !(Array.isArray(v) && v.length === 0))
+        .map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : v])
+    ).toString();
+    return request(`/api/competitors/products${qs ? `?${qs}` : ''}`);
+  },
+  getCompetitorFacets: () => request('/api/competitors/products/facets'),
+
   getCompetitors: (activeOnly = false) =>
     request(`/api/competitors/?active_only=${activeOnly}`),
   getCompetitor: (id) => request(`/api/competitors/${id}`),
