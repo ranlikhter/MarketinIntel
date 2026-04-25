@@ -533,5 +533,81 @@ class EmailService:
         return self.send_email(to_email, subject, html_content)
 
 
+    def send_approval_request(
+        self,
+        to_email: str,
+        product_title: str,
+        current_price: float,
+        suggested_price: float,
+        reason: str,
+        margin_pct: float | None,
+        approve_url: str,
+        reject_url: str,
+    ) -> bool:
+        """Send price-change approval request with one-tap approve/reject links."""
+        direction = "down" if suggested_price < current_price else "up"
+        change_pct = abs(round((suggested_price - current_price) / current_price * 100, 1)) if current_price else 0
+        arrow = "↓" if direction == "down" else "↑"
+        arrow_color = "#10b981" if direction == "down" else "#f59e0b"
+        subject = f"Price suggestion for {product_title[:50]}: {arrow} ${suggested_price:.2f}"
+
+        margin_html = (
+            f'<p style="margin:4px 0;font-size:14px;color:#9ca3af;">Projected margin: '
+            f'<strong style="color:#f59e0b;">{margin_pct:.1f}%</strong></p>'
+            if margin_pct is not None else ""
+        )
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: -apple-system, sans-serif; background: #060610; margin: 0; padding: 20px;">
+            <div style="max-width: 520px; margin: 0 auto; background: #0f0f23; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; overflow: hidden;">
+
+                <div style="background: linear-gradient(135deg, #1a1a3e 0%, #0f0f23 100%); padding: 24px 28px; border-bottom: 1px solid rgba(245,158,11,0.2);">
+                    <p style="margin:0; font-size:11px; font-weight:600; letter-spacing:2px; color:#f59e0b; text-transform:uppercase;">MarketIntel · Price Suggestion</p>
+                    <h2 style="margin:8px 0 0; font-size:20px; color:#ffffff;">{product_title[:60]}</h2>
+                </div>
+
+                <div style="padding: 28px;">
+                    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:16px;">
+                            <div style="text-align:center; flex:1;">
+                                <p style="margin:0; font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:1px;">Current</p>
+                                <p style="margin:6px 0 0; font-size:26px; font-weight:700; color:#e5e7eb;">${current_price:.2f}</p>
+                            </div>
+                            <div style="font-size:28px; color:{arrow_color};">{arrow}</div>
+                            <div style="text-align:center; flex:1;">
+                                <p style="margin:0; font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:1px;">Suggested</p>
+                                <p style="margin:6px 0 0; font-size:26px; font-weight:700; color:{arrow_color};">${suggested_price:.2f}</p>
+                                <p style="margin:2px 0 0; font-size:12px; color:{arrow_color};">{arrow} {change_pct}%</p>
+                            </div>
+                        </div>
+                        {margin_html}
+                    </div>
+
+                    <div style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.15); border-radius: 8px; padding: 12px 16px; margin-bottom: 24px;">
+                        <p style="margin:0; font-size:13px; color:#d1d5db;"><strong style="color:#f59e0b;">Why:</strong> {reason}</p>
+                    </div>
+
+                    <div style="display:flex; gap:12px;">
+                        <a href="{approve_url}" style="flex:1; display:block; text-align:center; padding:14px; background:#10b981; color:#ffffff; text-decoration:none; border-radius:10px; font-size:15px; font-weight:700;">
+                            ✓ Apply Price
+                        </a>
+                        <a href="{reject_url}" style="flex:1; display:block; text-align:center; padding:14px; background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); color:#ef4444; text-decoration:none; border-radius:10px; font-size:15px; font-weight:700;">
+                            ✗ Skip
+                        </a>
+                    </div>
+
+                    <p style="margin:20px 0 0; font-size:12px; color:#4b5563; text-align:center;">
+                        This suggestion expires in 24 hours. One click — no login needed.
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        return self.send_email(to_email, subject, html_content)
+
+
 # Singleton instance
 email_service = EmailService()

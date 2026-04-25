@@ -416,6 +416,9 @@ export default function RepricingPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [applyResult, setApplyResult] = useState(null);
+  const [pending, setPending] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('rules');
 
   useEffect(() => { loadData(); }, []);
 
@@ -433,6 +436,36 @@ export default function RepricingPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadPending = async () => {
+    try {
+      setPendingLoading(true);
+      const data = await api.getPendingChanges();
+      setPending(data || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  useEffect(() => { if (activeTab === 'pending') loadPending(); }, [activeTab]);
+
+  const handleApprovePending = async (id) => {
+    await api.approvePendingChange(id);
+    setPending(ps => ps.map(p => p.id === id ? { ...p, status: 'approved' } : p));
+  };
+
+  const handleRejectPending = async (id) => {
+    await api.rejectPendingChange(id);
+    setPending(ps => ps.map(p => p.id === id ? { ...p, status: 'rejected' } : p));
+  };
+
+  const handleRollback = async (id) => {
+    if (!confirm('Roll back this price change to its previous value?')) return;
+    await api.rollbackPriceChange(id);
+    setPending(ps => ps.map(p => p.id === id ? { ...p, status: 'rolled_back' } : p));
   };
 
   const handleToggle = async (id) => {
@@ -494,6 +527,21 @@ export default function RepricingPage() {
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', width: 'fit-content' }}>
+          {[
+            { key: 'rules', label: 'Rules' },
+            { key: 'pending', label: `Pending${pending.filter(p => p.status === 'pending').length ? ` (${pending.filter(p => p.status === 'pending').length})` : ''}` },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={activeTab === t.key
+                ? { background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }
+                : { color: 'var(--text-muted)', border: '1px solid transparent' }
+              }>{t.label}</button>
+          ))}
+        </div>
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-2xl p-5 flex items-center gap-4" style={{ background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.25)' }}>
@@ -544,6 +592,75 @@ export default function RepricingPage() {
         </div>
 
       </div>
+
+      {/* Pending tab panel */}
+      {activeTab === 'pending' && (
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <h2 className="text-sm font-semibold text-white">Pending Price Changes</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Suggestions awaiting your approval</p>
+            </div>
+            <button onClick={loadPending} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+              Refresh
+            </button>
+          </div>
+          {pendingLoading ? (
+            <div className="p-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</div>
+          ) : pending.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-sm font-medium text-white">No pending suggestions</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>When automation rules trigger, suggestions will appear here for your approval</p>
+            </div>
+          ) : (
+            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+              {pending.map(p => {
+                const up = p.suggested_price > p.current_price;
+                const statusColor = { pending: '#f59e0b', approved: '#10b981', rejected: '#6b7280', applied: '#3b82f6', expired: '#6b7280', rolled_back: '#8b5cf6' }[p.status] || '#6b7280';
+                return (
+                  <div key={p.id} className="px-5 py-4 flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate">{p.product_title || `Product #${p.product_id}`}</p>
+                      {p.reason && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{p.reason}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <span className="line-through">${p.current_price?.toFixed(2)}</span>
+                        {' → '}
+                        <span style={{ color: up ? '#f59e0b' : '#10b981', fontWeight: 600 }}>${p.suggested_price?.toFixed(2)}</span>
+                        {p.change_pct != null && <span style={{ color: up ? '#f59e0b' : '#10b981' }}> ({up ? '+' : ''}{p.change_pct}%)</span>}
+                      </p>
+                      {p.margin_at_suggested != null && (
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Margin: {p.margin_at_suggested}%</p>
+                      )}
+                    </div>
+                    <div className="shrink-0">
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}44` }}>
+                        {p.status}
+                      </span>
+                    </div>
+                    {p.status === 'pending' && (
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => handleApprovePending(p.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-80" style={{ background: '#10b981' }}>
+                          ✓ Apply
+                        </button>
+                        <button onClick={() => handleRejectPending(p.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+                          ✗ Skip
+                        </button>
+                      </div>
+                    )}
+                    {p.status === 'applied' && p.rollback_price && (
+                      <button onClick={() => handleRollback(p.id)} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 shrink-0" style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', border: '1px solid rgba(139,92,246,0.3)' }}>
+                        ↩ Undo
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {showCreate && <CreateModal products={products} onClose={() => setShowCreate(false)} onCreate={handleCreate} />}
       {applyResult && <ApplyResultsModal result={applyResult} onClose={() => setApplyResult(null)} />}

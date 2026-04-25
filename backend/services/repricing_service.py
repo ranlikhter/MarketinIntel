@@ -6,12 +6,16 @@ Automated pricing and bulk price management
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import hmac
+import hashlib
+import os
+import secrets
 
 from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory,
-    RepricingRule, User
+    RepricingRule, User, CategoryPricingProfile, PendingPriceChange
 )
 
 logger = logging.getLogger(__name__)
@@ -468,6 +472,143 @@ class RepricingService:
                 suggestion["original_suggested"] = original_price
 
         return suggestions
+
+
+    def compute_floor_price(self, product: ProductMonitored) -> Optional[float]:
+        """Compute the minimum price we should ever suggest for a product.
+
+        Priority order:
+        1. product.cost_price + product.target_margin_pct (most specific)
+        2. CategoryPricingProfile for this product's category
+        3. product.min_price / product.map_price constraints
+        Returns None when no cost data is available at all.
+        """
+        floor: Optional[float] = None
+
+        cost = product.cost_price
+        margin = product.target_margin_pct
+
+        if cost and cost > 0:
+            if margin and 0 < margin < 100:
+                floor = cost / (1 - margin / 100)
+            else:
+                floor = cost  # at least break even
+
+        if floor is None and product.category:
+            profile = self.db.query(CategoryPricingProfile).filter(
+                CategoryPricingProfile.workspace_id == product.workspace_id,
+                CategoryPricingProfile.category_name == product.category
+            ).first()
+            if profile:
+                if profile.default_cogs_pct and product.my_price:
+                    estimated_cost = (profile.default_cogs_pct / 100) * product.my_price
+                    margin_pct = profile.default_target_margin_pct or 0
+                    if 0 < margin_pct < 100:
+                        floor = estimated_cost / (1 - margin_pct / 100)
+                    else:
+                        floor = estimated_cost
+
+        hard_floor = max(
+            floor or 0,
+            product.min_price or 0,
+            product.map_price or 0,
+        )
+        return hard_floor if hard_floor > 0 else None
+
+    def compute_margin_at_price(self, product: ProductMonitored, price: float) -> Optional[float]:
+        """Return projected gross margin % at a given price, or None if no cost data."""
+        cost = product.cost_price
+        if not cost and product.category:
+            profile = self.db.query(CategoryPricingProfile).filter(
+                CategoryPricingProfile.workspace_id == product.workspace_id,
+                CategoryPricingProfile.category_name == product.category
+            ).first()
+            if profile and profile.default_cogs_pct and product.my_price:
+                cost = (profile.default_cogs_pct / 100) * product.my_price
+        if cost and price > 0:
+            return round((price - cost) / price * 100, 1)
+        return None
+
+    def create_pending_change(
+        self,
+        product: ProductMonitored,
+        suggested_price: float,
+        reason: str,
+        rule_id: Optional[int] = None,
+        expires_hours: int = 24,
+    ) -> Optional[PendingPriceChange]:
+        """Create a PendingPriceChange after floor/MAP validation.
+
+        Returns the new row, or None if suggestion violates floor price.
+        Bundles are skipped (is_bundle=True).
+        """
+        if getattr(product, "is_bundle", False):
+            logger.info("Skipping pending change for bundle product %s", product.id)
+            return None
+
+        floor = self.compute_floor_price(product)
+        if floor and suggested_price < floor:
+            logger.info(
+                "Suggested price %.2f below floor %.2f for product %s — skipping",
+                suggested_price, floor, product.id
+            )
+            return None
+
+        existing = self.db.query(PendingPriceChange).filter(
+            PendingPriceChange.product_id == product.id,
+            PendingPriceChange.status == "pending",
+        ).first()
+        if existing:
+            return existing
+
+        margin = self.compute_margin_at_price(product, suggested_price)
+        token = _generate_approval_token_raw(0)  # placeholder; update after flush
+
+        pending = PendingPriceChange(
+            product_id=product.id,
+            workspace_id=product.workspace_id,
+            rule_id=rule_id,
+            current_price=product.my_price or 0,
+            suggested_price=round(suggested_price, 2),
+            reason=reason,
+            margin_at_suggested=margin,
+            approval_token=token,
+            rollback_price=product.my_price,
+            expires_at=datetime.utcnow() + timedelta(hours=expires_hours),
+        )
+        self.db.add(pending)
+        self.db.flush()  # get pending.id
+
+        pending.approval_token = _generate_approval_token_raw(pending.id)
+        self.db.commit()
+        self.db.refresh(pending)
+        return pending
+
+
+def _generate_approval_token_raw(pending_id: int) -> str:
+    secret = os.getenv("JWT_SECRET_KEY", "dev-secret")
+    nonce = secrets.token_hex(16)
+    payload = f"{pending_id}:{nonce}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+
+def verify_approval_token(token: str, pending_id: int) -> bool:
+    """Validate HMAC-signed one-tap approval token."""
+    try:
+        parts = token.split(":")
+        if len(parts) != 3:
+            return False
+        pid, nonce, sig = parts
+        if int(pid) != pending_id:
+            return False
+        secret = os.getenv("JWT_SECRET_KEY", "dev-secret")
+        expected = hmac.new(
+            secret.encode(), f"{pid}:{nonce}".encode(), hashlib.sha256
+        ).hexdigest()
+        return hmac.compare_digest(sig, expected)
+    except Exception:
+        return False
 
 
 def get_repricing_service(db: Session, user: User) -> RepricingService:

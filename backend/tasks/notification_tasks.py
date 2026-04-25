@@ -8,11 +8,14 @@ import os
 
 from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
-from database.models import ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert, NotificationLog
+from database.models import (
+    ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert,
+    NotificationLog, PendingPriceChange, MyPriceHistory,
+)
 from services.email_service import email_service
 from services.webhook_service import send_slack_alert, send_discord_alert, send_slack_digest
 from services.sms_service import send_price_alert_sms
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 import logging
@@ -408,3 +411,145 @@ def send_price_drop_alert(self, product_id: int, match_id: int):
     except Exception as e:
         logger.error("Error sending price drop alert: %s", e)
         return {"success": False, "error": str(e)}
+
+
+@celery_app.task(base=DatabaseTask, bind=True, name="tasks.notification_tasks.send_pending_approvals")
+def send_pending_approvals(self):
+    """Notify users of pending price change suggestions and expire stale ones.
+
+    Runs every 30 minutes. Sends email for changes that haven't been notified yet.
+    Marks as expired when expires_at has passed.
+    """
+    now = datetime.utcnow()
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    api_url = os.getenv("NEXT_PUBLIC_API_URL", "http://localhost:8000")
+
+    expired = self.db.query(PendingPriceChange).filter(
+        PendingPriceChange.status == "pending",
+        PendingPriceChange.expires_at < now,
+    ).all()
+    for change in expired:
+        change.status = "expired"
+    if expired:
+        self.db.commit()
+
+    to_notify = self.db.query(PendingPriceChange).filter(
+        PendingPriceChange.status == "pending",
+        PendingPriceChange.notified_at.is_(None),
+        PendingPriceChange.expires_at > now,
+    ).all()
+
+    product_ids = [c.product_id for c in to_notify]
+    if not product_ids:
+        return {"expired": len(expired), "notified": 0}
+
+    products = {p.id: p for p in self.db.query(ProductMonitored).filter(
+        ProductMonitored.id.in_(product_ids)
+    ).all()}
+
+    from database.models import User
+    user_ids = list({p.user_id for p in products.values() if p.user_id})
+    users = {u.id: u for u in self.db.query(User).filter(User.id.in_(user_ids)).all()}
+
+    notified = 0
+    for change in to_notify:
+        product = products.get(change.product_id)
+        if not product:
+            continue
+        user = users.get(product.user_id)
+        if not user or not user.email:
+            continue
+
+        base = f"{api_url}/api/repricing/pending/approve-link"
+        approve_url = f"{base}?id={change.id}&token={change.approval_token}&action=approve"
+        reject_url  = f"{base}?id={change.id}&token={change.approval_token}&action=reject"
+
+        try:
+            email_service.send_approval_request(
+                to_email=user.email,
+                product_title=product.title,
+                current_price=change.current_price,
+                suggested_price=change.suggested_price,
+                reason=change.reason or "Repricing rule triggered",
+                margin_pct=change.margin_at_suggested,
+                approve_url=approve_url,
+                reject_url=reject_url,
+            )
+            change.notified_at = now
+            notified += 1
+        except Exception as exc:
+            logger.warning("Failed to send approval email for change %s: %s", change.id, exc)
+
+    self.db.commit()
+    return {"expired": len(expired), "notified": notified}
+
+
+@celery_app.task(base=DatabaseTask, bind=True, name="tasks.notification_tasks.auto_apply_approved")
+def auto_apply_approved(self):
+    """Apply approved PendingPriceChanges to products and push to stores.
+
+    Runs every 10 minutes. Applies all changes with status='approved', writes
+    MyPriceHistory, attempts Shopify/WooCommerce sync if connected.
+    """
+    now = datetime.utcnow()
+
+    approved = self.db.query(PendingPriceChange).filter(
+        PendingPriceChange.status == "approved",
+    ).limit(100).all()
+
+    if not approved:
+        return {"applied": 0}
+
+    product_ids = [c.product_id for c in approved]
+    products = {p.id: p for p in self.db.query(ProductMonitored).filter(
+        ProductMonitored.id.in_(product_ids)
+    ).all()}
+
+    applied = 0
+    for change in approved:
+        product = products.get(change.product_id)
+        if not product:
+            change.status = "error"
+            continue
+        old_price = product.my_price
+        product.my_price = change.suggested_price
+        history = MyPriceHistory(
+            product_id=product.id,
+            workspace_id=product.workspace_id,
+            old_price=old_price,
+            new_price=change.suggested_price,
+            note=f"Auto-applied: {change.reason or 'repricing rule'}",
+        )
+        self.db.add(history)
+        change.status = "applied"
+        change.applied_at = now
+        applied += 1
+
+        try:
+            _push_price_to_store(product, change.suggested_price, self.db)
+        except Exception as exc:
+            logger.warning("Store sync failed for product %s: %s", product.id, exc)
+
+    self.db.commit()
+    return {"applied": applied}
+
+
+def _push_price_to_store(product: ProductMonitored, new_price: float, db) -> None:
+    """Best-effort push of new price to Shopify or WooCommerce if connected."""
+    if not product.source_id:
+        return
+    from database.models import StoreConnection
+    connections = db.query(StoreConnection).filter(
+        StoreConnection.workspace_id == product.workspace_id,
+        StoreConnection.is_active == True,
+    ).all()
+    for conn in connections:
+        try:
+            if conn.platform == "shopify":
+                from integrations.shopify_integration import ShopifyIntegration
+                ShopifyIntegration(conn).update_product_price(product.source_id, new_price)
+            elif conn.platform == "woocommerce":
+                from integrations.woocommerce_integration import WooCommerceIntegration
+                WooCommerceIntegration(conn).update_product_price(product.source_id, new_price)
+        except Exception as exc:
+            logger.warning("Price push to %s failed: %s", conn.platform, exc)

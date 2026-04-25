@@ -456,6 +456,26 @@ const api = {
   previewRepricingRule: (payload) =>
     request('/api/repricing/rules/preview', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // Pending price changes
+  getPendingChanges: (status = null) =>
+    request(`/api/repricing/pending${status ? `?status=${status}` : ''}`),
+  approvePendingChange: (id) =>
+    request(`/api/repricing/pending/${id}/approve`, { method: 'POST' }),
+  rejectPendingChange: (id) =>
+    request(`/api/repricing/pending/${id}/reject`, { method: 'POST' }),
+  rollbackPriceChange: (id) =>
+    request(`/api/repricing/pending/${id}/rollback`, { method: 'POST' }),
+
+  // Category pricing profiles
+  getCategoryProfiles: () =>
+    request('/api/repricing/category-profiles'),
+  upsertCategoryProfile: (data) =>
+    request('/api/repricing/category-profiles', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategoryProfile: (id, data) =>
+    request(`/api/repricing/category-profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCategoryProfile: (id) =>
+    request(`/api/repricing/category-profiles/${id}`, { method: 'DELETE' }),
+
   // ─── Notification webhooks ───────────────────────────────────────────────────
   getDigestPreview: (days = 7) =>
     request(`/api/notifications/digest-preview?days=${days}`),

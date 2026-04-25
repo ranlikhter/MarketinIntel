@@ -156,6 +156,21 @@ celery_app.conf.update(
             'schedule': crontab(minute=0, hour='*/4'),
             'options': {'queue': 'integrations'}
         },
+
+        # ── Pending price-change approvals ────────────────────────────────────
+        # Notify users of pending suggestions + expire stale ones every 30 min
+        'send-pending-approvals': {
+            'task': 'tasks.notification_tasks.send_pending_approvals',
+            'schedule': 1800.0,
+            'options': {'queue': 'notifications'}
+        },
+
+        # Apply approved changes + push to Shopify/WooCommerce every 10 min
+        'auto-apply-approved': {
+            'task': 'tasks.notification_tasks.auto_apply_approved',
+            'schedule': 600.0,
+            'options': {'queue': 'notifications'}
+        },
     }
 )
 

@@ -1289,3 +1289,68 @@ Index("idx_pw_workspace_detected",  PriceWar.workspace_id,              PriceWar
 Index("idx_pe_workspace_computed",  ProductElasticity.workspace_id,     ProductElasticity.computed_at)
 Index("idx_wm_user_workspace",      WorkspaceMember.user_id,            WorkspaceMember.workspace_id)
 Index("idx_ak_key_active",          APIKey.key,                         APIKey.is_active)
+
+
+class CategoryPricingProfile(Base):
+    """
+    Table: category_pricing_profiles
+    Category-level cost/margin defaults used as price floors when a product
+    has no individual cost_price set. One row per (workspace, category) pair.
+    """
+    __tablename__ = "category_pricing_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
+    category_name = Column(String(200), nullable=False)   # matches ProductMonitored.category
+    default_cogs_pct = Column(Float, nullable=True)       # COGS as % of my_price (0-100)
+    default_target_margin_pct = Column(Float, nullable=True)  # target gross margin %
+    platform_fee_pct = Column(Float, default=0.0)         # marketplace commission %
+    shipping_cost = Column(Float, default=0.0)            # avg shipping cost $
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    def __repr__(self):
+        return f"<CategoryPricingProfile(workspace={self.workspace_id}, category='{self.category_name}')>"
+
+
+class PendingPriceChange(Base):
+    """
+    Table: pending_price_changes
+    Queue of repricing suggestions awaiting approval. Created by automation rules,
+    cleared by user approval (email one-tap or UI) or auto-applied after expiry
+    in autopilot mode. Keeps rollback_price for one-click undo.
+    """
+    __tablename__ = "pending_price_changes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
+    rule_id = Column(Integer, ForeignKey("repricing_rules.id", ondelete="SET NULL"), nullable=True)
+    current_price = Column(Float, nullable=False)
+    suggested_price = Column(Float, nullable=False)
+    reason = Column(String(500), nullable=True)            # "Amazon dropped to $19.99"
+    margin_at_suggested = Column(Float, nullable=True)     # projected gross margin % shown in email
+    status = Column(String(20), default="pending", index=True)  # pending/approved/rejected/expired/applied
+    approval_token = Column(String(128), unique=True, index=True)  # HMAC signed token for one-tap
+    notified_at = Column(DateTime, nullable=True)          # when email/Slack was sent
+    expires_at = Column(DateTime, nullable=False)
+    applied_at = Column(DateTime, nullable=True)
+    rollback_price = Column(Float, nullable=True)          # original price for undo
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    product = relationship("ProductMonitored", foreign_keys=[product_id])
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+
+    def __repr__(self):
+        return f"<PendingPriceChange(product={self.product_id}, {self.current_price}→{self.suggested_price}, {self.status})>"
+
+
+# ── category_pricing_profiles ───────────────────────────────────────────────
+Index("idx_cpp_workspace_category", CategoryPricingProfile.workspace_id, CategoryPricingProfile.category_name)
+
+# ── pending_price_changes ───────────────────────────────────────────────────
+Index("idx_ppc_workspace_status",   PendingPriceChange.workspace_id,    PendingPriceChange.status)
+Index("idx_ppc_product_status",     PendingPriceChange.product_id,      PendingPriceChange.status)
+Index("idx_ppc_expires_status",     PendingPriceChange.expires_at,      PendingPriceChange.status)

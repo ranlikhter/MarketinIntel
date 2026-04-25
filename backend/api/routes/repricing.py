@@ -3,15 +3,20 @@ Repricing & Bulk Actions API Routes
 Automated pricing and bulk price management
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from pydantic import ConfigDict, BaseModel
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 
 from database.connection import get_db
-from database.models import User, RepricingRule, ProductMonitored, CompetitorMatch
-from api.dependencies import get_current_user
-from services.repricing_service import get_repricing_service
+from database.models import (
+    User, RepricingRule, ProductMonitored, CompetitorMatch,
+    CategoryPricingProfile, PendingPriceChange, MyPriceHistory,
+)
+from api.dependencies import get_current_user, get_current_workspace
+from services.repricing_service import get_repricing_service, verify_approval_token
 from services.activity_service import log_activity
 
 router = APIRouter(prefix="/repricing", tags=["Repricing & Bulk Actions"])
@@ -690,3 +695,269 @@ async def get_map_violations(
         "map_rules_checked": len(map_rules),
         "violations": violations,
     }
+
+
+# ── Category Pricing Profiles ──────────────────────────────────────────────
+
+class CategoryProfileCreate(BaseModel):
+    category_name: str
+    default_cogs_pct: Optional[float] = None
+    default_target_margin_pct: Optional[float] = None
+    platform_fee_pct: float = 0.0
+    shipping_cost: float = 0.0
+
+
+class CategoryProfileUpdate(BaseModel):
+    default_cogs_pct: Optional[float] = None
+    default_target_margin_pct: Optional[float] = None
+    platform_fee_pct: Optional[float] = None
+    shipping_cost: Optional[float] = None
+
+
+@router.get("/category-profiles")
+async def list_category_profiles(
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    profiles = db.query(CategoryPricingProfile).filter(
+        CategoryPricingProfile.workspace_id == current_workspace.workspace_id
+    ).order_by(CategoryPricingProfile.category_name).all()
+    return [
+        {
+            "id": p.id,
+            "category_name": p.category_name,
+            "default_cogs_pct": p.default_cogs_pct,
+            "default_target_margin_pct": p.default_target_margin_pct,
+            "platform_fee_pct": p.platform_fee_pct,
+            "shipping_cost": p.shipping_cost,
+            "created_at": p.created_at,
+            "updated_at": p.updated_at,
+        }
+        for p in profiles
+    ]
+
+
+@router.post("/category-profiles", status_code=201)
+async def create_category_profile(
+    data: CategoryProfileCreate,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    existing = db.query(CategoryPricingProfile).filter(
+        CategoryPricingProfile.workspace_id == current_workspace.workspace_id,
+        CategoryPricingProfile.category_name == data.category_name,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Profile for this category already exists")
+
+    profile = CategoryPricingProfile(
+        workspace_id=current_workspace.workspace_id,
+        **data.model_dump(),
+    )
+    db.add(profile)
+    db.commit()
+    db.refresh(profile)
+    log_activity(db, current_user.id, "category_profile.create",
+                 message=f"Created pricing profile for category '{data.category_name}'")
+    return {"id": profile.id, "category_name": profile.category_name}
+
+
+@router.put("/category-profiles/{profile_id}")
+async def update_category_profile(
+    profile_id: int,
+    data: CategoryProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    profile = db.query(CategoryPricingProfile).filter(
+        CategoryPricingProfile.id == profile_id,
+        CategoryPricingProfile.workspace_id == current_workspace.workspace_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(profile, field, value)
+    db.commit()
+    return {"success": True}
+
+
+@router.delete("/category-profiles/{profile_id}", status_code=204)
+async def delete_category_profile(
+    profile_id: int,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    profile = db.query(CategoryPricingProfile).filter(
+        CategoryPricingProfile.id == profile_id,
+        CategoryPricingProfile.workspace_id == current_workspace.workspace_id,
+    ).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    db.delete(profile)
+    db.commit()
+
+
+# ── Pending Price Changes ─────────────────────────────────────────────────
+
+@router.get("/pending")
+async def list_pending_changes(
+    status: Optional[str] = Query(None, description="Filter by status: pending/approved/rejected/expired/applied"),
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    query = db.query(PendingPriceChange).filter(
+        PendingPriceChange.workspace_id == current_workspace.workspace_id
+    )
+    if status:
+        query = query.filter(PendingPriceChange.status == status)
+    else:
+        query = query.filter(PendingPriceChange.status.in_(["pending", "approved", "applied"]))
+    changes = query.order_by(PendingPriceChange.created_at.desc()).limit(200).all()
+
+    product_ids = [c.product_id for c in changes]
+    products = {p.id: p for p in db.query(ProductMonitored).filter(
+        ProductMonitored.id.in_(product_ids)
+    ).all()} if product_ids else {}
+
+    return [
+        {
+            "id": c.id,
+            "product_id": c.product_id,
+            "product_title": products.get(c.product_id, {}) and products[c.product_id].title,
+            "current_price": c.current_price,
+            "suggested_price": c.suggested_price,
+            "change_pct": round((c.suggested_price - c.current_price) / c.current_price * 100, 1)
+                          if c.current_price else None,
+            "reason": c.reason,
+            "margin_at_suggested": c.margin_at_suggested,
+            "status": c.status,
+            "expires_at": c.expires_at,
+            "applied_at": c.applied_at,
+            "rollback_price": c.rollback_price,
+            "created_at": c.created_at,
+        }
+        for c in changes
+    ]
+
+
+@router.post("/pending/{pending_id}/approve")
+async def approve_pending_change(
+    pending_id: int,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    change = db.query(PendingPriceChange).filter(
+        PendingPriceChange.id == pending_id,
+        PendingPriceChange.workspace_id == current_workspace.workspace_id,
+    ).first()
+    if not change:
+        raise HTTPException(status_code=404, detail="Pending change not found")
+    if change.status != "pending":
+        raise HTTPException(status_code=409, detail=f"Change is already {change.status}")
+    if change.expires_at < datetime.utcnow():
+        change.status = "expired"
+        db.commit()
+        raise HTTPException(status_code=410, detail="Change has expired")
+    change.status = "approved"
+    db.commit()
+    return {"success": True, "message": "Change approved — will be applied within 10 minutes"}
+
+
+@router.post("/pending/{pending_id}/reject")
+async def reject_pending_change(
+    pending_id: int,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    change = db.query(PendingPriceChange).filter(
+        PendingPriceChange.id == pending_id,
+        PendingPriceChange.workspace_id == current_workspace.workspace_id,
+    ).first()
+    if not change:
+        raise HTTPException(status_code=404, detail="Pending change not found")
+    if change.status not in ("pending", "approved"):
+        raise HTTPException(status_code=409, detail=f"Cannot reject a {change.status} change")
+    change.status = "rejected"
+    db.commit()
+    return {"success": True}
+
+
+@router.post("/pending/{pending_id}/rollback")
+async def rollback_applied_change(
+    pending_id: int,
+    current_user: User = Depends(get_current_user),
+    current_workspace=Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    change = db.query(PendingPriceChange).filter(
+        PendingPriceChange.id == pending_id,
+        PendingPriceChange.workspace_id == current_workspace.workspace_id,
+    ).first()
+    if not change:
+        raise HTTPException(status_code=404, detail="Pending change not found")
+    if change.status != "applied":
+        raise HTTPException(status_code=409, detail="Can only rollback applied changes")
+    if not change.rollback_price:
+        raise HTTPException(status_code=400, detail="No rollback price recorded")
+
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == change.product_id
+    ).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    old_price = product.my_price
+    product.my_price = change.rollback_price
+    history = MyPriceHistory(
+        product_id=product.id,
+        workspace_id=product.workspace_id,
+        old_price=old_price,
+        new_price=change.rollback_price,
+        note=f"Rollback of pending change #{pending_id}",
+    )
+    db.add(history)
+    change.status = "rolled_back"
+    db.commit()
+    log_activity(db, current_user.id, "price.rollback",
+                 message=f"Rolled back {product.title} from ${old_price} to ${change.rollback_price}")
+    return {"success": True, "rolled_back_to": change.rollback_price}
+
+
+@router.get("/pending/approve-link")
+async def one_tap_approve(
+    id: int = Query(..., description="PendingPriceChange ID"),
+    token: str = Query(..., description="HMAC approval token"),
+    action: str = Query("approve", description="approve or reject"),
+    db: Session = Depends(get_db),
+):
+    """Public one-tap endpoint — no auth required, verified via HMAC token."""
+    change = db.query(PendingPriceChange).filter(
+        PendingPriceChange.id == id
+    ).first()
+    if not change:
+        raise HTTPException(status_code=404, detail="Change not found")
+    if not verify_approval_token(token, id):
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    if change.status not in ("pending",):
+        return {"success": True, "message": f"Already {change.status} — no action taken"}
+    if change.expires_at < datetime.utcnow():
+        change.status = "expired"
+        db.commit()
+        raise HTTPException(status_code=410, detail="This suggestion has expired")
+
+    change.status = "approved" if action == "approve" else "rejected"
+    db.commit()
+    product = db.query(ProductMonitored).filter(
+        ProductMonitored.id == change.product_id
+    ).first()
+    title = product.title if product else f"Product #{change.product_id}"
+    if action == "approve":
+        return {"success": True, "message": f"'{title}' → ${change.suggested_price} approved. Will apply within 10 min."}
+    return {"success": True, "message": "Suggestion skipped."}
