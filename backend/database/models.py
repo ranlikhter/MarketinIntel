@@ -85,6 +85,7 @@ class ProductMonitored(Base):
     min_price = Column(Float, nullable=True)          # Repricing floor — never go below
     max_price = Column(Float, nullable=True)          # Repricing ceiling — protect margin
     target_margin_pct = Column(Float, nullable=True)  # Target margin % for auto-repricing
+    margin_autopilot = Column(Boolean, nullable=False, default=False, server_default='0')  # When True, auto-apply within floor; pause for approval on breach
 
     # ── GROUP 2: Dimensions / shipping ───────────────────────────────────────
     weight = Column(Float, nullable=True)

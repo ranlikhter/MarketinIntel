@@ -30,11 +30,18 @@ const Ico = {
 
 const EMPTY_FORM = { name: '', strategy: 'match_lowest', adjustment_value: '', adjustment_type: 'percentage', min_price: '', max_price: '', priority: 1 };
 
-function RuleCard({ rule, onToggle, onDelete, onApply }) {
+function RuleCard({ rule, onToggle, onDelete, onApply, onAutopilotToggle }) {
   const [deleting, setDeleting] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [autopiloting, setAutopiloting] = useState(false);
   const stratLabel = STRATEGIES.find(s => s.value === rule.strategy)?.label || rule.strategy;
   const stratStyle = STRATEGY_COLOR[rule.strategy] || 'bg-white/10 text-white/40';
+
+  const handleAutopilot = async () => {
+    setAutopiloting(true);
+    try { await onAutopilotToggle(rule.id, !rule.auto_apply); }
+    finally { setAutopiloting(false); }
+  };
 
   const handleDelete = async () => {
     if (!confirm(`Delete rule "${rule.name}"?`)) return;
@@ -103,7 +110,29 @@ function RuleCard({ rule, onToggle, onDelete, onApply }) {
           </span>
         )}
 
-        <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        {/* Autopilot toggle */}
+        <label className="flex items-center gap-2 mt-3 cursor-pointer" title="Auto-apply within margin floor. Pauses for approval on any floor breach.">
+          <span style={{
+            width: 32, height: 18, borderRadius: 9, flexShrink: 0, position: 'relative',
+            display: 'inline-block',
+            background: rule.auto_apply ? '#f59e0b' : 'var(--border)',
+            transition: 'background 0.2s', opacity: autopiloting ? 0.5 : 1,
+          }}
+            onClick={handleAutopilot}
+          >
+            <span style={{
+              position: 'absolute', top: 2,
+              left: rule.auto_apply ? 16 : 2,
+              width: 14, height: 14, borderRadius: '50%', background: '#fff',
+              transition: 'left 0.2s',
+            }} />
+          </span>
+          <span className="text-xs" style={{ color: rule.auto_apply ? '#f59e0b' : 'var(--text-muted)' }}>
+            Autopilot {rule.auto_apply ? 'ON' : 'OFF'}
+          </span>
+        </label>
+
+        <div className="flex items-center justify-between pt-3 mt-2" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             onClick={() => onToggle(rule.id)}
             className={`text-xs font-medium transition-colors ${rule.is_active ? 'text-white/40 hover:text-white' : 'text-amber-400 hover:text-amber-300'}`}
@@ -419,23 +448,34 @@ export default function RepricingPage() {
   const [pending, setPending] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('rules');
+  const [marginHealth, setMarginHealth] = useState(null);
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [rulesData, productsData] = await Promise.all([
+      const [rulesData, productsData, healthData] = await Promise.all([
         api.request('/api/repricing/rules'),
         api.getProducts(),
+        api.getMarginHealth().catch(() => null),
       ]);
       setRules(rulesData?.rules || rulesData || []);
       setProducts(productsData);
+      setMarginHealth(healthData);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAutopilotToggle = async (ruleId, autoApply) => {
+    await api.request(`/api/repricing/rules/${ruleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ auto_apply: autoApply }),
+    });
+    setRules(rs => rs.map(r => r.id === ruleId ? { ...r, auto_apply: autoApply } : r));
   };
 
   const loadPending = async () => {
@@ -558,6 +598,30 @@ export default function RepricingPage() {
           </div>
         </div>
 
+        {/* P&L / Margin Health banner */}
+        {marginHealth && (marginHealth.floor_enforcements_today > 0 || marginHealth.pending_floor_breaches > 0) && (
+          <div className="rounded-2xl p-4 flex flex-wrap items-center gap-3" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+            <div className="flex-1 min-w-0">
+              <span className="text-xs text-amber-400 font-medium">Margin Floor Active · </span>
+              <span className="text-xs text-white/60">
+                {marginHealth.floor_enforcements_today > 0 && `${marginHealth.floor_enforcements_today} below-cost suggestion${marginHealth.floor_enforcements_today !== 1 ? 's' : ''} blocked today`}
+                {marginHealth.floor_enforcements_today > 0 && marginHealth.pending_floor_breaches > 0 && ' · '}
+                {marginHealth.pending_floor_breaches > 0 && `${marginHealth.pending_floor_breaches} breach${marginHealth.pending_floor_breaches !== 1 ? 'es' : ''} awaiting approval`}
+              </span>
+            </div>
+            {marginHealth.pending_floor_breaches > 0 && (
+              <button
+                onClick={() => setActiveTab('pending')}
+                className="shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium"
+                style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}
+              >
+                Review pending →
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Rules grid */}
         {rules.length === 0 ? (
           <div className="rounded-2xl p-16 text-center" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
@@ -571,7 +635,7 @@ export default function RepricingPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {rules.map(r => (
-              <RuleCard key={r.id} rule={r} onToggle={handleToggle} onDelete={handleDelete} onApply={handleApply} />
+              <RuleCard key={r.id} rule={r} onToggle={handleToggle} onDelete={handleDelete} onApply={handleApply} onAutopilotToggle={handleAutopilotToggle} />
             ))}
           </div>
         )}

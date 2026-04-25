@@ -10,7 +10,7 @@ from celery_app import celery_app
 from tasks.scraping_tasks import DatabaseTask
 from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory, PriceAlert,
-    NotificationLog, PendingPriceChange, MyPriceHistory,
+    NotificationLog, PendingPriceChange, MyPriceHistory, ActivityLog,
 )
 from services.email_service import email_service
 from services.webhook_service import send_slack_alert, send_discord_alert, send_slack_digest
@@ -303,12 +303,32 @@ def send_daily_digest(self):
             .all()
         )
 
+        floor_enforcements = (
+            self.db.query(func.count(ActivityLog.id))
+            .filter(
+                ActivityLog.action == "repricing.floor_enforced",
+                ActivityLog.created_at >= yesterday,
+            )
+            .scalar()
+        ) or 0
+
+        autopilot_applied = (
+            self.db.query(func.count(MyPriceHistory.id))
+            .filter(
+                MyPriceHistory.changed_at >= yesterday,
+                MyPriceHistory.change_reason.ilike("%autopilot%"),
+            )
+            .scalar()
+        ) or 0
+
         digest_data = {
             "date": datetime.utcnow().date().isoformat(),
             "stats": {
                 "products_monitored": scraped_count,
                 "price_updates": price_changes,
                 "competitors_tracked": competitor_count,
+                "floor_enforcements": floor_enforcements,
+                "autopilot_applied": autopilot_applied,
             },
         }
 

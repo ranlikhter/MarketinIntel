@@ -1155,7 +1155,18 @@ export default function ProductDetailPage() {
                             : `↑ $${(aiRec.recommended_price - product.my_price).toFixed(2)} more`}
                         </span>
                       )}
+                      {aiRec.floor_enforced && (
+                        <span className="text-xs font-normal ml-2 px-1.5 py-0.5 rounded" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                          Floor applied
+                        </span>
+                      )}
                     </p>
+                    {aiRec.margin_at_recommended != null && (
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>
+                        Margin at this price: <span className={aiRec.margin_at_recommended >= 20 ? 'text-emerald-400' : aiRec.margin_at_recommended >= 10 ? 'text-amber-400' : 'text-red-400'}>{aiRec.margin_at_recommended.toFixed(1)}%</span>
+                        {aiRec.floor_price && <span> · Floor: ${aiRec.floor_price.toFixed(2)}</span>}
+                      </p>
+                    )}
 
                     {aiRec.reasoning && (
                       <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{aiRec.reasoning}</p>
@@ -1176,6 +1187,74 @@ export default function ProductDetailPage() {
                     </button>
                   </div>
                 )}
+
+                {/* ── Margin & Autopilot ── */}
+                {product.cost_price != null && product.my_price != null && (() => {
+                  const costPrice = product.cost_price;
+                  const targetMargin = product.target_margin_pct;
+                  const floor = targetMargin && targetMargin > 0 && targetMargin < 100
+                    ? costPrice / (1 - targetMargin / 100)
+                    : costPrice;
+                  const currentMargin = ((product.my_price - costPrice) / product.my_price) * 100;
+                  const aboveFloor = product.my_price >= floor;
+                  const handleAutopilotToggle = async () => {
+                    try {
+                      await api.updateProduct(product.id, { margin_autopilot: !product.margin_autopilot });
+                      setProduct(p => ({ ...p, margin_autopilot: !p.margin_autopilot }));
+                      addToast(`Margin Autopilot ${!product.margin_autopilot ? 'enabled' : 'disabled'}`, 'success');
+                    } catch (e) {
+                      addToast('Failed to update autopilot setting', 'error');
+                    }
+                  };
+                  return (
+                    <div className="rounded-xl p-4 mt-3" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                        <p className="text-xs font-semibold text-amber-400">Margin &amp; Autopilot</p>
+                      </div>
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                        <span>COGS: <b className="text-white">${costPrice.toFixed(2)}</b></span>
+                        {targetMargin && <span>Target margin: <b className="text-white">{targetMargin}%</b></span>}
+                        <span>Floor: <b className="text-white">${floor.toFixed(2)}</b></span>
+                        <span>
+                          Current margin:&nbsp;
+                          <b className={currentMargin >= 20 ? 'text-emerald-400' : currentMargin >= 10 ? 'text-amber-400' : 'text-red-400'}>
+                            {currentMargin.toFixed(1)}%
+                          </b>
+                          &nbsp;
+                          <span className={aboveFloor ? 'text-emerald-400' : 'text-red-400'}>
+                            {aboveFloor ? '✓ above floor' : '⚠ below floor'}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 py-2 px-3 rounded-lg" style={{ background: 'rgba(0,0,0,0.2)' }}>
+                        <div>
+                          <p className="text-xs font-medium text-white">Margin Autopilot</p>
+                          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {product.margin_autopilot
+                              ? `Auto-applies changes ≥$${floor.toFixed(2)}. Creates approval on floor breach.`
+                              : 'Enable to auto-apply price changes within your margin floor.'}
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleAutopilotToggle}
+                          style={{
+                            width: 40, height: 22, borderRadius: 11, flexShrink: 0,
+                            background: product.margin_autopilot ? '#f59e0b' : 'var(--border)',
+                            position: 'relative', border: 'none', cursor: 'pointer', transition: 'background 0.2s',
+                          }}
+                        >
+                          <span style={{
+                            position: 'absolute', top: 3,
+                            left: product.margin_autopilot ? 21 : 3,
+                            width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                            transition: 'left 0.2s',
+                          }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* ── Price Elasticity Simulator ── */}
                 {product.my_price != null && (

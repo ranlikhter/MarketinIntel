@@ -146,6 +146,7 @@ _PRODUCT_WRITABLE_FIELDS = [
     "status", "currency", "product_url", "tags", "notes", "is_bundle", "bundle_skus",
     "parent_sku", "variant_attributes",
     "scrape_frequency", "scrape_priority", "track_all_variants", "match_threshold",
+    "margin_autopilot",
 ]
 
 

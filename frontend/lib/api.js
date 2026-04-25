@@ -89,6 +89,16 @@ const api = {
       }),
     }),
 
+  // ─── Margin Autopilot ─────────────────────────────────────────────────────────
+  getMarginHealth: () => request('/api/analytics/margin-health'),
+  getCategoryProfiles: () => request('/api/repricing/category-profiles'),
+  createCategoryProfile: (data) =>
+    request('/api/repricing/category-profiles', { method: 'POST', body: JSON.stringify(data) }),
+  updateCategoryProfile: (id, data) =>
+    request(`/api/repricing/category-profiles/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCategoryProfile: (id) =>
+    request(`/api/repricing/category-profiles/${id}`, { method: 'DELETE' }),
+
   // ─── Competitors ─────────────────────────────────────────────────────────────
   getCompetitorProducts: (filters = {}) => {
     const qs = new URLSearchParams(

@@ -17,6 +17,7 @@ from database.models import (
     ProductMonitored, CompetitorMatch, PriceHistory,
     RepricingRule, User, CategoryPricingProfile, PendingPriceChange
 )
+from services.activity_service import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -447,7 +448,16 @@ class RepricingService:
         max_price: Optional[float],
         map_price: Optional[float]
     ) -> List[Dict]:
-        """Apply min/max/MAP constraints to suggested prices"""
+        """Apply min/max/MAP and margin floor constraints to suggested prices."""
+        # Batch-fetch products once so we can compute per-product floor prices
+        product_ids = [s["product_id"] for s in suggestions if "product_id" in s]
+        products: Dict[int, ProductMonitored] = {}
+        if product_ids:
+            products = {
+                p.id: p for p in
+                self.db.query(ProductMonitored).filter(ProductMonitored.id.in_(product_ids)).all()
+            }
+
         for suggestion in suggestions:
             original_price = suggestion["suggested_price"]
 
@@ -467,8 +477,39 @@ class RepricingService:
                 suggestion["constraint_applied"] = "map_protection"
                 suggestion["map_warning"] = f"Price adjusted to MAP: ${map_price}"
 
+            # Apply margin floor (per-product)
+            product = products.get(suggestion.get("product_id"))
+            if product is not None:
+                floor = self.compute_floor_price(product)
+                if floor is not None and suggestion["suggested_price"] < floor:
+                    if getattr(product, "margin_autopilot", False):
+                        # Autopilot ON: pause and require approval instead of auto-applying
+                        self.create_pending_change(
+                            product, floor, reason="margin_floor_breach"
+                        )
+                        suggestion["skipped"] = True
+                        suggestion["floor_breach"] = True
+                    else:
+                        # Autopilot OFF: silently clamp to floor and log
+                        suggestion["suggested_price"] = floor
+                        suggestion["floor_enforced"] = True
+                        log_activity(
+                            self.db, self.user.id,
+                            "repricing.floor_enforced", "product",
+                            f"Margin floor enforced for '{product.title}'",
+                            entity_type="product", entity_id=product.id,
+                            entity_name=product.title,
+                            metadata={
+                                "floor_price": floor,
+                                "original_suggested": original_price,
+                                "final_price": floor,
+                            },
+                            workspace_id=getattr(product, "workspace_id", None),
+                        )
+                    suggestion["constraint_applied"] = "margin_floor"
+
             # Track if constrained
-            if suggestion["suggested_price"] != original_price:
+            if suggestion["suggested_price"] != original_price and "original_suggested" not in suggestion:
                 suggestion["original_suggested"] = original_price
 
         return suggestions

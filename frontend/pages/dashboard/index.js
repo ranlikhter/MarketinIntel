@@ -55,20 +55,23 @@ export default function ComparisonDashboard() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [quickWins, setQuickWins] = useState(null);
   const [priceWars, setPriceWars] = useState([]);
+  const [marginHealth, setMarginHealth] = useState(null);
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [data, wins, wars] = await Promise.all([
+      const [data, wins, wars, health] = await Promise.all([
         api.getProducts(),
         api.getQuickWins().catch(() => null),
         api.getPriceWars(7).catch(() => null),
+        api.getMarginHealth().catch(() => null),
       ]);
       setProducts(data);
       if (wins) setQuickWins(wins);
       if (wars?.price_wars?.length) setPriceWars(wars.price_wars);
+      if (health) setMarginHealth(health);
       const total = data.length;
       const totalMatches = data.reduce((s, p) => s + (p.competitor_count || 0), 0);
       const withPrices = data.filter(p => p.lowest_price);
@@ -219,6 +222,82 @@ export default function ComparisonDashboard() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Margin Health */}
+        {marginHealth && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(245,158,11,0.12)', background: 'rgba(245,158,11,0.05)' }}>
+              <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <p className="text-sm font-semibold text-amber-400">Margin Health</p>
+              {marginHealth.avg_margin_pct != null && (
+                <span className="ml-auto text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                  Avg {marginHealth.avg_margin_pct}%
+                </span>
+              )}
+            </div>
+            <div className="divide-y" style={{ borderColor: 'rgba(245,158,11,0.1)' }}>
+              {marginHealth.floor_enforcements_today > 0 && (
+                <div className="flex items-center gap-4 px-5 py-3">
+                  <span className="text-base shrink-0">🛡️</span>
+                  <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-white font-medium">{marginHealth.floor_enforcements_today}</span> below-cost suggestion{marginHealth.floor_enforcements_today !== 1 ? 's' : ''} blocked today
+                  </p>
+                </div>
+              )}
+              {marginHealth.autopilot_changes_today > 0 && (
+                <div className="flex items-center gap-4 px-5 py-3">
+                  <span className="text-base shrink-0">⚡</span>
+                  <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-white font-medium">{marginHealth.autopilot_changes_today}</span> price{marginHealth.autopilot_changes_today !== 1 ? 's' : ''} auto-updated by Autopilot
+                  </p>
+                </div>
+              )}
+              {marginHealth.pending_floor_breaches > 0 && (
+                <div className="flex items-center gap-4 px-5 py-3">
+                  <span className="text-base shrink-0">⚠️</span>
+                  <p className="text-sm flex-1 text-amber-400">
+                    {marginHealth.pending_floor_breaches} floor breach{marginHealth.pending_floor_breaches !== 1 ? 'es' : ''} awaiting approval
+                  </p>
+                  <Link href="/repricing?tab=pending"
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#f59e0b' }}>
+                    Review →
+                  </Link>
+                </div>
+              )}
+              {marginHealth.products_below_floor > 0 && (
+                <div className="flex items-center gap-4 px-5 py-3">
+                  <span className="text-base shrink-0">📉</span>
+                  <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-white font-medium">{marginHealth.products_below_floor}</span> product{marginHealth.products_below_floor !== 1 ? 's' : ''} currently priced below floor
+                  </p>
+                </div>
+              )}
+              {marginHealth.products_no_cost > 0 && (
+                <div className="flex items-center gap-4 px-5 py-3">
+                  <span className="text-base shrink-0">○</span>
+                  <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                    <span className="text-white font-medium">{marginHealth.products_no_cost}</span> product{marginHealth.products_no_cost !== 1 ? 's' : ''} missing cost data
+                  </p>
+                  <Link href="/products"
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                    Fill in →
+                  </Link>
+                </div>
+              )}
+              {marginHealth.floor_enforcements_today === 0 && marginHealth.autopilot_changes_today === 0 &&
+               marginHealth.pending_floor_breaches === 0 && marginHealth.products_below_floor === 0 &&
+               marginHealth.products_no_cost === 0 && (
+                <div className="px-5 py-4 text-sm text-center" style={{ color: 'var(--text-muted)' }}>
+                  Add cost data to your products to enable margin tracking.
+                </div>
+              )}
             </div>
           </div>
         )}

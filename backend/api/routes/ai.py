@@ -205,12 +205,34 @@ async def ai_pricing_recommendation(
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"AI service error: {str(e)}")
 
+    # Enforce margin floor on the AI recommendation
+    from services.repricing_service import get_repricing_service
+    svc = get_repricing_service(db, current_user)
+    floor = svc.compute_floor_price(product)
+    rec_price = result.get("recommended_price")
+    if floor and rec_price and rec_price < floor:
+        original_rec = rec_price
+        result["recommended_price"] = floor
+        result["floor_enforced"] = True
+        log_activity(
+            db, current_user.id, "ai.floor_enforced", "product",
+            f"AI recommendation clamped to margin floor for '{product.title}'",
+            entity_type="product", entity_id=product_id, entity_name=product.title,
+            metadata={"floor_price": floor, "original_recommended": original_rec},
+            workspace_id=getattr(product, "workspace_id", None),
+        )
+    result["floor_price"] = floor
+    result["margin_at_recommended"] = svc.compute_margin_at_price(
+        product, result.get("recommended_price")
+    ) if result.get("recommended_price") else None
+
     log_activity(
         db, current_user.id, "ai.recommend", "product",
         f"AI pricing recommendation for '{product.title}'",
         entity_type="product", entity_id=product_id, entity_name=product.title,
         metadata={"recommended_price": result.get("recommended_price"),
-                  "confidence": result.get("confidence")},
+                  "confidence": result.get("confidence"),
+                  "floor_price": floor},
     )
     db.commit()
 

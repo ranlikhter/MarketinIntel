@@ -10,11 +10,12 @@ from typing import Optional
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, User, PriceWar
-from api.dependencies import get_current_user
+from database.models import ProductMonitored, User, PriceWar, ActivityLog, PendingPriceChange, MyPriceHistory
+from api.dependencies import get_current_user, get_current_workspace, ActiveWorkspace
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
-from api.dependencies import get_current_user
+from services.workspace_service import build_scope_predicate
+from sqlalchemy import func, case
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -464,3 +465,85 @@ def simulate_price(
     if "error" in result:
         raise HTTPException(status_code=422, detail=result["error"])
     return result
+
+
+_MARGIN_HEALTH_TTL = 600  # 10 minutes
+
+
+@router.get("/margin-health")
+def get_margin_health(
+    current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """Workspace-scoped margin health summary for the dashboard and repricing P&L banner."""
+    cache_key = f"analytics:margin_health:{current_user.id}:{aw.workspace_id}"
+
+    def compute():
+        from datetime import date
+        scope = build_scope_predicate(
+            ProductMonitored, workspace_id=aw.workspace_id, user_id=current_user.id
+        )
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Average margin % across products with cost data
+        avg_row = db.query(
+            func.avg(
+                (ProductMonitored.my_price - ProductMonitored.cost_price)
+                / ProductMonitored.my_price * 100
+            )
+        ).filter(
+            scope,
+            ProductMonitored.my_price.isnot(None),
+            ProductMonitored.cost_price.isnot(None),
+            ProductMonitored.my_price > 0,
+        ).scalar()
+        avg_margin = round(float(avg_row), 1) if avg_row else None
+
+        # Products currently priced below their own floor
+        products_with_cost = db.query(ProductMonitored).filter(
+            scope,
+            ProductMonitored.my_price.isnot(None),
+            ProductMonitored.cost_price.isnot(None),
+            ProductMonitored.cost_price > 0,
+            ProductMonitored.target_margin_pct.isnot(None),
+        ).all()
+        below_floor = sum(
+            1 for p in products_with_cost
+            if p.my_price < (p.cost_price / (1 - p.target_margin_pct / 100))
+            and 0 < p.target_margin_pct < 100
+        )
+
+        products_no_cost = db.query(func.count(ProductMonitored.id)).filter(
+            scope,
+            ProductMonitored.cost_price.is_(None),
+        ).scalar() or 0
+
+        floor_enforcements_today = db.query(func.count(ActivityLog.id)).filter(
+            ActivityLog.workspace_id == aw.workspace_id,
+            ActivityLog.action == "repricing.floor_enforced",
+            ActivityLog.created_at >= today_start,
+        ).scalar() or 0
+
+        autopilot_changes_today = db.query(func.count(MyPriceHistory.id)).filter(
+            MyPriceHistory.workspace_id == aw.workspace_id,
+            MyPriceHistory.changed_at >= today_start,
+            MyPriceHistory.change_reason.ilike("%autopilot%"),
+        ).scalar() or 0
+
+        pending_floor_breaches = db.query(func.count(PendingPriceChange.id)).filter(
+            PendingPriceChange.workspace_id == aw.workspace_id,
+            PendingPriceChange.status == "pending",
+            PendingPriceChange.reason == "margin_floor_breach",
+        ).scalar() or 0
+
+        return {
+            "avg_margin_pct": avg_margin,
+            "products_below_floor": below_floor,
+            "products_no_cost": int(products_no_cost),
+            "floor_enforcements_today": int(floor_enforcements_today),
+            "autopilot_changes_today": int(autopilot_changes_today),
+            "pending_floor_breaches": int(pending_floor_breaches),
+        }
+
+    return get_cached(cache_key, _MARGIN_HEALTH_TTL, compute)
