@@ -57,24 +57,27 @@ export default function ComparisonDashboard() {
   const [priceWars, setPriceWars] = useState([]);
   const [marginHealth, setMarginHealth] = useState(null);
   const [stockOpps, setStockOpps] = useState(null);
+  const [impact, setImpact] = useState(null);
 
   useEffect(() => { loadDashboardData(); }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [data, wins, wars, health, opps] = await Promise.all([
+      const [data, wins, wars, health, opps, impactData] = await Promise.all([
         api.getProducts(),
         api.getQuickWins().catch(() => null),
         api.getPriceWars(7).catch(() => null),
         api.getMarginHealth().catch(() => null),
         api.getStockOpportunitySummary().catch(() => null),
+        api.getImpactSummary(30).catch(() => null),
       ]);
       setProducts(data);
       if (wins) setQuickWins(wins);
       if (wars?.price_wars?.length) setPriceWars(wars.price_wars);
       if (health) setMarginHealth(health);
       if (opps) setStockOpps(opps);
+      if (impactData) setImpact(impactData);
       const total = data.length;
       const totalMatches = data.reduce((s, p) => s + (p.competitor_count || 0), 0);
       const withPrices = data.filter(p => p.lowest_price);
@@ -345,6 +348,71 @@ export default function ComparisonDashboard() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* MarketIntel Impact Scorecard */}
+        {impact && impact.total_impact_est > 0 && (
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-surface)', border: '1px solid rgba(16,185,129,0.35)' }}>
+            <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: '1px solid rgba(16,185,129,0.15)', background: 'rgba(16,185,129,0.07)' }}>
+              <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <p className="text-sm font-semibold text-emerald-400">MarketIntel Impact</p>
+              <span className="ml-auto text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>last 30 days</span>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-2xl font-bold text-white">${impact.total_impact_est.toFixed(0)}</span>
+                <span className="text-sm font-medium text-emerald-400">total recovered</span>
+                {impact.prev_period_impact > 0 && (
+                  <span className="ml-auto text-xs text-emerald-400">
+                    ↑ {(((impact.total_impact_est - impact.prev_period_impact) / impact.prev_period_impact) * 100).toFixed(0)}% vs last month
+                  </span>
+                )}
+              </div>
+              <div className="divide-y" style={{ borderColor: 'rgba(16,185,129,0.1)' }}>
+                {impact.oos_revenue_captured > 0 && (
+                  <div className="flex items-center gap-3 py-2.5">
+                    <span className="text-base shrink-0">📦</span>
+                    <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>OOS demand captured</p>
+                    <span className="text-sm font-semibold text-white">${impact.oos_revenue_captured.toFixed(0)}</span>
+                  </div>
+                )}
+                {impact.floor_saves_count > 0 && (
+                  <div className="flex items-center gap-3 py-2.5">
+                    <span className="text-base shrink-0">🛡️</span>
+                    <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                      Margin floor saves <span style={{ color: 'rgba(255,255,255,0.3)' }}>({impact.floor_saves_count} events)</span>
+                    </p>
+                    <span className="text-sm font-semibold text-white">${(impact.floor_saves_est ?? 0).toFixed(0)}</span>
+                  </div>
+                )}
+                {impact.repricing_wins_count > 0 && (
+                  <div className="flex items-center gap-3 py-2.5">
+                    <span className="text-base shrink-0">⚡</span>
+                    <p className="text-sm flex-1" style={{ color: 'var(--text-muted)' }}>
+                      Repricing wins <span style={{ color: 'rgba(255,255,255,0.3)' }}>({impact.repricing_wins_count} changes)</span>
+                    </p>
+                    <span className="text-sm font-semibold text-white">
+                      {impact.repricing_delta_avg > 0 ? `+$${impact.repricing_delta_avg.toFixed(2)} avg` : '—'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {impact.biggest_win?.product_title && (
+                <div className="rounded-xl px-4 py-3 flex items-center gap-3"
+                  style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)' }}>
+                  <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 3l14 9-14 9V3z" />
+                  </svg>
+                  <p className="text-xs flex-1 min-w-0" style={{ color: 'var(--text-muted)' }}>
+                    Best win: <span className="text-white font-medium">{impact.biggest_win.product_title}</span>
+                    <span className="text-emerald-400"> +${impact.biggest_win.delta?.toFixed(2)}</span>
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

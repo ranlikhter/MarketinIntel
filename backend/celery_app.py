@@ -32,6 +32,7 @@ celery_app = Celery(
         'tasks.inventory_tasks',
         'tasks.smart_alert_tasks',
         'tasks.discovery_tasks',
+        'tasks.campaign_tasks',
     ]
 )
 
@@ -171,6 +172,14 @@ celery_app.conf.update(
             'schedule': 600.0,
             'options': {'queue': 'notifications'}
         },
+
+        # ── Campaign price scheduler ──────────────────────────────────────────
+        # Check every 60 s for campaigns to start or end
+        'run-scheduled-campaigns': {
+            'task': 'tasks.campaign_tasks.run_scheduled_campaigns',
+            'schedule': 60.0,
+            'options': {'queue': 'notifications'}
+        },
     }
 )
 
@@ -182,6 +191,7 @@ celery_app.conf.task_routes = {
     'tasks.inventory_tasks.*':     {'queue': 'integrations'},
     'tasks.smart_alert_tasks.*':   {'queue': 'alerts'},
     'tasks.discovery_tasks.*':     {'queue': 'scraping'},
+    'tasks.campaign_tasks.*':      {'queue': 'notifications'},
     'check_smart_alerts':          {'queue': 'alerts'},
     'check_user_smart_alerts':     {'queue': 'alerts'},
     'send_daily_digests':          {'queue': 'notifications'},

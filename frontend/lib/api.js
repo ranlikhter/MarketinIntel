@@ -89,6 +89,25 @@ const api = {
       }),
     }),
 
+  // ─── Campaign Price Scheduler ─────────────────────────────────────────────────
+  getCampaigns: (status) =>
+    request(`/api/campaigns${status ? `?status=${status}` : ''}`),
+  createCampaign: (data) =>
+    request('/api/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+  getCampaign: (id) => request(`/api/campaigns/${id}`),
+  previewCampaign: (id) =>
+    request(`/api/campaigns/${id}/preview`, { method: 'POST' }),
+  pauseCampaign: (id) =>
+    request(`/api/campaigns/${id}/pause`, { method: 'POST' }),
+  cancelCampaign: (id) =>
+    request(`/api/campaigns/${id}/cancel`, { method: 'POST' }),
+  deleteCampaign: (id) =>
+    request(`/api/campaigns/${id}`, { method: 'DELETE' }),
+
+  // ─── Revenue Recovery Scorecard ───────────────────────────────────────────────
+  getImpactSummary: (periodDays = 30) =>
+    request(`/api/analytics/impact-summary?period_days=${periodDays}`),
+
   // ─── Stock Opportunities ──────────────────────────────────────────────────────
   getStockOpportunities: (status) =>
     request(`/api/opportunities/stock${status ? `?status=${status}` : ''}`),

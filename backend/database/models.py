@@ -794,6 +794,68 @@ class StockOpportunity(Base):
         return f"<StockOpportunity(id={self.id}, product_id={self.product_id}, status='{self.status}')>"
 
 
+class PriceCampaign(Base):
+    """
+    Table: price_campaigns
+    Time-bounded bulk pricing campaigns (Black Friday, flash sales, clearance).
+    The Celery beat task `run_scheduled_campaigns` starts/ends them automatically.
+    """
+    __tablename__ = "price_campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    template = Column(String(50), nullable=True)  # "black_friday" | "flash_sale" | "clearance" | "custom"
+    status = Column(String(20), default="scheduled", nullable=False, index=True)
+    # "scheduled" | "running" | "completed" | "paused" | "cancelled"
+
+    starts_at = Column(DateTime, nullable=False, index=True)
+    ends_at = Column(DateTime, nullable=False)
+
+    rules = Column(JSON, nullable=False)
+    # e.g. [{"type": "discount_pct", "value": 20}]
+    #       [{"type": "discount_fixed", "value": 5.00}]
+    #       [{"type": "set_price", "value": 19.99}]
+
+    product_filter = Column(JSON, nullable=True)
+    # e.g. {"all": true} | {"category": "Electronics"} | {"tags": ["sale"]} | {"skus": ["SKU-001"]}
+
+    products_affected = Column(Integer, default=0)  # populated at launch
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    workspace = relationship("Workspace", foreign_keys=[workspace_id])
+    snapshots = relationship("CampaignProductSnapshot", back_populates="campaign", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<PriceCampaign(id={self.id}, name='{self.name}', status='{self.status}')>"
+
+
+class CampaignProductSnapshot(Base):
+    """
+    Table: campaign_product_snapshots
+    Records each product's price before a campaign starts so it can be
+    reverted exactly when the campaign ends.
+    """
+    __tablename__ = "campaign_product_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("price_campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products_monitored.id", ondelete="CASCADE"), nullable=False)
+
+    price_before = Column(Float, nullable=False)   # price at campaign launch — used for revert
+    price_applied = Column(Float, nullable=True)   # price actually applied (may differ due to floor)
+    pushed_at = Column(DateTime, nullable=True)    # when store push succeeded (null = not yet pushed)
+
+    campaign = relationship("PriceCampaign", back_populates="snapshots")
+    product = relationship("ProductMonitored", foreign_keys=[product_id])
+
+    def __repr__(self):
+        return f"<CampaignProductSnapshot(campaign_id={self.campaign_id}, product_id={self.product_id})>"
+
+
 class MyPriceHistory(Base):
     """
     Table: my_price_history

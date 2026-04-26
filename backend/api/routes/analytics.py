@@ -10,7 +10,7 @@ from typing import Optional
 from datetime import datetime
 
 from database.connection import get_db
-from database.models import ProductMonitored, User, PriceWar, ActivityLog, PendingPriceChange, MyPriceHistory
+from database.models import ProductMonitored, User, PriceWar, ActivityLog, PendingPriceChange, MyPriceHistory, StockOpportunity
 from api.dependencies import get_current_user, get_current_workspace, ActiveWorkspace
 from services.price_analytics import PriceAnalytics
 from services.cache_service import get_cached
@@ -547,3 +547,157 @@ def get_margin_health(
         }
 
     return get_cached(cache_key, _MARGIN_HEALTH_TTL, compute)
+
+
+# ── Revenue Recovery Scorecard ────────────────────────────────────────────────
+
+_IMPACT_TTL = 600  # 10 minutes
+
+
+@router.get("/impact-summary")
+def impact_summary(
+    period_days: int = 30,
+    current_user: User = Depends(get_current_user),
+    aw: ActiveWorkspace = Depends(get_current_workspace),
+    db: Session = Depends(get_db),
+):
+    """
+    Revenue recovered/saved by MarketIntel over the given period.
+    Reads ActivityLog, StockOpportunity, PendingPriceChange, MyPriceHistory.
+    No new models required.
+    """
+    cache_key = f"analytics:impact:{current_user.id}:{aw.workspace_id}:{period_days}"
+
+    def compute():
+        from datetime import timedelta
+        period_start = datetime.utcnow() - timedelta(days=period_days)
+        prev_start = datetime.utcnow() - timedelta(days=period_days * 2)
+
+        ws_id = aw.workspace_id
+
+        # ── OOS captures ──────────────────────────────────────────────────────
+        oos_q = (
+            db.query(
+                func.sum(StockOpportunity.price_applied - StockOpportunity.price_before),
+                func.count(StockOpportunity.id),
+            )
+            .filter(
+                StockOpportunity.workspace_id == ws_id,
+                StockOpportunity.status.in_(["applied", "closed"]),
+                StockOpportunity.detected_at >= period_start,
+                StockOpportunity.price_applied.isnot(None),
+                StockOpportunity.price_before.isnot(None),
+            )
+            .one()
+        )
+        oos_revenue = round(float(oos_q[0] or 0), 2)
+        oos_count = int(oos_q[1] or 0)
+
+        # Best OOS win
+        best_oos = (
+            db.query(StockOpportunity, ProductMonitored)
+            .join(ProductMonitored, StockOpportunity.product_id == ProductMonitored.id)
+            .filter(
+                StockOpportunity.workspace_id == ws_id,
+                StockOpportunity.status.in_(["applied", "closed"]),
+                StockOpportunity.detected_at >= period_start,
+                StockOpportunity.price_applied.isnot(None),
+            )
+            .order_by((StockOpportunity.price_applied - StockOpportunity.price_before).desc())
+            .first()
+        )
+
+        # ── Margin floor saves ────────────────────────────────────────────────
+        floor_saves_count = int(
+            db.query(func.count(ActivityLog.id))
+            .filter(
+                ActivityLog.workspace_id == ws_id,
+                ActivityLog.action == "repricing.floor_enforced",
+                ActivityLog.created_at >= period_start,
+            )
+            .scalar() or 0
+        )
+
+        # ── Repricing wins (applied PendingPriceChanges) ───────────────────────
+        repricing_q = (
+            db.query(
+                func.count(PendingPriceChange.id),
+                func.avg(PendingPriceChange.suggested_price - PendingPriceChange.current_price),
+            )
+            .filter(
+                PendingPriceChange.workspace_id == ws_id,
+                PendingPriceChange.status == "applied",
+                PendingPriceChange.applied_at >= period_start,
+            )
+            .one()
+        )
+        repricing_count = int(repricing_q[0] or 0)
+        repricing_avg_delta = round(float(repricing_q[1] or 0), 2)
+
+        # ── Autopilot price changes ───────────────────────────────────────────
+        autopilot_count = int(
+            db.query(func.count(MyPriceHistory.id))
+            .filter(
+                MyPriceHistory.workspace_id == ws_id,
+                MyPriceHistory.changed_at >= period_start,
+                MyPriceHistory.note.ilike("%autopilot%"),
+            )
+            .scalar() or 0
+        )
+
+        # ── Previous period OOS (for MoM) ─────────────────────────────────────
+        prev_oos = db.query(
+            func.sum(StockOpportunity.price_applied - StockOpportunity.price_before)
+        ).filter(
+            StockOpportunity.workspace_id == ws_id,
+            StockOpportunity.status.in_(["applied", "closed"]),
+            StockOpportunity.detected_at >= prev_start,
+            StockOpportunity.detected_at < period_start,
+            StockOpportunity.price_applied.isnot(None),
+        ).scalar() or 0
+
+        prev_repricing = db.query(
+            func.count(PendingPriceChange.id),
+        ).filter(
+            PendingPriceChange.workspace_id == ws_id,
+            PendingPriceChange.status == "applied",
+            PendingPriceChange.applied_at >= prev_start,
+            PendingPriceChange.applied_at < period_start,
+        ).scalar() or 0
+
+        total_impact = round(
+            oos_revenue
+            + (floor_saves_count * 5.0)    # conservative $5 estimate per floor save
+            + (repricing_count * max(repricing_avg_delta, 0)),
+            2,
+        )
+        prev_impact = round(
+            float(prev_oos)
+            + (float(prev_repricing) * max(repricing_avg_delta, 0)),
+            2,
+        )
+
+        biggest_win = None
+        if best_oos:
+            opp, prod = best_oos
+            biggest_win = {
+                "product_title": prod.title,
+                "delta": round((opp.price_applied or 0) - (opp.price_before or 0), 2),
+                "type": "oos",
+            }
+
+        return {
+            "period_days": period_days,
+            "oos_revenue_captured": oos_revenue,
+            "oos_count": oos_count,
+            "floor_saves_count": floor_saves_count,
+            "floor_saves_est": round(floor_saves_count * 5.0, 2),
+            "repricing_wins_count": repricing_count,
+            "repricing_delta_avg": repricing_avg_delta,
+            "autopilot_changes": autopilot_count,
+            "total_impact_est": total_impact,
+            "prev_period_impact": prev_impact,
+            "biggest_win": biggest_win,
+        }
+
+    return get_cached(cache_key, _IMPACT_TTL, compute)
